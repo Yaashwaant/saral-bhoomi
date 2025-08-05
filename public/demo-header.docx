@@ -1,0 +1,14 @@
+SARAL BHOOMI - GOVERNMENT OF MAHARASHTRA
+LAND ACQUISITION NOTICE
+
+[HEADER_PLACEHOLDER]
+
+Date: [DATE]
+Notice Number: [NOTICE_NUMBER]
+Project: [PROJECT_NAME]
+Village: [VILLAGE_NAME]
+Taluka: [TALUKA_NAME]
+District: [DISTRICT_NAME]
+
+This is a demo header file for SARAL Bhoomi notice generation.
+The system will replace placeholders with actual data from CSV files. 
