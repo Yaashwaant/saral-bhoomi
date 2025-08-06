@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import User from '../models/User.js';
 
-dotenv.config({ path: '../config.env' });
+dotenv.config({ path: './config.env' });
 
 const run = async () => {
   await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/saral_bhoomi', {

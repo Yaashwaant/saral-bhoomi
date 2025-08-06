@@ -29,6 +29,7 @@ export interface Project {
 
 export interface LandownerRecord {
   id: string;
+  _id?: string; // MongoDB ObjectId
   projectId: string;
   खातेदाराचे_नांव: string; // landowner_name
   सर्वे_नं: string; // survey_number
@@ -45,9 +46,12 @@ export interface LandownerRecord {
   noticeGenerated: boolean;
   noticeNumber?: string;
   noticeDate?: Date;
+  noticeContent?: string;
+  noticePdfUrl?: string;
   kycStatus: 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
   paymentStatus: 'pending' | 'initiated' | 'success' | 'failed';
   assignedAgent?: string;
+  assignedAt?: Date;
   documentsUploaded: boolean;
   paymentInitiated?: boolean;
   transactionId?: string;
@@ -131,7 +135,13 @@ interface SaralContextType {
   
   // Agent Assignment
   assignAgent: (landownerId: string, agentId: string) => Promise<boolean>;
-  getAssignedRecords: (agentId: string) => LandownerRecord[];
+  assignAgentWithNotice: (landownerId: string, agentId: string, noticeData: {
+    noticeNumber: string;
+    noticeDate: Date;
+    noticeContent: string;
+  }) => Promise<boolean>;
+  getAssignedRecords: (agentId: string) => Promise<LandownerRecord[]>;
+  getAssignedRecordsWithNotices: (agentId: string) => Promise<LandownerRecord[]>;
   
   // Statistics
   getProjectStats: () => {
@@ -218,21 +228,26 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      // Load records for all projects
-      const allRecords: LandownerRecord[] = [];
-      for (const project of projects) {
-        try {
-          const response = await apiCall(`/csv/project/${project.id}`);
-          allRecords.push(...(response.data || []));
-        } catch (err) {
-          // If API fails, use demo data for this project
-          const demoRecords = demoLandownerRecords.filter(r => r.projectId === project.id);
-          allRecords.push(...demoRecords);
-        }
+      
+      // Use the new landowners API endpoint
+      const response = await apiCall('/landowners/list');
+      console.log('Landowners API response:', response);
+      
+      if (response.success && response.records) {
+        // Map MongoDB _id to frontend id for each record
+        const mappedRecords = response.records.map((record: any) => ({
+          ...record,
+          id: record._id || record.id // Use MongoDB _id as the primary id
+        }));
+        
+        setLandownerRecords(mappedRecords);
+        console.log('Loaded landowner records:', mappedRecords);
+      } else {
+        console.log('No records from API, using demo data');
+        setLandownerRecords(demoLandownerRecords);
       }
-      setLandownerRecords(allRecords);
     } catch (err) {
-      console.log('Using demo landowner records data');
+      console.log('API failed, using demo landowner records data');
       setLandownerRecords(demoLandownerRecords);
     } finally {
       setLoading(false);
@@ -681,8 +696,139 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     }
   };
 
-  const getAssignedRecords = (agentId: string): LandownerRecord[] => {
-    return landownerRecords.filter(r => r.assignedAgent === agentId);
+  // Enhanced agent assignment with notice data
+  const assignAgentWithNotice = async (
+    landownerId: string, 
+    agentId: string, 
+    noticeData: {
+      noticeNumber: string;
+      noticeDate: Date;
+      noticeContent: string;
+    }
+  ): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Assigning agent with notice data:', { landownerId, agentId, noticeData });
+
+      // Make API call to assign agent
+      const response = await apiCall('/agents/assign', {
+        method: 'PUT',
+        body: JSON.stringify({
+          landownerId: landownerId, // This should be the real database _id
+          agentId: agentId,
+          noticeData
+        })
+      });
+
+      console.log('Agent assignment API response:', response);
+
+      // Check if the API call was successful
+      if (response.success && response.data) {
+        // Update local state with the response data
+        setLandownerRecords(prev => prev.map(r => 
+          r.id === landownerId
+            ? { 
+                ...r, 
+                assignedAgent: agentId,
+                assignedAt: new Date(),
+                kycStatus: 'in_progress' as const,
+                noticeNumber: noticeData.noticeNumber,
+                noticeDate: noticeData.noticeDate,
+                noticeContent: noticeData.noticeContent,
+                noticeGenerated: true
+              }
+            : r
+        ));
+        return true;
+      } else {
+        // API call failed
+        console.error('API call failed:', response.message || 'Unknown error');
+        setError(response.message || 'Failed to assign agent');
+        return false;
+      }
+    } catch (err) {
+      console.error('Failed to assign agent with notice data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to assign agent with notice data');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getAssignedRecords = async (agentId: string): Promise<LandownerRecord[]> => {
+    try {
+      console.log('Fetching assigned records for agent:', agentId);
+      
+      const response = await apiCall('/agents/assigned');
+      console.log('API response for assigned records:', response);
+      
+      if (response.success) {
+        // Map the response data to include proper IDs
+        const records = Array.isArray(response.data) ? response.data : [];
+        return records.map((record: any) => ({
+          ...record,
+          id: record._id || record.id
+        }));
+      }
+      
+      return [];
+    } catch (err) {
+      console.error('Failed to fetch assigned records:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch assigned records');
+      return [];
+    }
+  };
+
+  // Enhanced function to get assigned records with notice information from new collection
+  const getAssignedRecordsWithNotices = async (agentId: string): Promise<LandownerRecord[]> => {
+    try {
+      console.log('Fetching assigned records with notices for agent:', agentId);
+      
+      const response = await apiCall(`/agents/assigned-with-notices?agentId=${agentId}`);
+      console.log('API response for assigned records with notices:', response);
+      
+      if (response.success) {
+        console.log('Notice assignments from new collection:', response.data);
+        
+        // Transform NoticeAssignment data to LandownerRecord format for compatibility
+        const transformedRecords = (response.data || []).map((assignment: any) => ({
+          id: assignment.landownerId, // Use frontend ID directly
+          projectId: assignment.projectId,
+          खातेदाराचे_नांव: assignment.landownerName,
+          सर्वे_नं: assignment.surveyNumber,
+          क्षेत्र: assignment.area,
+          संपादित_क्षेत्र: assignment.area,
+          दर: '0',
+          संरचना_झाडे_विहिरी_रक्कम: '0',
+          एकूण_मोबदला: assignment.compensationAmount,
+          सोलेशियम_100: '0',
+          अंतिम_रक्कम: assignment.compensationAmount,
+          village: assignment.village,
+          taluka: assignment.taluka,
+          district: assignment.district,
+          noticeGenerated: true,
+          noticeNumber: assignment.noticeNumber,
+          noticeDate: assignment.noticeDate,
+          noticeContent: assignment.noticeContent,
+          kycStatus: assignment.kycStatus,
+          paymentStatus: 'pending',
+          assignedAgent: assignment.assignedAgent,
+          assignedAt: assignment.assignedAt,
+          documentsUploaded: assignment.documentsUploaded,
+          noticePdfUrl: assignment.noticePdfUrl
+        }));
+        
+        return transformedRecords;
+      }
+      
+      return [];
+    } catch (err) {
+      console.error('Failed to fetch assigned records with notices:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch assigned records with notices');
+      return [];
+    }
   };
 
   const getProjectStats = () => {
@@ -723,7 +869,9 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     processRTGSPayment,
     getVillageSummary,
     assignAgent,
+    assignAgentWithNotice,
     getAssignedRecords,
+    getAssignedRecordsWithNotices,
     getProjectStats,
     loading,
     error

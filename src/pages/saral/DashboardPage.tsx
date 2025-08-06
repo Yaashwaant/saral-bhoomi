@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AdminDashboard from '@/components/saral/admin/AdminDashboard';
 import OfficerDashboard from '@/components/saral/officer/OfficerDashboard';
-import AgentDashboard from '@/components/saral/agent/AgentDashboard';
+import SimpleAgentDashboard from '@/components/saral/agent/SimpleAgentDashboard';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -23,7 +23,7 @@ const DashboardPage = () => {
     case 'officer':
       return <OfficerDashboard />;
     case 'agent':
-      return <AgentDashboard />;
+      return <SimpleAgentDashboard />;
     default:
       return (
         <div className="flex items-center justify-center min-h-screen">

@@ -1,22 +1,409 @@
 import express from 'express';
+import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import LandownerRecord from '../models/LandownerRecord.js';
+import Project from '../models/Project.js';
+import { authorize } from '../middleware/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
 
-// Placeholder GET route
-router.get('/', (req, res) => {
-  res.json({ message: 'Notices route - to be implemented' });
+// Configure multer for notice header upload
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/notices');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'notice-header-' + uniqueSuffix + path.extname(file.originalname));
+  }
 });
 
-// Demo POST /api/notices route for notice generation
-router.post('/', (req, res) => {
-  // You can log or inspect req.body here if needed
-  res.status(200).json({
-    success: true,
-    message: 'Notices generated successfully (demo)',
-    generatedNotices: [],
-    noticesGenerated: 1,
-    noticesFailed: 0,
-    errors: []
-  });
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.docx', '.doc', '.pdf'];
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(fileExt)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only DOCX, DOC, and PDF files are allowed'));
+    }
+  }
 });
 
-export default router; 
+// @desc    Generate notices for project landowners
+// @route   POST /api/notices/generate/:projectId
+// @access  Public (temporarily)
+router.post('/generate/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { 
+      noticeTemplate, 
+      headerContent, 
+      customContent,
+      targetRecords, // Optional: specific record IDs to generate notices for
+      overwrite = false 
+    } = req.body;
+
+    // Validate project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Build query for landowner records
+    let query = { projectId };
+    if (targetRecords && targetRecords.length > 0) {
+      query._id = { $in: targetRecords };
+    }
+    
+    // If not overwriting, only target records without notices
+    if (!overwrite) {
+      query.noticeGenerated = { $ne: true };
+    }
+
+    const records = await LandownerRecord.find(query);
+
+    if (records.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No eligible records found for notice generation'
+      });
+    }
+
+    const generatedNotices = [];
+    const errors = [];
+    let noticeCounter = 1;
+
+    // Generate notices for each record
+    for (const record of records) {
+      try {
+        const noticeNumber = `${project.pmisCode}/NOTICE/${new Date().getFullYear()}/${String(noticeCounter).padStart(4, '0')}`;
+        const noticeDate = new Date();
+
+        // Generate notice content based on template
+        let noticeContent = '';
+        
+        if (noticeTemplate === 'standard') {
+          noticeContent = generateStandardNoticeContent(record, project, headerContent);
+        } else if (noticeTemplate === 'custom' && customContent) {
+          noticeContent = generateCustomNoticeContent(record, project, customContent);
+        } else {
+          noticeContent = generateDefaultNoticeContent(record, project);
+        }
+
+        // Update the record with notice information
+        await LandownerRecord.findByIdAndUpdate(record._id, {
+          noticeGenerated: true,
+          noticeNumber,
+          noticeDate,
+          noticeContent
+        });
+
+        generatedNotices.push({
+          recordId: record._id,
+          landownerName: record.खातेदाराचे_नांव,
+          surveyNumber: record.सर्वे_नं,
+          noticeNumber,
+          noticeDate,
+          village: record.village
+        });
+
+        noticeCounter++;
+      } catch (error) {
+        errors.push({
+          recordId: record._id,
+          landownerName: record.खातेदाराचे_नांव,
+          error: error.message
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully generated ${generatedNotices.length} notices`,
+      data: {
+        projectId,
+        generatedNotices,
+        noticesGenerated: generatedNotices.length,
+        noticesFailed: errors.length,
+        errors
+      }
+    });
+
+  } catch (error) {
+    console.error('Generate notices error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while generating notices'
+    });
+  }
+});
+
+// @desc    Get notices for a project
+// @route   GET /api/notices/project/:projectId
+// @access  Public (temporarily)
+router.get('/project/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { 
+      page = 1, 
+      limit = 10, 
+      village, 
+      noticeGenerated = true 
+    } = req.query;
+
+    // Build filter
+    const filter = { 
+      projectId,
+      noticeGenerated: noticeGenerated === 'true'
+    };
+    if (village) filter.village = village;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const records = await LandownerRecord.find(filter)
+      .select('खातेदाराचे_नांव सर्वे_नं village noticeNumber noticeDate noticeContent assignedAgent')
+      .populate('assignedAgent', 'name email')
+      .sort({ noticeDate: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await LandownerRecord.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      count: records.length,
+      total,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit))
+      },
+      data: records
+    });
+
+  } catch (error) {
+    console.error('Get project notices error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching notices'
+    });
+  }
+});
+
+// @desc    Get individual notice
+// @route   GET /api/notices/:recordId
+// @access  Public (temporarily)
+router.get('/:recordId', async (req, res) => {
+  try {
+    const { recordId } = req.params;
+
+    const record = await LandownerRecord.findById(recordId)
+      .populate('projectId', 'projectName pmisCode')
+      .populate('assignedAgent', 'name email phone');
+
+    if (!record || !record.noticeGenerated) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notice not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        noticeNumber: record.noticeNumber,
+        noticeDate: record.noticeDate,
+        noticeContent: record.noticeContent,
+        landownerName: record.खातेदाराचे_नांव,
+        surveyNumber: record.सर्वे_नं,
+        area: record.क्षेत्र,
+        compensation: record.अंतिम_रक्कम,
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district,
+        project: record.projectId,
+        assignedAgent: record.assignedAgent
+      }
+    });
+
+  } catch (error) {
+    console.error('Get notice error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching notice'
+    });
+  }
+});
+
+// @desc    Upload notice header template
+// @route   POST /api/notices/upload-header
+// @access  Public (temporarily)
+router.post('/upload-header', upload.single('headerFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload a header file'
+      });
+    }
+
+    const { version = '1.0', description = '' } = req.body;
+
+    // In a real implementation, you would save this to a NoticeHeader model
+    const headerInfo = {
+      fileName: req.file.originalname,
+      filePath: req.file.path,
+      version,
+      description,
+      uploadedAt: new Date(),
+      uploadedBy: req.user?.id || '674e23a1b8e8c9e8c9e8c9e8', // Default to a test user ID when auth is disabled
+      isActive: true
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Header template uploaded successfully',
+      data: headerInfo
+    });
+
+  } catch (error) {
+    console.error('Upload header error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading header'
+    });
+  }
+});
+
+// @desc    Get notice statistics for project
+// @route   GET /api/notices/stats/:projectId
+// @access  Public (temporarily)
+router.get('/stats/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const stats = await LandownerRecord.aggregate([
+      { $match: { projectId } },
+      {
+        $group: {
+          _id: null,
+          totalRecords: { $sum: 1 },
+          noticesGenerated: { $sum: { $cond: ['$noticeGenerated', 1, 0] } },
+          noticesPending: { $sum: { $cond: ['$noticeGenerated', 0, 1] } }
+        }
+      }
+    ]);
+
+    const villageStats = await LandownerRecord.aggregate([
+      { $match: { projectId } },
+      {
+        $group: {
+          _id: '$village',
+          totalRecords: { $sum: 1 },
+          noticesGenerated: { $sum: { $cond: ['$noticeGenerated', 1, 0] } }
+        }
+      },
+      { $sort: { totalRecords: -1 } }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        overview: stats[0] || {
+          totalRecords: 0,
+          noticesGenerated: 0,
+          noticesPending: 0
+        },
+        byVillage: villageStats
+      }
+    });
+
+  } catch (error) {
+    console.error('Get notice stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching notice statistics'
+    });
+  }
+});
+
+// Helper function to generate standard notice content
+function generateStandardNoticeContent(record, project, headerContent = '') {
+  const currentDate = new Date().toLocaleDateString('hi-IN');
+  
+  return `${headerContent}
+
+नोटीस क्रमांक: ${record.noticeNumber || 'TBG'}
+दिनांक: ${currentDate}
+
+प्रति,
+श्री/श्रीमती ${record.खातेदाराचे_नांव}
+गाव: ${record.village}
+तालुका: ${record.taluka}
+जिल्हा: ${record.district}
+
+विषय: ${project.projectName} - भूमि संपादन नोटीस
+
+महोदय/महोदया,
+
+आपल्याला कळवण्यात येत आहे की, ${project.projectName} या प्रकल्पासाठी आपली खालील जमीन संपादनासाठी निवडण्यात आली आहे:
+
+सर्वे नंबर: ${record.सर्वे_नं}
+क्षेत्रफळ: ${record.क्षेत्र}
+संपादित क्षेत्रफळ: ${record.संपादित_क्षेत्र}
+मोबदला: ₹${record.अंतिम_रक्कम}
+
+कृपया आवश्यक कागदपत्रे घेऊन नजीकच्या कार्यालयात संपर्क साधावा.
+
+आवश्यक कागदपत्रे:
+1. जमिनीचा ७/१२ उतारा
+2. ओळखपत्राच्या प्रती
+3. बँक पासबुकची प्रत
+4. इतर संबंधित कागदपत्रे
+
+धन्यवाद,
+
+प्राधिकृत अधिकारी
+${project.location?.district || ''} जिल्हा
+`;
+}
+
+// Helper function to generate custom notice content
+function generateCustomNoticeContent(record, project, customTemplate) {
+  return customTemplate
+    .replace(/\{landowner_name\}/g, record.खातेदाराचे_नांव)
+    .replace(/\{survey_number\}/g, record.सर्वे_नं)
+    .replace(/\{area\}/g, record.क्षेत्र)
+    .replace(/\{acquired_area\}/g, record.संपादित_क्षेत्र)
+    .replace(/\{compensation\}/g, record.अंतिम_रक्कम)
+    .replace(/\{village\}/g, record.village)
+    .replace(/\{taluka\}/g, record.taluka)
+    .replace(/\{district\}/g, record.district)
+    .replace(/\{project_name\}/g, project.projectName)
+    .replace(/\{pmis_code\}/g, project.pmisCode)
+    .replace(/\{current_date\}/g, new Date().toLocaleDateString('hi-IN'));
+}
+
+// Helper function to generate default notice content
+function generateDefaultNoticeContent(record, project) {
+  return generateStandardNoticeContent(record, project);
+}
+
+export default router;

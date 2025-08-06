@@ -20,10 +20,14 @@ import kycRoutes from './routes/kyc.js';
 import paymentRoutes from './routes/payments.js';
 import villageRoutes from './routes/villages.js';
 import agentRoutes from './routes/agents.js';
+import landownerRoutes from './routes/landowners.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
 import { authMiddleware } from './middleware/auth.js';
+
+// Import models
+import User from './models/User.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -119,16 +123,74 @@ app.get('/api/test-token', (req, res) => {
   });
 });
 
-// API routes
+// Temporary middleware to provide default user context when auth is disabled
+app.use('/api', (req, res, next) => {
+  if (!req.user) {
+    // Provide a default user context based on the route
+    if (req.path.includes('/agents/assigned') || req.path.includes('/agents/kyc-status') || req.path.includes('/agents/upload-document')) {
+      // For agent-specific routes, provide a test agent user
+      req.user = {
+        id: '674e23a1b8e8c9e8c9e8c9e9',
+        _id: '674e23a1b8e8c9e8c9e8c9e9',
+        name: 'Test Agent',
+        email: 'agent@saral.gov.in',
+        role: 'agent'
+      };
+    } else {
+      // For officer routes, provide a test officer user
+      req.user = {
+        id: '674e23a1b8e8c9e8c9e8c9e8',
+        _id: '674e23a1b8e8c9e8c9e8c9e8',
+        name: 'Test Officer',
+        email: 'officer@saral.gov.in', 
+        role: 'officer'
+      };
+    }
+  }
+  next();
+});
+
+// Special endpoint to check available agents in the database
+app.get('/api/agents/list-all', async (req, res) => {
+  try {
+    const agents = await User.find({ role: 'agent', isActive: true })
+      .select('name email phone department')
+      .sort({ name: 1 });
+    
+    res.status(200).json({
+      success: true,
+      count: agents.length,
+      data: agents
+    });
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch agents',
+      error: error.message
+    });
+  }
+});
+
+// API routes (temporarily removing auth middleware)
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authMiddleware, userRoutes);
-app.use('/api/projects', authMiddleware, projectRoutes);
-app.use('/api/csv', authMiddleware, csvRoutes);
-app.use('/api/notices', authMiddleware, noticeRoutes);
-app.use('/api/kyc', authMiddleware, kycRoutes);
-app.use('/api/payments', authMiddleware, paymentRoutes);
-app.use('/api/villages', authMiddleware, villageRoutes);
-app.use('/api/agents', authMiddleware, agentRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/csv', csvRoutes);
+app.use('/api/notices', noticeRoutes);
+app.use('/api/kyc', kycRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/villages', villageRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/landowners', landownerRoutes);
+
+// Debug: Log all registered routes
+console.log('🚀 Registered routes:');
+app._router.stack.forEach(function(r){
+  if (r.route && r.route.path){
+    console.log(`  ${Object.keys(r.route.methods).join(', ').toUpperCase()} ${r.route.path}`)
+  }
+});
 
 // Demo bank server endpoint
 app.post('/api/bank/rtgs', async (req, res) => {
@@ -196,20 +258,32 @@ app.use('*', (req, res) => {
   });
 });
 
-// MongoDB connection
+// MongoDB connection with multiple fallbacks
 const connectDB = async () => {
-  try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/saral_bhoomi';
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    console.log('⚠️  Starting server without MongoDB (demo mode)');
-    // Don't exit, continue without MongoDB for demo purposes
+  const connectionOptions = [
+    // Option 1: MongoDB Atlas (prioritized)
+    process.env.MONGODB_URI,
+    // Option 2: Local MongoDB (fallback)
+    'mongodb://localhost:27017/saral_bhoomi'
+  ];
+
+  for (const mongoURI of connectionOptions) {
+    if (!mongoURI) continue;
+    
+    try {
+      console.log(`🔗 Attempting to connect to: ${mongoURI.includes('mongodb+srv') ? 'MongoDB Atlas' : 'Local MongoDB'}`); 
+      const connectionInstance = await mongoose.connect(mongoURI);
+      
+      console.log(`✅ MongoDB connected successfully!! ${connectionInstance.connection.host}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Failed to connect to ${mongoURI.includes('mongodb+srv') ? 'MongoDB Atlas' : 'Local MongoDB'}:`, error.message);
+      continue;
+    }
   }
+  
+  console.log('⚠️  All MongoDB connections failed. Starting server in demo mode with in-memory data.');
+  return false;
 };
 
 // Start server

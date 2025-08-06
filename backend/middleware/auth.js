@@ -10,6 +10,8 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     if (!token) {
+      console.log("No token found");
+      
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this route'
@@ -71,7 +73,9 @@ export const authMiddleware = async (req, res, next) => {
 };
 
 export const authorize = (...roles) => {
+  
   return (req, res, next) => {
+    console.log("Authorizing user $req.user.role with roles:", roles);
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,

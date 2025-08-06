@@ -25,6 +25,7 @@ import KYCApprovalQueue from './KYCApprovalQueue';
 import PaymentInitiation from './PaymentInitiation';
 import SurveyNumberManager from './SurveyNumberManager';
 import NoticeGenerator from './NoticeGenerator';
+import SimpleAgentAssignment from './SimpleAgentAssignment';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -152,15 +153,24 @@ const OfficerDashboard = () => {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Welcome Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">
-            {t.welcome}, {user?.name}
-          </h1>
-          <p className="text-gray-600">{t.dashboard}</p>
+        <div className="mb-6 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">
+              {t.welcome}, {user?.name}
+            </h1>
+            <p className="text-gray-600">{t.dashboard}</p>
+          </div>
+          <Button 
+            onClick={() => setActiveTab('csv')}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            CSV Upload
+          </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8 bg-white border border-orange-200">
+          <TabsList className="grid w-full grid-cols-9 bg-white border border-orange-200">
             <TabsTrigger value="overview" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
               {t.overview}
             </TabsTrigger>
@@ -184,6 +194,9 @@ const OfficerDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
               {t.payments}
+            </TabsTrigger>
+            <TabsTrigger value="agents" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
+              Agent Assignment
             </TabsTrigger>
           </TabsList>
 
@@ -354,6 +367,10 @@ const OfficerDashboard = () => {
 
           <TabsContent value="payments">
             <PaymentInitiation />
+          </TabsContent>
+
+          <TabsContent value="agents">
+            <SimpleAgentAssignment />
           </TabsContent>
         </Tabs>
       </div>

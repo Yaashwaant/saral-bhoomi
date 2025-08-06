@@ -23,9 +23,13 @@ import {
   MapPin,
   IndianRupee,
   CheckSquare,
-  Square
+  Square,
+  Receipt,
+  UserCheck,
+  Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { NoticeBasedKycRecord, DEFAULT_KYC_DOCUMENTS, KycUploadedDocument } from '@/types/enhancedKyc';
 
 interface DocumentUpload {
   id: string;
@@ -43,11 +47,16 @@ const AgentDashboard = () => {
   const [assignedRecords, setAssignedRecords] = useState<any[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [showNoticeDialog, setShowNoticeDialog] = useState(false);
+  const [showNoticeContent, setShowNoticeContent] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadingDocuments, setUploadingDocuments] = useState<string[]>([]);
   const [uploadedDocuments, setUploadedDocuments] = useState<DocumentUpload[]>([]);
 
-  const requiredDocuments = [
+  // Use enhanced KYC documents
+  const requiredDocuments = DEFAULT_KYC_DOCUMENTS;
+  
+  // Legacy documents for backward compatibility
+  const legacyRequiredDocuments = [
     { 
       id: '7_12_extract', 
       name: '७/१२ उतारा', 
@@ -339,9 +348,9 @@ const AgentDashboard = () => {
   };
 
   const stats = {
-    total: assignedRecords.length,
-    pending: assignedRecords.filter(r => !r.documentsUploaded).length,
-    completed: assignedRecords.filter(r => r.documentsUploaded).length
+    total: Array.isArray(assignedRecords) ? assignedRecords.length : 0,
+    pending: Array.isArray(assignedRecords) ? assignedRecords.filter(r => !r.documentsUploaded).length : 0,
+    completed: Array.isArray(assignedRecords) ? assignedRecords.filter(r => r.documentsUploaded).length : 0
   };
 
   return (
@@ -428,7 +437,7 @@ const AgentDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {assignedRecords.length === 0 ? (
+                {!Array.isArray(assignedRecords) || assignedRecords.length === 0 ? (
                   <div className="text-center py-8">
                     <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">{t.noRecords}</p>
@@ -447,7 +456,7 @@ const AgentDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {assignedRecords.map((record) => (
+                      {Array.isArray(assignedRecords) && assignedRecords.map((record) => (
                         <TableRow key={record.id}>
                           <TableCell className="font-medium">{record.खातेदाराचे_नांव}</TableCell>
                           <TableCell>{record.सर्वे_नं}</TableCell>

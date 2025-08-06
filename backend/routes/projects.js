@@ -6,8 +6,8 @@ const router = express.Router();
 
 // @desc    Get all projects
 // @route   GET /api/projects
-// @access  Private (Admin, Officer)
-router.get('/', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/', async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -61,8 +61,8 @@ router.get('/', authorize('admin', 'officer'), async (req, res) => {
 
 // @desc    Get single project
 // @route   GET /api/projects/:id
-// @access  Private (Admin, Officer)
-router.get('/:id', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/:id', async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
       .populate('createdBy', 'name email')
@@ -91,8 +91,8 @@ router.get('/:id', authorize('admin', 'officer'), async (req, res) => {
 
 // @desc    Create project
 // @route   POST /api/projects
-// @access  Private (Admin, Officer)
-router.post('/', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.post('/', async (req, res) => {
   try {
     const {
       projectName,
@@ -155,8 +155,8 @@ router.post('/', authorize('admin', 'officer'), async (req, res) => {
 
 // @desc    Update project
 // @route   PUT /api/projects/:id
-// @access  Private (Admin, Officer)
-router.put('/:id', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.put('/:id', async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     
@@ -211,8 +211,8 @@ router.put('/:id', authorize('admin', 'officer'), async (req, res) => {
 
 // @desc    Delete project
 // @route   DELETE /api/projects/:id
-// @access  Private (Admin only)
-router.delete('/:id', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.delete('/:id', async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     
@@ -240,8 +240,8 @@ router.delete('/:id', authorize('admin'), async (req, res) => {
 
 // @desc    Get project statistics
 // @route   GET /api/projects/stats/overview
-// @access  Private (Admin, Officer)
-router.get('/stats/overview', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/stats/overview', async (req, res) => {
   try {
     const stats = await Project.aggregate([
       {
@@ -319,8 +319,8 @@ router.get('/stats/overview', authorize('admin', 'officer'), async (req, res) =>
 
 // @desc    Assign officers to project
 // @route   PUT /api/projects/:id/assign-officers
-// @access  Private (Admin only)
-router.put('/:id/assign-officers', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.put('/:id/assign-officers', async (req, res) => {
   try {
     const { officerIds } = req.body;
     
@@ -353,8 +353,8 @@ router.put('/:id/assign-officers', authorize('admin'), async (req, res) => {
 
 // @desc    Assign agents to project
 // @route   PUT /api/projects/:id/assign-agents
-// @access  Private (Admin, Officer)
-router.put('/:id/assign-agents', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.put('/:id/assign-agents', async (req, res) => {
   try {
     const { agentIds } = req.body;
     

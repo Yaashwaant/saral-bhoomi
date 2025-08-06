@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaral } from '@/contexts/SaralContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,8 @@ import {
   Eye,
   Trash2,
   Play,
-  Pause
+  Pause,
+  Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,37 +36,11 @@ interface CSVData {
   village: string;
   taluka: string;
   district: string;
-  // Extended format fields
-  नमुना_7_12_नुसार_जमिनीचे_क्षेत्र?: string;
-  संपादित_जमिनीचे_क्षेत्र?: string;
-  जमिनीचा_प्रकार?: string;
-  नीचा_बिनशेती?: string;
-  मंजुर_दर_प्रति_हेक्टर?: string;
-  संपादित_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमु?: string;
-  कलम_26_2_नुसार_गावा?: string;
-  कलम_26_9X10_नुसार_जमिनीचा_मोबदला?: string;
-  बांधकामे_संख्या?: string;
-  बांधकामे_रक्कम_रुपये?: string;
-  वनझाडे_झाडांची_संख्या?: string;
-  वनझाडे_झाडांची_रक्कम?: string;
-  फळझाडे_झाडांची_संख्या?: string;
-  फळझाडे_झाडांची_रक्कम?: string;
-  विहिरी_बो_सं?: string;
-  विहिरी_बो_रक्कम?: string;
-  एकुण_रक्कम_13_15_17_19?: string;
-  एकुण_रक्कम_11_20?: string;
-  सौ_सोलेशियम_दिलासा_रक्कम?: string;
-  निर्धारित_मोबदला_23?: string;
-  एकुण_रक्कमेवर_25_वाढीव_मोबदला?: string;
-  एकुण_मोबदला_23_24?: string;
-  वजावट_हितसंबंधि_ताला_अदा_रक्कम?: string;
-  एकुण_मोबदला_रक्कम_रुपये?: string;
-  शेरा?: string;
 }
 
 const CSVUploadManager = () => {
   const { user } = useAuth();
-  const { projects, uploadCSV, landownerRecords } = useSaral();
+  const { projects = [], uploadCSV, landownerRecords = [] } = useSaral();
   const [selectedProject, setSelectedProject] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -73,6 +48,13 @@ const CSVUploadManager = () => {
   const [csvData, setCsvData] = useState<CSVData[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // New state for agent assignment
+  const [agents, setAgents] = useState<any[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [generateNotices, setGenerateNotices] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const translations = {
     marathi: {
@@ -83,36 +65,17 @@ const CSVUploadManager = () => {
       dragDrop: 'फाईल ड्रॅग करा किंवा क्लिक करा',
       supportedFormats: 'समर्थित फॉर्मेट्स: .csv, .xlsx',
       maxSize: 'कमाल आकार: 10MB',
-      requiredHeaders: 'आवश्यक हेडर्स:',
-      landownerName: 'खातेदाराचे नांव',
-      surveyNumber: 'स.नं. / हि.नं. / ग.नं.',
-      area: 'क्षेत्र (हे.आर)',
-      acquiredArea: 'संपादित क्षेत्र (चौ.मी / हे.आर)',
-      rate: 'दर (₹)',
-      structuresAmount: 'संरचना, झाडे, विहिरी रक्कम',
-      compensationAmount: 'एकूण मोबदला',
-      solatium: '100% सोलेशियम',
-      finalCompensation: 'अंतिम रक्कम',
-      process: 'प्रक्रिया करा',
-      cancel: 'रद्द करा',
-      preview: 'पूर्वावलोकन',
-      validation: 'पडताळणी',
-      errors: 'त्रुटी',
-      success: 'यशस्वी',
-      failed: 'अयशस्वी',
-      records: 'नोंदी',
-      totalRecords: 'एकूण नोंदी',
-      validRecords: 'वैध नोंदी',
-      invalidRecords: 'अवैध नोंदी',
-      generateNotices: 'नोटीस तयार करा',
       downloadTemplate: 'टेम्पलेट डाउनलोड करा',
-      noProjectSelected: 'कृपया प्रकल्प निवडा',
-      noFileSelected: 'कृपया फाईल निवडा',
+      generateNotices: 'नोटीस तयार करा',
+      assignAgent: 'एजंट नियुक्त करा',
+      selectAgent: 'एजंट निवडा',
+      optionalAssignment: 'ऐच्छिक नियुक्ती',
+      process: 'प्रक्रिया करा',
       processing: 'प्रक्रिया करत आहे...',
       uploadSuccess: 'फाईल यशस्वीरित्या अपलोड झाली',
       uploadFailed: 'फाईल अपलोड अयशस्वी',
-      validationFailed: 'पडताळणी अयशस्वी',
-      noticesGenerated: 'नोटीस यशस्वीरित्या तयार झाल्या'
+      noProjectSelected: 'कृपया प्रकल्प निवडा',
+      noFileSelected: 'कृपया फाईल निवडा'
     },
     english: {
       title: 'CSV Upload Management',
@@ -122,126 +85,34 @@ const CSVUploadManager = () => {
       dragDrop: 'Drag and drop file or click to browse',
       supportedFormats: 'Supported formats: .csv, .xlsx',
       maxSize: 'Max size: 10MB',
-      requiredHeaders: 'Required Headers:',
-      landownerName: 'Landowner Name',
-      surveyNumber: 'Survey Number',
-      area: 'Area (Ha.Ar)',
-      acquiredArea: 'Acquired Area (sq.m / Ha.Ar)',
-      rate: 'Rate (₹)',
-      structuresAmount: 'Structures, Trees, Wells Amount',
-      compensationAmount: 'Total Compensation',
-      solatium: '100% Solatium',
-      finalCompensation: 'Final Amount',
-      process: 'Process',
-      cancel: 'Cancel',
-      preview: 'Preview',
-      validation: 'Validation',
-      errors: 'Errors',
-      success: 'Success',
-      failed: 'Failed',
-      records: 'Records',
-      totalRecords: 'Total Records',
-      validRecords: 'Valid Records',
-      invalidRecords: 'Invalid Records',
-      generateNotices: 'Generate Notices',
       downloadTemplate: 'Download Template',
-      noProjectSelected: 'Please select a project',
-      noFileSelected: 'Please select a file',
+      generateNotices: 'Generate Notices',
+      assignAgent: 'Assign Agent',
+      selectAgent: 'Select Agent',
+      optionalAssignment: 'Optional Assignment',
+      process: 'Process',
       processing: 'Processing...',
       uploadSuccess: 'File uploaded successfully',
       uploadFailed: 'File upload failed',
-      validationFailed: 'Validation failed',
-      noticesGenerated: 'Notices generated successfully'
-    },
-    hindi: {
-      title: 'CSV अपलोड प्रबंधन',
-      subtitle: 'Parishisht-K फॉर्मेट में CSV फाइल अपलोड करें',
-      selectProject: 'परियोजना चुनें',
-      uploadFile: 'फाइल अपलोड करें',
-      dragDrop: 'फाइल को खींचें और छोड़ें या ब्राउज़ करने के लिए क्लिक करें',
-      supportedFormats: 'समर्थित फॉर्मेट: .csv, .xlsx',
-      maxSize: 'अधिकतम आकार: 10MB',
-      requiredHeaders: 'आवश्यक हेडर:',
-      landownerName: 'भूमि मालिक का नाम',
-      surveyNumber: 'सर्वेक्षण संख्या',
-      area: 'क्षेत्र (हे.आर)',
-      acquiredArea: 'अधिग्रहित क्षेत्र (वर्ग मी / हे.आर)',
-      rate: 'दर (₹)',
-      structuresAmount: 'संरचना, पेड़, कुओं की राशि',
-      compensationAmount: 'कुल मुआवजा',
-      solatium: '100% सोलेशियम',
-      finalCompensation: 'अंतिम राशि',
-      process: 'प्रक्रिया करें',
-      cancel: 'रद्द करें',
-      preview: 'पूर्वावलोकन',
-      validation: 'सत्यापन',
-      errors: 'त्रुटियां',
-      success: 'सफल',
-      failed: 'असफल',
-      records: 'रिकॉर्ड',
-      totalRecords: 'कुल रिकॉर्ड',
-      validRecords: 'वैध रिकॉर्ड',
-      invalidRecords: 'अमान्य रिकॉर्ड',
-      generateNotices: 'नोटिस जनरेट करें',
-      downloadTemplate: 'टेम्पलेट डाउनलोड करें',
-      noProjectSelected: 'कृपया एक परियोजना चुनें',
-      noFileSelected: 'कृपया एक फाइल चुनें',
-      processing: 'प्रक्रिया कर रहा है...',
-      uploadSuccess: 'फाइल सफलतापूर्वक अपलोड की गई',
-      uploadFailed: 'फाइल अपलोड विफल',
-      validationFailed: 'सत्यापन विफल',
-      noticesGenerated: 'नोटिस सफलतापूर्वक जनरेट किए गए'
+      noProjectSelected: 'Please select a project',
+      noFileSelected: 'Please select a file'
     }
   };
 
-  const t = translations[user?.language || 'marathi'];
+  // Safe translation access with fallback
+  const t = translations?.[user?.language || 'marathi'] || translations.english;
 
-  const requiredHeaders = [
-    'खातेदाराचे_नांव',
-    'सर्वे_नं',
-    'क्षेत्र',
-    'संपादित_क्षेत्र',
-    'दर',
-    'संरचना_झाडे_विहिरी_रक्कम',
-    'एकूण_मोबदला',
-    'सोलेशियम_100',
-    'अंतिम_रक्कम',
-    'village',
-    'taluka',
-    'district'
-  ];
-
-  // Define the new CSV header fields in the correct order
-  const extendedHeaders = [
-    'खातेदाराचे_नांव',
-    'स.नं./हि.नं./ग.नं.',
-    'गांव',
-    'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र',
-    'संपादित_जमिनीचे_क्षेत्र',
-    'जमिनीचा_प्रकार',
-    'जमिनीचा_प्रकार_शेती_बिनशेती',
-    'मंजुर_केलेला_दर',
-    'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य',
-    'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक',
-    'कलम_26_नुसार_जमिनीचा_मोबदला',
-    'बांधकामे_संख्या',
-    'बांधकामे_रक्कम',
-    'वनझाडे_संख्या',
-    'वनझाडे_रक्कम',
-    'फळझाडे_संख्या',
-    'फळझाडे_रक्कम',
-    'विहिरी_संख्या',
-    'विहिरी_रक्कम',
-    'एकुण_रक्कम_13_15_17_19',
-    'एकुण_रक्कम_11_20',
-    'सोलेशियम_100',
-    'निर्धारित_मोबदला',
-    'एकुण_रक्कमेवर_25_वाढीव_मोबदला',
-    'एकुण_मोबदला',
-    'वजावट_रक्कम',
-    'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम',
-    'शेरा',
-  ];
+  const loadAgents = async () => {
+    try {
+      const response = await fetch('/api/agents/list');
+      const data = await response.json();
+      if (data.success) {
+        setAgents(data.agents || []);
+      }
+    } catch (err) {
+      console.error('Error loading agents:', err);
+    }
+  };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -269,32 +140,12 @@ const CSVUploadManager = () => {
     setProgress(0);
     
     try {
-      // Simulate CSV processing
+      // Read the actual CSV file
       const text = await file.text();
       const lines = text.split('\n');
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
       
       console.log('CSV Headers found:', headers);
-      console.log('Required headers:', requiredHeaders);
-      
-      // Validate headers - check for both basic and extended formats
-      const missingBasicHeaders = requiredHeaders.filter(header => !headers.includes(header));
-      const missingExtendedHeaders = extendedHeaders.filter(header => !headers.includes(header));
-      
-      if (missingBasicHeaders.length > 0 && missingExtendedHeaders.length > 0) {
-        setValidationErrors([
-          `Missing required headers: ${missingBasicHeaders.join(', ')}`,
-          'Please ensure your CSV file has all required columns in the correct format.',
-          'You can download the template to see the correct format.',
-          'For comprehensive Parishisht-K format, all extended headers are required.'
-        ]);
-        setIsProcessing(false);
-        return;
-      }
-      
-      // Check if this is extended format
-      const isExtendedFormat = extendedHeaders.every(header => headers.includes(header));
-      console.log('CSV Format detected:', isExtendedFormat ? 'Extended Parishisht-K' : 'Basic');
       
       // Parse CSV data
       const data: CSVData[] = [];
@@ -312,12 +163,14 @@ const CSVUploadManager = () => {
       
       setCsvData(data);
       setValidationErrors([]);
-      toast.success(t.uploadSuccess);
+      toast.success(`CSV file processed successfully - ${data.length} records found`);
     } catch (error) {
-      toast.error(t.uploadFailed);
+      console.error('Error processing CSV:', error);
+      toast.error('Error processing CSV file');
       setValidationErrors(['Failed to process CSV file']);
     } finally {
       setIsProcessing(false);
+      setProgress(0);
     }
   };
 
@@ -331,75 +184,113 @@ const CSVUploadManager = () => {
       toast.error(t.noFileSelected);
       return;
     }
-    
-    if (validationErrors.length > 0) {
-      toast.error(t.validationFailed);
-      return;
-    }
-    
+
     setIsProcessing(true);
-    setProgress(0);
     
     try {
-      // Simulate processing
-      for (let i = 0; i <= 100; i += 10) {
-        setProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 100));
+      const formData = new FormData();
+      formData.append('csvFile', uploadedFile);
+      formData.append('assignToAgent', selectedAgent ? 'true' : 'false');
+      if (selectedAgent) {
+        formData.append('agentId', selectedAgent);
       }
+      formData.append('generateNotice', generateNotices ? 'true' : 'false');
+
+      const response = await fetch(`/api/csv/upload-with-assignment/${selectedProject}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
       
-      await uploadCSV(selectedProject, uploadedFile);
-      toast.success(t.uploadSuccess);
+      if (data.success) {
+        toast.success(t.uploadSuccess);
+        setCsvData([]);
+        setUploadedFile(null);
+        setSelectedProject('');
+        setSelectedAgent('');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } else {
+        toast.error(data.message || t.uploadFailed);
+      }
     } catch (error) {
+      console.error('Error uploading CSV:', error);
       toast.error(t.uploadFailed);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleGenerateNotices = async () => {
-    if (!selectedProject) {
-      toast.error(t.noProjectSelected);
-      return;
-    }
-    
-    setIsProcessing(true);
-    setProgress(0);
-    
-    try {
-      // Simulate notice generation
-      for (let i = 0; i <= 100; i += 20) {
-        setProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      toast.success(t.noticesGenerated);
-    } catch (error) {
-      toast.error('Failed to generate notices');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const downloadTemplate = () => {
-    const basicTemplate = `खातेदाराचे_नांव,सर्वे_नं,क्षेत्र,संपादित_क्षेत्र,दर,संरचना_झाडे_विहिरी_रक्कम,एकूण_मोबदला,सोलेशियम_100,अंतिम_रक्कम,village,taluka,district
-कमळी कमळाकर मंडळ,40,0.1850,0.0504,53100000,0,4010513,4010513,8021026,उंबरपाडा नंदाडे,पालघर,पालघर
-राम शामराव पाटील,41,0.2000,0.0600,53100000,50000,4600000,4600000,9200000,उंबरपाडा नंदाडे,पालघर,पालघर`;
-    
-    const extendedTemplate = `खातेदाराचे_नांव,सर्वे_नं,नमुना_7_12_नुसार_जमिनीचे_क्षेत्र,संपादित_जमिनीचे_क्षेत्र,जमिनीचा_प्रकार,नीचा_बिनशेती,मंजुर_दर_प्रति_हेक्टर,संपादित_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमु,कलम_26_2_नुसार_गावा,कलम_26_9X10_नुसार_जमिनीचा_मोबदला,बांधकामे_संख्या,बांधकामे_रक्कम_रुपये,वनझाडे_झाडांची_संख्या,वनझाडे_झाडांची_रक्कम,फळझाडे_झाडांची_संख्या,फळझाडे_झाडांची_रक्कम,विहिरी_बो_सं,विहिरी_बो_रक्कम,एकुण_रक्कम_13_15_17_19,एकुण_रक्कम_11_20,सौ_सोलेशियम_दिलासा_रक्कम,निर्धारित_मोबदला_23,एकुण_रक्कमेवर_25_वाढीव_मोबदला,एकुण_मोबदला_23_24,वजावट_हितसंबंधि_ताला_अदा_रक्कम,एकुण_मोबदला_रक्कम_रुपये,शेरा,village,taluka,district
-कमळी कमळाकर मंडळ,40,0.1850,0.0504,शेती,शेती / वर्ग -1,53100000,4010513,4010513,0,0,0,0,0,0,0,0,0,4010513,4010513,8021026,2005256,10026282,0,10026282,उंबरपाडा नंदाडे,पालघर,पालघर
-गंगूबाई गंगाराम परेड,30/4,0.1500,0.0450,शेती,शेती / वर्ग -2,53100000,2389500,2389500,0,0,0,0,0,0,0,0,0,2389500,2389500,4779000,1194750,5973750,0,5973750,उंबरपाडा नंदाडे,पालघर,पालघर`;
-    
-    // Download extended template by default since it matches your document format
-    const blob = new Blob([extendedTemplate], { type: 'text/csv' });
+    const csvContent = `खातेदाराचे_नांव,सर्वे_नं,गांव,नमुना_7_12_नुसार_जमिनीचे_क्षेत्र,संपादित_जमिनीचे_क्षेत्र,जमिनीचा_प्रकार,जमिनीचा_प्रकार_शेती_बिनशेती,मंजुर_केलेला_दर,संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य,कलम_26_2_नुसार_गावास_लागु_असलेले_गणक,कलम_26_नुसार_जमिनीचा_मोबदला,बांधकामे_संख्या,बांधकामे_रक्कम,वनझाडे_संख्या,वनझाडे_रक्कम,फळझाडे_संख्या,फळझाडे_रक्कम,विहिरी_संख्या,विहिरी_रक्कम,एकुण_रक्कम_13_15_17_19,एकुण_रक्कम_11_20,सोलेशियम_100,निर्धारित_मोबदला,एकुण_रक्कमेवर_25_वाढीव_मोबदला,एकुण_मोबदला,वजावट_रक्कम,हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम,शेरा,village,taluka,district
+राजेश पाटील,123,नांदे,2.5,1.2,शेती,शेती / वर्ग -1,53100000,63600000,63600000,63600000,2,50000,5,25000,3,15000,1,10000,100000,63600000,6360000,69960000,17490000,87450000,0,87450000,नांदे,पालघर,पालघर
+प्रिया शर्मा,124,नांदे,1.8,0.9,शेती,शेती / वर्ग -2,53100000,47790000,47790000,47790000,1,30000,3,15000,2,10000,0,0,55000,47790000,4779000,52569000,13142250,65711250,0,65711250,नांदे,पालघर,पालघर
+अमित पटेल,125,नांदे,3.2,1.5,शेती,शेती / वर्ग -1,53100000,79650000,79650000,79650000,3,75000,8,40000,5,25000,2,20000,160000,79650000,7965000,87615000,21903750,109518750,0,109518750,नांदे,पालघर,पालघर
+सुनीता वर्मा,126,नांदे,2.0,1.0,बिनशेती,बिनशेती / वर्ग -1,53100000,53100000,53100000,53100000,1,40000,2,12000,1,8000,0,0,60000,53100000,5310000,58410000,14602500,73012500,0,73012500,नांदे,पालघर,पालघर
+रमेश कुमार,127,नांदे,1.5,0.8,शेती,शेती / वर्ग -3,53100000,42480000,42480000,42480000,0,0,1,5000,1,5000,0,0,10000,42480000,4248000,46728000,11682000,58410000,0,58410000,नांदे,पालघर,पालघर`;
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'parishisht-k-extended-template.csv';
+    a.download = 'parishisht-k-complete-template.csv';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
     
-    toast.success('Extended Parishisht-K template downloaded successfully');
+    toast.success('Complete Parishisht-K template downloaded successfully');
   };
+
+  // Load agents on component mount
+  useEffect(() => {
+    const initializeComponent = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        await loadAgents();
+      } catch (err) {
+        console.error('Error initializing component:', err);
+        setError('Failed to load component data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    initializeComponent();
+  }, []);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading CSV Upload Manager...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-center items-center h-64">
+          <div className="text-center">
+            <AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-4" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -428,172 +319,153 @@ const CSVUploadManager = () => {
             {/* Project Selection */}
             <div className="space-y-2">
               <Label htmlFor="project">{t.selectProject}</Label>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.projectName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {projects && projects.length > 0 ? (
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(projects || []).map((project) => (
+                      <SelectItem key={project?.id || project?._id} value={project?.id || project?._id}>
+                        {project?.projectName || 'Unknown Project'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+                  Loading projects...
+                </div>
+              )}
             </div>
 
             {/* File Upload */}
             <div className="space-y-2">
-              <Label>{t.uploadFile}</Label>
-              <div 
-                className="border-2 border-dashed border-orange-200 rounded-lg p-6 text-center hover:border-orange-400 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">{t.dragDrop}</p>
-                <p className="text-xs text-gray-500 mt-1">{t.supportedFormats}</p>
-                <p className="text-xs text-gray-500">{t.maxSize}</p>
-              </div>
-              <input
+              <Label htmlFor="file">{t.uploadFile}</Label>
+              <Input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv,.xlsx"
                 onChange={handleFileSelect}
-                className="hidden"
+                className="cursor-pointer"
               />
+              <p className="text-sm text-gray-500">{t.supportedFormats}</p>
+              <p className="text-sm text-gray-500">{t.maxSize}</p>
             </div>
 
-            {/* Progress */}
+            {/* Notice Generation Option */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="generateNotices"
+                checked={generateNotices}
+                onChange={(e) => setGenerateNotices(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="generateNotices">{t.generateNotices}</Label>
+            </div>
+
+            {/* Agent Assignment Option */}
+            {agents && agents.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="agent">{t.selectAgent}</Label>
+                <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t.optionalAssignment} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(agents || []).map((agent) => (
+                      <SelectItem key={agent?._id} value={agent?._id}>
+                        {agent?.name || 'Unknown Agent'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Process Button */}
+            <Button 
+              onClick={handleProcess}
+              disabled={isProcessing || !selectedProject || !uploadedFile || (csvData || []).length === 0}
+              className="w-full bg-orange-600 hover:bg-orange-700"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {t.processing}
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload & Generate Notices
+                </>
+              )}
+            </Button>
+
+            {/* Progress Bar */}
             {isProcessing && (
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>{t.processing}</span>
-                  <span>{Math.round(progress)}%</span>
-                </div>
-                <Progress value={progress} className="h-2" />
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-600">{progress}% Complete</p>
               </div>
             )}
-
-            {/* Actions */}
-            <div className="flex space-x-2">
-              <Button 
-                onClick={handleProcess}
-                disabled={!selectedProject || !uploadedFile || isProcessing}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {t.process}
-              </Button>
-              <Button 
-                onClick={handleGenerateNotices}
-                disabled={!selectedProject || csvData.length === 0 || isProcessing}
-                variant="outline"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                {t.generateNotices}
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Validation & Preview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span>{t.validation}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Validation Status */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{t.totalRecords}</span>
-                <Badge variant="outline">{csvData.length}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{t.validRecords}</span>
-                <Badge className="bg-green-100 text-green-700">
-                  {csvData.length - validationErrors.length}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{t.invalidRecords}</span>
-                <Badge className="bg-red-100 text-red-700">
-                  {validationErrors.length}
-                </Badge>
-              </div>
-            </div>
-
-            {/* Errors */}
-            {validationErrors.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-red-600">{t.errors}</Label>
-                <div className="space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <div key={index} className="flex items-center space-x-2 text-sm text-red-600">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>{error}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Required Headers */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">{t.requiredHeaders}</Label>
-              <div className="grid grid-cols-2 gap-1 text-xs">
-                {requiredHeaders.map((header, index) => (
-                  <div key={index} className="flex items-center space-x-1">
-                    <CheckCircle className="h-3 w-3 text-green-600" />
-                    <span className="text-gray-600">{header}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Preview */}
-      {csvData.length > 0 && (
+        {/* Preview Section */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Eye className="h-5 w-5 text-blue-600" />
-              <span>{t.preview} ({csvData.length} {t.records})</span>
+              <span>Preview</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {extendedHeaders.map((header, idx) => (
-                      <TableHead key={idx}>{header}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {csvData.slice(0, 5).map((row, index) => (
-                    <TableRow key={index}>
-                      {extendedHeaders.map((header, idx) => (
-                        <TableCell key={idx}>{row[header]}</TableCell>
+            {csvData && csvData.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="text-green-600">
+                    {(csvData || []).length} Records
+                  </Badge>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {csvData && csvData.length > 0 && Object.keys(csvData[0]).slice(0, 6).map((header, index) => (
+                          <TableHead key={index}>{header}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(csvData || []).slice(0, 10).map((row, index) => (
+                        <TableRow key={index}>
+                          {Object.keys(row).slice(0, 6).map((header, idx) => (
+                            <TableCell key={idx}>{row[header] || ''}</TableCell>
+                          ))}
+                        </TableRow>
                       ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {csvData.length > 5 && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Showing first 5 records of {csvData.length} total records
-                </p>
-              )}
-            </div>
+                    </TableBody>
+                  </Table>
+                  {csvData && csvData.length > 10 && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Showing first 10 records of {csvData.length} total records
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No CSV data to preview</p>
+                <p className="text-sm text-gray-400">Upload a CSV file to see the preview</p>
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
     </div>
   );
 };

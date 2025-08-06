@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useSaral } from '@/contexts/SaralContext';
 import { toast } from 'sonner';
-import { FileText, Download, Eye, Printer } from 'lucide-react';
+import { FileText, Download, Eye, Printer, UserCheck, ArrowRight } from 'lucide-react';
 
 interface GeneratedNotice {
   id: string;
@@ -18,11 +18,18 @@ interface GeneratedNotice {
   noticeNumber: string;
   noticeDate: Date;
   content: string;
-  status: 'draft' | 'generated' | 'sent';
+  status: 'draft' | 'generated' | 'sent' | 'assigned_for_kyc';
+  kycStatus?: 'pending' | 'assigned' | 'in_progress' | 'completed';
+  assignedAgent?: {
+    id: string;
+    name: string;
+    phone: string;
+    assignedAt: Date;
+  };
 }
 
 const NoticeGenerator: React.FC = () => {
-  const { projects, landownerRecords, updateLandownerRecord } = useSaral();
+  const { projects, landownerRecords, updateLandownerRecord, assignAgent, assignAgentWithNotice } = useSaral();
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedRecords, setSelectedRecords] = useState<string[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -30,6 +37,51 @@ const NoticeGenerator: React.FC = () => {
   const [generatedNotices, setGeneratedNotices] = useState<GeneratedNotice[]>([]);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isKycAssignmentOpen, setIsKycAssignmentOpen] = useState(false);
+  const [selectedNoticeForKyc, setSelectedNoticeForKyc] = useState<GeneratedNotice | null>(null);
+  const [availableAgents] = useState([
+    { id: '4', name: 'राजेश पाटील', phone: '+91 9876543210', area: 'उंबरपाडा तालुका' },
+    { id: '5', name: 'सुनील कांबळे', phone: '+91 9876543211', area: 'उंबरपाडा तालुका' },
+    { id: '6', name: 'महेश देशमुख', phone: '+91 9876543212', area: 'उंबरपाडा तालुका' },
+    { id: '7', name: 'विठ्ठल जाधव', phone: '+91 9876543213', area: 'उंबरपाडा तालुका' },
+    { id: '8', name: 'रामराव पवार', phone: '+91 9876543214', area: 'उंबरपाडा तालुका' }
+  ]);
+
+  // Load existing generated notices on component mount
+  useEffect(() => {
+    const loadExistingNotices = async () => {
+      if (selectedProject) {
+        try {
+          const response = await fetch(`/api/notices/project/${selectedProject}`);
+          const data = await response.json();
+          
+          if (data.success && data.data) {
+            const existingNotices: GeneratedNotice[] = data.data.map((record: any) => ({
+              id: record._id,
+              landownerId: record._id,
+              noticeNumber: record.noticeNumber || `NOTICE-${record._id}`,
+              noticeDate: new Date(record.noticeDate || record.createdAt),
+              content: record.noticeContent || 'Notice content not available',
+              status: record.noticeGenerated ? 'generated' : 'draft',
+              kycStatus: record.kycStatus || 'pending',
+              assignedAgent: record.assignedAgent ? {
+                id: record.assignedAgent._id,
+                name: record.assignedAgent.name,
+                phone: record.assignedAgent.phone || '',
+                assignedAt: new Date()
+              } : undefined
+            }));
+            
+            setGeneratedNotices(existingNotices);
+          }
+        } catch (error) {
+          console.error('Error loading existing notices:', error);
+        }
+      }
+    };
+
+    loadExistingNotices();
+  }, [selectedProject]);
 
   useEffect(() => {
     console.log('NoticeGenerator useEffect triggered:', {
@@ -355,7 +407,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
         
         const notice: GeneratedNotice = {
           id: Date.now().toString() + recordId,
-          landownerId: recordId,
+          landownerId: record.id, // Use the MongoDB ObjectId from the record
           noticeNumber,
           noticeDate: new Date(),
           content: noticeContent,
@@ -427,6 +479,75 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
       `);
       printWindow.document.close();
       printWindow.print();
+    }
+  };
+
+  const proceedToKyc = (notice: GeneratedNotice) => {
+    setSelectedNoticeForKyc(notice);
+    setIsKycAssignmentOpen(true);
+  };
+
+  const assignAgentForKyc = async (agentId: string) => {
+    if (!selectedNoticeForKyc) return;
+
+    try {
+      const agent = availableAgents.find(a => a.id === agentId);
+      if (!agent) {
+        toast.error('Agent not found');
+        return;
+      }
+
+      console.log('🔄 Assigning agent for KYC:', {
+        landownerId: selectedNoticeForKyc.landownerId,
+        agentId: agentId,
+        agentName: agent.name,
+        noticeNumber: selectedNoticeForKyc.noticeNumber
+      });
+
+      // Use the enhanced agent assignment with notice data
+      const success = await assignAgentWithNotice(selectedNoticeForKyc.landownerId, agentId, {
+        noticeNumber: selectedNoticeForKyc.noticeNumber,
+        noticeDate: selectedNoticeForKyc.noticeDate,
+        noticeContent: selectedNoticeForKyc.content
+      });
+
+      if (success) {
+        // Update the notice with agent assignment in local state
+        const updatedNotice = {
+          ...selectedNoticeForKyc,
+          status: 'assigned_for_kyc' as const,
+          kycStatus: 'assigned' as const,
+          assignedAgent: {
+            id: agent.id,
+            name: agent.name,
+            phone: agent.phone,
+            assignedAt: new Date()
+          }
+        };
+
+        // Update the generated notices list
+        setGeneratedNotices(prev => prev.map(n => 
+          n.id === selectedNoticeForKyc.id ? updatedNotice : n
+        ));
+
+        // Also update the landowner record locally
+        await updateLandownerRecord(selectedNoticeForKyc.landownerId, {
+          kycStatus: 'in_progress',
+          assignedAgent: agentId,
+          assignedAt: new Date()
+        });
+
+        toast.success(`✅ Successfully assigned ${agent.name} for KYC processing`);
+        console.log('✅ Agent assignment completed successfully');
+      } else {
+        throw new Error('Assignment API call failed');
+      }
+
+      setIsKycAssignmentOpen(false);
+      setSelectedNoticeForKyc(null);
+    } catch (error) {
+      console.error('❌ Failed to assign agent:', error);
+      toast.error('Failed to assign agent for KYC processing');
     }
   };
 
@@ -561,10 +682,56 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
       {generatedNotices.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Generated Notices ({generatedNotices.length})</CardTitle>
-            <CardDescription>
-              Recently generated notices
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Generated Notices ({generatedNotices.length})</CardTitle>
+                <CardDescription>
+                  Recently generated notices
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedProject) {
+                    const loadExistingNotices = async () => {
+                      try {
+                        const response = await fetch(`/api/notices/project/${selectedProject}`);
+                        const data = await response.json();
+                        
+                        if (data.success && data.data) {
+                          const existingNotices: GeneratedNotice[] = data.data.map((record: any) => ({
+                            id: record._id,
+                            landownerId: record._id,
+                            noticeNumber: record.noticeNumber || `NOTICE-${record._id}`,
+                            noticeDate: new Date(record.noticeDate || record.createdAt),
+                            content: record.noticeContent || 'Notice content not available',
+                            status: record.noticeGenerated ? 'generated' : 'draft',
+                            kycStatus: record.kycStatus || 'pending',
+                            assignedAgent: record.assignedAgent ? {
+                              id: record.assignedAgent._id,
+                              name: record.assignedAgent.name,
+                              phone: record.assignedAgent.phone || '',
+                              assignedAt: new Date()
+                            } : undefined
+                          }));
+                          
+                          setGeneratedNotices(existingNotices);
+                          toast.success('Notices refreshed successfully');
+                        }
+                      } catch (error) {
+                        console.error('Error loading existing notices:', error);
+                        toast.error('Failed to refresh notices');
+                      }
+                    };
+                    loadExistingNotices();
+                  }
+                }}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Refresh Notices
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
@@ -574,6 +741,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                   <TableHead>Owner</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>KYC Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -586,9 +754,35 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                       <TableCell>{record?.खातेदाराचे_नांव}</TableCell>
                       <TableCell>{formatDate(notice.noticeDate)}</TableCell>
                       <TableCell>
-                        <Badge className="bg-green-100 text-green-800">
-                          {notice.status}
+                        <Badge className={
+                          notice.status === 'assigned_for_kyc' 
+                            ? "bg-blue-100 text-blue-800" 
+                            : "bg-green-100 text-green-800"
+                        }>
+                          {notice.status === 'assigned_for_kyc' ? 'Assigned for KYC' : notice.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {notice.kycStatus ? (
+                          <div className="space-y-1">
+                            <Badge variant="outline" className={
+                              notice.kycStatus === 'completed' ? 'text-green-600 border-green-600' :
+                              notice.kycStatus === 'in_progress' ? 'text-blue-600 border-blue-600' :
+                              'text-gray-600 border-gray-600'
+                            }>
+                              {notice.kycStatus}
+                            </Badge>
+                            {notice.assignedAgent && (
+                              <div className="text-xs text-gray-500">
+                                {notice.assignedAgent.name}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-600">
+                            Not Assigned
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
@@ -606,6 +800,17 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                           >
                             <Printer className="h-3 w-3" />
                           </Button>
+                          {notice.status === 'generated' && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => proceedToKyc(notice)}
+                              className="bg-blue-600 hover:bg-blue-700"
+                            >
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Proceed to KYC
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -652,6 +857,87 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* KYC Assignment Dialog */}
+      <Dialog open={isKycAssignmentOpen} onOpenChange={setIsKycAssignmentOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5" />
+              Assign for KYC Processing
+            </DialogTitle>
+            <DialogDescription>
+              Assign this notice to an agent for KYC document collection and verification
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedNoticeForKyc && (
+            <div className="space-y-6">
+              {/* Notice Summary */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Notice Details</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-600">Notice Number:</span>
+                    <span className="ml-2 font-medium">{selectedNoticeForKyc.noticeNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Date:</span>
+                    <span className="ml-2">{formatDate(selectedNoticeForKyc.noticeDate)}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600">Landowner:</span>
+                    <span className="ml-2 font-medium">
+                      {landownerRecords.find(r => r.id === selectedNoticeForKyc.landownerId)?.खातेदाराचे_नांव}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Selection */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Select Agent for KYC Processing</h4>
+                <div className="grid gap-3">
+                  {availableAgents.map(agent => (
+                    <div 
+                      key={agent.id}
+                      className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => assignAgentForKyc(agent.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{agent.name}</div>
+                          <div className="text-sm text-gray-600">{agent.phone}</div>
+                          <div className="text-sm text-gray-500">Area: {agent.area}</div>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* KYC Requirements Summary */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-blue-800">Required Documents for KYC</h4>
+                <ul className="text-sm text-blue-700 space-y-1">
+                  <li>• ७/१२ उतारा (7/12 Extract)</li>
+                  <li>• ओळखपत्राच्या झेरॉक्स प्रती (Identity Documents)</li>
+                  <li>• बँक पासबुक (Bank Passbook)</li>
+                  <li>• फोटो (Photographs)</li>
+                  <li>• इतर आवश्यक कागदपत्रे (Other Required Documents)</li>
+                </ul>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsKycAssignmentOpen(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

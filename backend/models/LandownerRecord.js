@@ -80,6 +80,10 @@ const landownerRecordSchema = new mongoose.Schema({
   noticeDate: {
     type: Date
   },
+  noticeContent: {
+    type: String,
+    trim: true
+  },
   kycStatus: {
     type: String,
     enum: ['pending', 'in_progress', 'completed', 'approved', 'rejected'],

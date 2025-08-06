@@ -1,28 +1,26 @@
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+import User from './models/User.js';
+
+// Load environment variables
+dotenv.config({ path: './config.env' });
 
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/saral-bhoomi', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-// User Schema (simplified for seeding)
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
-  role: { type: String, enum: ['admin', 'officer', 'agent'] },
-  department: String,
-  phone: String,
-  language: { type: String, default: 'marathi' },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const User = mongoose.model('User', userSchema);
+const connectDB = async () => {
+  try {
+    const connectionInstance = await mongoose.connect(process.env.MONGODB_URI);
+    console.log(`MongoDB connected !! DB HOST: ${connectionInstance.connection.host}`);
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+};
 
 async function seedDemoUsers() {
   try {
+    // Connect to database first
+    await connectDB();
+
     // Check if demo users already exist
     const existingUsers = await User.find({
       email: { $in: [
@@ -39,22 +37,19 @@ async function seedDemoUsers() {
 
     if (existingUsers.length > 0) {
       console.log('Demo users already exist. Skipping seed.');
+      console.log('Existing users:');
+      existingUsers.forEach(user => {
+        console.log(`- ${user.name} (${user.email}) - ${user.role}`);
+      });
       process.exit(0);
     }
 
-    // Hash passwords
-    const saltRounds = 10;
-    const adminPassword = await bcrypt.hash('admin', saltRounds);
-    const officerPassword = await bcrypt.hash('officer', saltRounds);
-    const agentPassword = await bcrypt.hash('agent', saltRounds);
-    const agent123Password = await bcrypt.hash('agent123', saltRounds);
-
-    // Create demo users
+    // Create demo users (passwords will be hashed by User model pre-save hook)
     const demoUsers = [
       {
         name: 'Admin User',
         email: 'admin@saral.gov.in',
-        password: adminPassword,
+        password: 'admin123',
         role: 'admin',
         department: 'Administration',
         phone: '9876543210',
@@ -63,7 +58,7 @@ async function seedDemoUsers() {
       {
         name: 'Land Officer',
         email: 'officer@saral.gov.in',
-        password: officerPassword,
+        password: 'officer123',
         role: 'officer',
         department: 'Land Acquisition',
         phone: '9876543211',
@@ -72,7 +67,7 @@ async function seedDemoUsers() {
       {
         name: 'Field Agent',
         email: 'agent@saral.gov.in',
-        password: agentPassword,
+        password: 'agent123',
         role: 'agent',
         department: 'Field Operations',
         phone: '9876543212',
@@ -82,57 +77,68 @@ async function seedDemoUsers() {
       {
         name: 'राजेश पाटील',
         email: 'rajesh.patil@saral.gov.in',
-        password: agent123Password,
-        role: 'agent',
-        department: 'Field Operations',
-        phone: '9876543210',
-        language: 'marathi'
-      },
-      {
-        name: 'सुनील कांबळे',
-        email: 'sunil.kambale@saral.gov.in',
-        password: agent123Password,
-        role: 'agent',
-        department: 'Field Operations',
-        phone: '9876543211',
-        language: 'marathi'
-      },
-      {
-        name: 'महेश देशमुख',
-        email: 'mahesh.deshmukh@saral.gov.in',
-        password: agent123Password,
-        role: 'agent',
-        department: 'Field Operations',
-        phone: '9876543212',
-        language: 'marathi'
-      },
-      {
-        name: 'विठ्ठल जाधव',
-        email: 'vithal.jadhav@saral.gov.in',
-        password: agent123Password,
+        password: 'agent123',
         role: 'agent',
         department: 'Field Operations',
         phone: '9876543213',
         language: 'marathi'
       },
       {
-        name: 'रामराव पवार',
-        email: 'ramrao.pawar@saral.gov.in',
-        password: agent123Password,
+        name: 'सुनील कांबळे',
+        email: 'sunil.kambale@saral.gov.in',
+        password: 'agent123',
         role: 'agent',
         department: 'Field Operations',
         phone: '9876543214',
         language: 'marathi'
+      },
+      {
+        name: 'महेश देशमुख',
+        email: 'mahesh.deshmukh@saral.gov.in',
+        password: 'agent123',
+        role: 'agent',
+        department: 'Field Operations',
+        phone: '9876543215',
+        language: 'marathi'
+      },
+      {
+        name: 'विठ्ठल जाधव',
+        email: 'vithal.jadhav@saral.gov.in',
+        password: 'agent123',
+        role: 'agent',
+        department: 'Field Operations',
+        phone: '9876543216',
+        language: 'marathi'
+      },
+      {
+        name: 'रामराव पवार',
+        email: 'ramrao.pawar@saral.gov.in',
+        password: 'agent123',
+        role: 'agent',
+        department: 'Field Operations',
+        phone: '9876543217',
+        language: 'marathi'
       }
     ];
 
-    const createdUsers = await User.insertMany(demoUsers);
+    // Create users one by one to trigger pre-save hooks for password hashing
+    const createdUsers = [];
+    for (const userData of demoUsers) {
+      const user = await User.create(userData);
+      createdUsers.push(user);
+    }
 
     console.log('Demo users created successfully!');
     console.log(`Created ${createdUsers.length} users:`);
     createdUsers.forEach(user => {
       console.log(`- ${user.name} (${user.email}) - ${user.role}`);
     });
+
+    console.log('\n=== Login Credentials ===');
+    console.log('Admin: admin@saral.gov.in / admin123');
+    console.log('Officer: officer@saral.gov.in / officer123');
+    console.log('Agent: agent@saral.gov.in / agent123');
+    console.log('Additional agents use: agent123 as password');
 
     process.exit(0);
   } catch (error) {
@@ -141,4 +147,5 @@ async function seedDemoUsers() {
   }
 }
 
+// Run the seeding function
 seedDemoUsers(); 

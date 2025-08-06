@@ -49,6 +49,11 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date
   },
+  // For agents: store assigned landowner record IDs
+  assignedRecords: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LandownerRecord'
+  }],
   resetPasswordToken: String,
   resetPasswordExpire: Date
 }, {

@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
 
-dotenv.config({ path: '../config.env' });
+dotenv.config({ path: './config.env' });
 
 const run = async () => {
   await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/saral_bhoomi', {
@@ -17,38 +17,39 @@ const run = async () => {
     process.exit(1);
   }
 
-  const existing = await Project.findOne({ pmisCode: 'DEMO-001' });
+  const existing = await Project.findOne({ pmisCode: 'SARAL-DEMO-001' });
   if (existing) {
     console.log('Demo project already exists:', existing._id);
     process.exit(0);
   }
 
   const demoProject = await Project.create({
-    projectName: 'Demo Land Acquisition Project',
-    pmisCode: 'DEMO-001',
-    schemeName: 'Demo Scheme',
-    landRequired: 10,
-    landAvailable: 2,
-    landToBeAcquired: 8,
+    projectName: 'Saral Bhoomi Demo Project - Nande Taluka',
+    pmisCode: 'SARAL-DEMO-001',
+    schemeName: 'Land Acquisition for Infrastructure Development',
+    landRequired: 15.5,
+    landAvailable: 3.2,
+    landToBeAcquired: 12.3,
     type: 'greenfield',
-    description: 'This is a demo project for testing CSV upload and notice generation.',
+    description: 'Demo project for testing Parishisht-K CSV upload and notice generation in Nande taluka, Palghar district.',
     location: {
-      district: 'Demo District',
-      taluka: 'Demo Taluka',
-      villages: ['Demo Village 1', 'Demo Village 2']
+      district: 'पालघर',
+      taluka: 'नांदे', 
+      villages: ['गाव1', 'गाव2', 'नांदे']
     },
     budget: {
-      estimatedCost: 10000000,
-      allocatedBudget: 8000000,
+      estimatedCost: 25000000,
+      allocatedBudget: 20000000,
       currency: 'INR'
     },
     timeline: {
-      startDate: new Date('2023-01-01'),
-      expectedCompletion: new Date('2024-12-31'),
+      startDate: new Date('2024-01-01'),
+      expectedCompletion: new Date('2025-12-31'),
       actualCompletion: null
     },
     stakeholders: [
-      { name: 'Demo Stakeholder', role: 'Owner', contact: '1234567890', email: 'demo@demo.com' }
+      { name: 'Collector Office Palghar', role: 'Authority', contact: '02525-123456', email: 'collector@palghar.gov.in' },
+      { name: 'Tehsildar Nande', role: 'Local Officer', contact: '02525-234567', email: 'tehsildar@nande.gov.in' }
     ],
     isActive: true,
     createdBy: user._id,

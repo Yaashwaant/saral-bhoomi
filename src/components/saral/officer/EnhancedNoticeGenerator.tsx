@@ -71,11 +71,11 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
 
   // Demo field agents
   const demoFieldAgents = [
-    { id: 'agent-1', name: 'राजेश पाटील', phone: '9876543210', area: 'उंबरपाडा' },
-    { id: 'agent-2', name: 'सुनील कांबळे', phone: '9876543211', area: 'उंबरपाडा' },
-    { id: 'agent-3', name: 'महेश देशमुख', phone: '9876543212', area: 'उंबरपाडा' },
-    { id: 'agent-4', name: 'विठ्ठल जाधव', phone: '9876543213', area: 'उंबरपाडा' },
-    { id: 'agent-5', name: 'रामराव पवार', phone: '9876543214', area: 'उंबरपाडा' }
+    { id: '4', name: 'राजेश पाटील', phone: '9876543210', area: 'उंबरपाडा' },
+    { id: '5', name: 'सुनील कांबळे', phone: '9876543211', area: 'उंबरपाडा' },
+    { id: '6', name: 'महेश देशमुख', phone: '9876543212', area: 'उंबरपाडा' },
+    { id: '7', name: 'विठ्ठल जाधव', phone: '9876543213', area: 'उंबरपाडा' },
+    { id: '8', name: 'रामराव पवार', phone: '9876543214', area: 'उंबरपाडा' }
   ];
 
   // Demo templates

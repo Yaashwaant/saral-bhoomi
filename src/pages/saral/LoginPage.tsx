@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Shield, User, Lock, Globe, Building2 } from 'lucide-react';
+import collectorOfficeImage from '../../assets/images/collector-office.jpeg';
+
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -110,18 +112,25 @@ const LoginPage = () => {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Background Image */}
         <img 
-          src="/collector-office.jpeg" 
+          src={collectorOfficeImage} 
           alt="Collector Office Building" 
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover z-0"
           onError={(e) => {
             // Fallback if image doesn't load
+            console.log('Image failed to load, showing fallback');
             e.currentTarget.style.display = 'none';
             e.currentTarget.nextElementSibling?.classList.remove('hidden');
+          }}
+          onLoad={(e) => {
+            // Ensure image is visible when loaded
+            console.log('Image loaded successfully');
+            e.currentTarget.style.display = 'block';
+            e.currentTarget.style.zIndex = '0';
           }}
         />
         
         {/* Fallback background if image doesn't load */}
-        <div className="hidden absolute inset-0 bg-gradient-to-br from-orange-500 via-white to-green-500 flex items-center justify-center">
+        <div className="hidden absolute inset-0 bg-gradient-to-br from-orange-500 via-white to-green-500 flex items-center justify-center z-0">
           <div className="text-center text-white">
             <Building2 className="h-24 w-24 mx-auto mb-4 opacity-80" />
             <h2 className="text-2xl font-bold mb-2">{t.buildingTitle}</h2>

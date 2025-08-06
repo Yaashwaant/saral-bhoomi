@@ -10,7 +10,6 @@ const projectSchema = new mongoose.Schema({
   pmisCode: {
     type: String,
     required: [true, 'Please add a PMIS code'],
-    unique: true,
     trim: true
   },
   schemeName: {
@@ -154,7 +153,7 @@ const projectSchema = new mongoose.Schema({
 });
 
 // Index for better query performance
-projectSchema.index({ pmisCode: 1 });
+projectSchema.index({ pmisCode: 1 }, { unique: true });
 projectSchema.index({ 'location.district': 1 });
 projectSchema.index({ 'location.taluka': 1 });
 projectSchema.index({ createdBy: 1 });

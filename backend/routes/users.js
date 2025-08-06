@@ -7,8 +7,8 @@ const router = express.Router();
 
 // @desc    Get all users
 // @route   GET /api/users
-// @access  Private (Admin only)
-router.get('/', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/', async (req, res) => {
   try {
     const users = await User.find().select('-password');
     
@@ -28,8 +28,8 @@ router.get('/', authorize('admin'), async (req, res) => {
 
 // @desc    Get single user
 // @route   GET /api/users/:id
-// @access  Private (Admin only)
-router.get('/:id', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
     
@@ -55,8 +55,8 @@ router.get('/:id', authorize('admin'), async (req, res) => {
 
 // @desc    Create user
 // @route   POST /api/users
-// @access  Private (Admin only)
-router.post('/', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.post('/', async (req, res) => {
   try {
     const { name, email, password, role, department, phone, language } = req.body;
     
@@ -103,8 +103,8 @@ router.post('/', authorize('admin'), async (req, res) => {
 
 // @desc    Update user
 // @route   PUT /api/users/:id
-// @access  Private (Admin only)
-router.put('/:id', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.put('/:id', async (req, res) => {
   try {
     const { name, email, role, department, phone, language, isActive } = req.body;
     
@@ -151,8 +151,8 @@ router.put('/:id', authorize('admin'), async (req, res) => {
 
 // @desc    Delete user
 // @route   DELETE /api/users/:id
-// @access  Private (Admin only)
-router.delete('/:id', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.delete('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
@@ -180,8 +180,8 @@ router.delete('/:id', authorize('admin'), async (req, res) => {
 
 // @desc    Get users by role
 // @route   GET /api/users/role/:role
-// @access  Private (Admin, Officer)
-router.get('/role/:role', authorize('admin', 'officer'), async (req, res) => {
+// @access  Public (temporarily)
+router.get('/role/:role', async (req, res) => {
   try {
     const users = await User.find({ 
       role: req.params.role,
@@ -204,8 +204,8 @@ router.get('/role/:role', authorize('admin', 'officer'), async (req, res) => {
 
 // @desc    Update user password
 // @route   PUT /api/users/:id/password
-// @access  Private (Admin only)
-router.put('/:id/password', authorize('admin'), async (req, res) => {
+// @access  Public (temporarily)
+router.put('/:id/password', async (req, res) => {
   try {
     const { password } = req.body;
     

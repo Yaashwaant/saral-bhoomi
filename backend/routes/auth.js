@@ -19,6 +19,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    console.log(`\t DEBUG: ${email} ${password}`);
+
     // Check for user
     const user = await User.findOne({ email }).select('+password');
 
