@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  User, 
+  MapPin, 
+  FileText, 
+  CheckCircle, 
+  Clock, 
+  AlertCircle,
+  Shield,
+  Building2,
+  IndianRupee
+} from 'lucide-react';
+import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 
 interface LandownerRecord {
   _id: string;
@@ -28,6 +41,7 @@ interface LandownerRecord {
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const SimpleAgentDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [records, setRecords] = useState<LandownerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<LandownerRecord | null>(null);
@@ -35,6 +49,71 @@ const SimpleAgentDashboard: React.FC = () => {
   const [kycNotes, setKycNotes] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  const translations = {
+    marathi: {
+      welcome: 'स्वागत',
+      dashboard: 'एजंट डॅशबोर्ड',
+      assignedRecords: 'नियुक्त केलेले रेकॉर्ड्स',
+      totalAssigned: 'एकूण नियुक्त',
+      pendingKYC: 'प्रलंबित KYC',
+      completedKYC: 'पूर्ण झालेले KYC',
+      approvedKYC: 'मंजूर KYC',
+      landownerName: 'खातेदाराचे नांव',
+      surveyNumber: 'सर्वे नंबर',
+      area: 'क्षेत्र',
+      compensation: 'मोबदला',
+      village: 'गाव',
+      status: 'स्थिती',
+      actions: 'कृती',
+      updateKYC: 'KYC अपडेट करा',
+      notes: 'टिप्पणी',
+      submit: 'सबमिट करा',
+      cancel: 'रद्द करा'
+    },
+    english: {
+      welcome: 'Welcome',
+      dashboard: 'Agent Dashboard',
+      assignedRecords: 'Assigned Records',
+      totalAssigned: 'Total Assigned',
+      pendingKYC: 'Pending KYC',
+      completedKYC: 'Completed KYC',
+      approvedKYC: 'Approved KYC',
+      landownerName: 'Landowner Name',
+      surveyNumber: 'Survey Number',
+      area: 'Area',
+      compensation: 'Compensation',
+      village: 'Village',
+      status: 'Status',
+      actions: 'Actions',
+      updateKYC: 'Update KYC',
+      notes: 'Notes',
+      submit: 'Submit',
+      cancel: 'Cancel'
+    },
+    hindi: {
+      welcome: 'स्वागत',
+      dashboard: 'एजेंट डैशबोर्ड',
+      assignedRecords: 'आवंटित रिकॉर्ड',
+      totalAssigned: 'कुल आवंटित',
+      pendingKYC: 'लंबित KYC',
+      completedKYC: 'पूर्ण KYC',
+      approvedKYC: 'स्वीकृत KYC',
+      landownerName: 'भूमि मालिक का नाम',
+      surveyNumber: 'सर्वेक्षण संख्या',
+      area: 'क्षेत्र',
+      compensation: 'मुआवजा',
+      village: 'गांव',
+      status: 'स्थिति',
+      actions: 'कार्य',
+      updateKYC: 'KYC अपडेट करें',
+      notes: 'टिप्पणियां',
+      submit: 'सबमिट करें',
+      cancel: 'रद्द करें'
+    }
+  };
+
+  const t = translations[user?.language || 'marathi'];
 
   // Load assigned records
   const loadAssignedRecords = async () => {
@@ -117,21 +196,36 @@ const SimpleAgentDashboard: React.FC = () => {
     }
   };
 
-  // Get status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="secondary">Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">प्रलंबित</Badge>;
       case 'in_progress':
-        return <Badge variant="default">In Progress</Badge>;
+        return <Badge variant="secondary" className="bg-blue-100 text-blue-800">प्रगतीत</Badge>;
       case 'completed':
-        return <Badge variant="default">Completed</Badge>;
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">पूर्ण</Badge>;
       case 'approved':
-        return <Badge variant="default" className="bg-green-500">Approved</Badge>;
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">मंजूर</Badge>;
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">नाकारले</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-800">{status}</Badge>;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="h-4 w-4 text-yellow-600" />;
+      case 'in_progress':
+        return <AlertCircle className="h-4 w-4 text-blue-600" />;
+      case 'completed':
+      case 'approved':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'rejected':
+        return <AlertCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />;
     }
   };
 
@@ -139,186 +233,286 @@ const SimpleAgentDashboard: React.FC = () => {
     loadAssignedRecords();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center">Loading assigned records...</div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const stats = {
+    totalAssigned: records.length,
+    pendingKYC: records.filter(r => r.kycStatus === 'pending').length,
+    completedKYC: records.filter(r => r.kycStatus === 'completed').length,
+    approvedKYC: records.filter(r => r.kycStatus === 'approved').length
+  };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Agent Dashboard</h1>
-          <p className="text-muted-foreground">Welcome, Rajesh! Here are your assigned landowner records.</p>
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+            }}>{t.welcome}, {user?.name}!</h1>
+            <p className="text-blue-100 mt-1" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 500,
+              letterSpacing: '0.2px'
+            }}>{t.dashboard}</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>Field Agent</span>
+          </div>
         </div>
-        <Button onClick={loadAssignedRecords} variant="outline">
-          Refresh
-        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-white/90 backdrop-blur-sm border-blue-200 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assigned</CardTitle>
+            <CardTitle className="text-sm font-medium text-blue-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.totalAssigned}</CardTitle>
+            <FileText className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{records.length}</div>
+            <div className="text-2xl font-bold text-blue-900">{stats.totalAssigned}</div>
+            <p className="text-xs text-blue-600 mt-1">Total assigned records</p>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-orange-200 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending KYC</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.pendingKYC}</CardTitle>
+            <Clock className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {records.filter(r => r.kycStatus === 'pending').length}
-            </div>
+            <div className="text-2xl font-bold text-orange-900">{stats.pendingKYC}</div>
+            <p className="text-xs text-orange-600 mt-1">Awaiting KYC</p>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-green-200 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.completedKYC}</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {records.filter(r => r.kycStatus === 'in_progress').length}
-            </div>
+            <div className="text-2xl font-bold text-green-900">{stats.completedKYC}</div>
+            <p className="text-xs text-green-600 mt-1">KYC completed</p>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-purple-200 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+            <CardTitle className="text-sm font-medium text-purple-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.approvedKYC}</CardTitle>
+            <Shield className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {records.filter(r => r.kycStatus === 'completed' || r.kycStatus === 'approved').length}
-            </div>
+            <div className="text-2xl font-bold text-purple-900">{stats.approvedKYC}</div>
+            <p className="text-xs text-purple-600 mt-1">KYC approved</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Records Table */}
-      <Card>
+      <Card className="bg-white/90 backdrop-blur-sm border-blue-200 shadow-lg">
         <CardHeader>
-          <CardTitle>Assigned Landowner Records</CardTitle>
+          <CardTitle className="text-blue-900 flex items-center space-x-2" style={{ 
+            fontFamily: "'Noto Sans', 'Arial', sans-serif",
+            fontWeight: 600,
+            letterSpacing: '0.2px'
+          }}>
+            <MapPin className="h-5 w-5" />
+            <span>{t.assignedRecords}</span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {records.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No records assigned yet.
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-blue-600 mt-2">Loading records...</p>
+              </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Landowner Name</TableHead>
-                  <TableHead>Survey No.</TableHead>
-                  <TableHead>Village</TableHead>
-                  <TableHead>Area</TableHead>
-                  <TableHead>Compensation</TableHead>
-                  <TableHead>KYC Status</TableHead>
-                  <TableHead>Assigned Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {records.map((record) => (
-                  <TableRow key={record._id}>
-                    <TableCell className="font-medium">
-                      {record.खातेदाराचे_नांव}
-                    </TableCell>
-                    <TableCell>{record.सर्वे_नं}</TableCell>
-                    <TableCell>{record.village}</TableCell>
-                    <TableCell>{record.क्षेत्र}</TableCell>
-                    <TableCell>₹{record.एकूण_मोबदला}</TableCell>
-                    <TableCell>{getStatusBadge(record.kycStatus)}</TableCell>
-                    <TableCell>
-                      {new Date(record.assignedAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedRecord(record)}
-                          >
-                            Update KYC
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Update KYC Status</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="text-sm font-medium">Landowner</label>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedRecord?.खातेदाराचे_नांव} (Survey: {selectedRecord?.सर्वे_नं})
-                              </p>
+            <div className="overflow-x-auto">
+              <Table>
+                                 <TableHeader>
+                   <TableRow className="bg-blue-50">
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.landownerName}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.surveyNumber}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.area}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.compensation}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.village}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.status}</TableHead>
+                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                       fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                       fontWeight: 600,
+                       letterSpacing: '0.2px'
+                     }}>{t.actions}</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                <TableBody>
+                  {records.map((record) => (
+                    <TableRow key={record._id} className="hover:bg-blue-50/50">
+                      <TableCell className="font-medium text-blue-900">{record.खातेदाराचे_नांव}</TableCell>
+                      <TableCell className="text-blue-800">{record.सर्वे_नं}</TableCell>
+                      <TableCell className="text-blue-800">{record.क्षेत्र}</TableCell>
+                      <TableCell className="text-blue-800 font-medium">{record.एकूण_मोबदला}</TableCell>
+                      <TableCell className="text-blue-800">{record.village}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          {getStatusIcon(record.kycStatus)}
+                          {getStatusBadge(record.kycStatus)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Dialog open={isDialogOpen && selectedRecord?._id === record._id} onOpenChange={setIsDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                              onClick={() => setSelectedRecord(record)}
+                            >
+                              {t.updateKYC}
+                            </Button>
+                          </DialogTrigger>
+                                                     <DialogContent className="bg-white/95 backdrop-blur-sm">
+                             <DialogHeader>
+                               <DialogTitle className="text-blue-900" style={{ 
+                                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                 fontWeight: 600,
+                                 letterSpacing: '0.2px'
+                               }}>{t.updateKYC}</DialogTitle>
+                             </DialogHeader>
+                            <div className="space-y-4">
+                                                             <div>
+                                 <label className="text-sm font-medium text-blue-800" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 600,
+                                   letterSpacing: '0.1px'
+                                 }}>{t.landownerName}</label>
+                                 <p className="text-sm text-blue-600" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 500,
+                                   letterSpacing: '0.1px'
+                                 }}>{record.खातेदाराचे_नांव}</p>
+                               </div>
+                               <div>
+                                 <label className="text-sm font-medium text-blue-800" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 600,
+                                   letterSpacing: '0.1px'
+                                 }}>{t.surveyNumber}</label>
+                                 <p className="text-sm text-blue-600" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 500,
+                                   letterSpacing: '0.1px'
+                                 }}>{record.सर्वे_नं}</p>
+                               </div>
+                               <div>
+                                 <label className="text-sm font-medium text-blue-800" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 600,
+                                   letterSpacing: '0.1px'
+                                 }}>KYC Status</label>
+                                <Select value={kycStatus} onValueChange={setKycStatus}>
+                                  <SelectTrigger className="border-blue-200">
+                                    <SelectValue placeholder="Select status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">प्रलंबित (Pending)</SelectItem>
+                                    <SelectItem value="in_progress">प्रगतीत (In Progress)</SelectItem>
+                                    <SelectItem value="completed">पूर्ण (Completed)</SelectItem>
+                                    <SelectItem value="approved">मंजूर (Approved)</SelectItem>
+                                    <SelectItem value="rejected">नाकारले (Rejected)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                                                             <div>
+                                 <label className="text-sm font-medium text-blue-800" style={{ 
+                                   fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                   fontWeight: 600,
+                                   letterSpacing: '0.1px'
+                                 }}>{t.notes}</label>
+                                 <Textarea 
+                                   value={kycNotes} 
+                                   onChange={(e) => setKycNotes(e.target.value)}
+                                   placeholder="Add notes about KYC verification..."
+                                   className="border-blue-200"
+                                   style={{ 
+                                     fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                                     fontWeight: 500,
+                                     letterSpacing: '0.1px'
+                                   }}
+                                 />
+                               </div>
+                              <div className="flex space-x-2">
+                                <Button 
+                                  onClick={updateKYCStatus}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  {t.submit}
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setIsDialogOpen(false)}
+                                  className="border-blue-200 text-blue-700"
+                                >
+                                  {t.cancel}
+                                </Button>
+                              </div>
                             </div>
-                            
-                            <div>
-                              <label className="text-sm font-medium">KYC Status</label>
-                              <Select value={kycStatus} onValueChange={setKycStatus}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="in_progress">In Progress</SelectItem>
-                                  <SelectItem value="completed">Completed</SelectItem>
-                                  <SelectItem value="approved">Approved</SelectItem>
-                                  <SelectItem value="rejected">Rejected</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div>
-                              <label className="text-sm font-medium">Notes</label>
-                              <Textarea
-                                placeholder="Add any notes about the KYC process..."
-                                value={kycNotes}
-                                onChange={(e) => setKycNotes(e.target.value)}
-                              />
-                            </div>
-                            
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  setIsDialogOpen(false);
-                                  setSelectedRecord(null);
-                                  setKycStatus('');
-                                  setKycNotes('');
-                                }}
-                              >
-                                Cancel
-                              </Button>
-                              <Button onClick={updateKYCStatus}>
-                                Update Status
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

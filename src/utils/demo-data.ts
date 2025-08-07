@@ -1,4 +1,35 @@
-import { LandownerRecord } from '@/contexts/SaralContext';
+// Define the interface locally to avoid circular imports
+interface LandownerRecord {
+  id: string;
+  _id?: string;
+  projectId: string;
+  खातेदाराचे_नांव: string;
+  सर्वे_नं: string;
+  क्षेत्र: string;
+  संपादित_क्षेत्र: string;
+  दर: string;
+  संरचना_झाडे_विहिरी_रक्कम: string;
+  एकूण_मोबदला: string;
+  सोलेशियम_100: string;
+  अंतिम_रक्कम: string;
+  village: string;
+  taluka: string;
+  district: string;
+  noticeGenerated: boolean;
+  noticeNumber?: string;
+  noticeDate?: Date;
+  noticeContent?: string;
+  noticePdfUrl?: string;
+  kycStatus: 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
+  paymentStatus: 'pending' | 'initiated' | 'success' | 'failed';
+  assignedAgent?: string;
+  assignedAt?: Date;
+  documentsUploaded: boolean;
+  paymentInitiated?: boolean;
+  transactionId?: string;
+  utrNumber?: string;
+  paymentDate?: Date;
+}
 
 export const demoLandownerRecords: LandownerRecord[] = [
   {

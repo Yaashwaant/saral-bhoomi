@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaral } from '@/contexts/SaralContext';
-import SaralHeader from '@/components/saral/layout/SaralHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +14,12 @@ import {
   Upload,
   Eye,
   UserPlus,
-  Download
+  Download,
+  Shield,
+  Building2,
+  MapPin
 } from 'lucide-react';
+import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import UserManagement from './UserManagement';
 import NoticeHeaderManagement from './NoticeHeaderManagement';
 import NoticeTemplateCreator from './NoticeTemplateCreator';
@@ -98,192 +101,225 @@ const AdminDashboard = () => {
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'project': return <FileText className="h-4 w-4 text-blue-600" />;
-      case 'notice': return <Upload className="h-4 w-4 text-orange-600" />;
-      case 'kyc': return <Users className="h-4 w-4 text-green-600" />;
-      case 'payment': return <TrendingUp className="h-4 w-4 text-purple-600" />;
-      case 'user': return <UserPlus className="h-4 w-4 text-indigo-600" />;
-      default: return <Activity className="h-4 w-4 text-gray-600" />;
+      case 'project':
+        return <Building2 className="h-4 w-4 text-blue-600" />;
+      case 'notice':
+        return <FileText className="h-4 w-4 text-orange-600" />;
+      case 'kyc':
+        return <Shield className="h-4 w-4 text-green-600" />;
+      case 'payment':
+        return <TrendingUp className="h-4 w-4 text-purple-600" />;
+      case 'user':
+        return <Users className="h-4 w-4 text-indigo-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-600" />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SaralHeader />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Welcome Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">
-            {t.welcome}, {user?.name}
-          </h1>
-          <p className="text-gray-600">{t.dashboard}</p>
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+            }}>{t.welcome}, {user?.name}!</h1>
+            <p className="text-blue-100 mt-1" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 500,
+              letterSpacing: '0.2px'
+            }}>{t.dashboard}</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>Administrator</span>
+          </div>
         </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-white border border-orange-200">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.overview}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.userManagement}
-            </TabsTrigger>
-            <TabsTrigger value="notices" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.noticeHeaders}
-            </TabsTrigger>
-            <TabsTrigger value="templates" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              Notice Templates
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.systemSettings}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="border-orange-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-8 w-8 text-orange-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{stats.totalProjects}</p>
-                      <p className="text-sm text-gray-600">{t.totalProjects}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-green-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Activity className="h-8 w-8 text-green-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{stats.activeProjects}</p>
-                      <p className="text-sm text-gray-600">{t.activeProjects}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-blue-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">15</p>
-                      <p className="text-sm text-gray-600">{t.totalUsers}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-purple-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <TrendingUp className="h-8 w-8 text-purple-600" />
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <p className="text-2xl font-bold text-gray-800">98%</p>
-                        <Badge variant="secondary" className="bg-green-100 text-green-700">Online</Badge>
-                      </div>
-                      <p className="text-sm text-gray-600">{t.systemHealth}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Activity and Quick Actions */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Recent Activity */}
-              <Card className="border-orange-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Activity className="h-5 w-5 text-orange-600" />
-                    <span>{t.recentActivity}</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentActivities.map((activity, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-50">
-                        {getActivityIcon(activity.type)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800">{activity.action}</p>
-                          <p className="text-xs text-gray-500">{activity.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card className="border-orange-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Settings className="h-5 w-5 text-orange-600" />
-                    <span>{t.quickActions}</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button 
-                      className="flex items-center space-x-2 h-16 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => setActiveTab('users')}
-                    >
-                      <UserPlus className="h-5 w-5" />
-                      <span className="text-sm">{t.addUser}</span>
-                    </Button>
-                    
-                    <Button 
-                      className="flex items-center space-x-2 h-16 bg-orange-600 hover:bg-orange-700"
-                      onClick={() => setActiveTab('notices')}
-                    >
-                      <Upload className="h-5 w-5" />
-                      <span className="text-sm">{t.uploadHeader}</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="flex items-center space-x-2 h-16 border-green-200 text-green-700 hover:bg-green-50"
-                    >
-                      <Eye className="h-5 w-5" />
-                      <span className="text-sm">{t.viewReports}</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="flex items-center space-x-2 h-16 border-purple-200 text-purple-700 hover:bg-purple-50"
-                      onClick={() => setActiveTab('settings')}
-                    >
-                      <Settings className="h-5 w-5" />
-                      <span className="text-sm">{t.systemConfig}</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="users">
-            <UserManagement />
-          </TabsContent>
-
-          <TabsContent value="notices">
-            <NoticeHeaderManagement />
-          </TabsContent>
-
-          <TabsContent value="templates">
-            <NoticeTemplateCreator />
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <SystemSettings />
-          </TabsContent>
-        </Tabs>
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-white/90 backdrop-blur-sm border-blue-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-blue-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.totalProjects}</CardTitle>
+            <Building2 className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-900">{stats.totalProjects}</div>
+            <p className="text-xs text-blue-600 mt-1">Active land acquisition projects</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-orange-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-orange-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.activeProjects}</CardTitle>
+            <Activity className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-900">{stats.activeProjects}</div>
+            <p className="text-xs text-orange-600 mt-1">Currently in progress</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-green-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-green-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.totalUsers}</CardTitle>
+            <Users className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-900">{stats.totalUsers}</div>
+            <p className="text-xs text-green-600 mt-1">Registered system users</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/90 backdrop-blur-sm border-purple-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-purple-800" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>{t.systemHealth}</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-900">98%</div>
+            <p className="text-xs text-purple-600 mt-1">System performance</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Tabs */}
+      <Card className="bg-white/90 backdrop-blur-sm border-blue-200 shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-blue-900" style={{ 
+            fontFamily: "'Noto Sans', 'Arial', sans-serif",
+            fontWeight: 600,
+            letterSpacing: '0.2px'
+          }}>System Administration</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-blue-50">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.overview}
+              </TabsTrigger>
+              <TabsTrigger value="users" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.userManagement}
+              </TabsTrigger>
+              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.noticeHeaders}
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.systemSettings}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent Activity */}
+                <Card className="bg-white/80 backdrop-blur-sm border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900 flex items-center space-x-2">
+                      <Activity className="h-5 w-5" />
+                      <span>{t.recentActivity}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {recentActivities.map((activity, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50/50 rounded-lg">
+                          {getActivityIcon(activity.type)}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-blue-900">{activity.action}</p>
+                            <p className="text-xs text-blue-600">{activity.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Actions */}
+                <Card className="bg-white/80 backdrop-blur-sm border-orange-200">
+                  <CardHeader>
+                    <CardTitle className="text-orange-900 flex items-center space-x-2">
+                      <Settings className="h-5 w-5" />
+                      <span>{t.quickActions}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 gap-3">
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        {t.addUser}
+                      </Button>
+                      <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t.uploadHeader}
+                      </Button>
+                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                        <Eye className="h-4 w-4 mr-2" />
+                        {t.viewReports}
+                      </Button>
+                      <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                        <Settings className="h-4 w-4 mr-2" />
+                        {t.systemConfig}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="users" className="mt-6">
+              <UserManagement />
+            </TabsContent>
+
+            <TabsContent value="notices" className="mt-6">
+              <NoticeHeaderManagement />
+            </TabsContent>
+
+            <TabsContent value="settings" className="mt-6">
+              <SystemSettings />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

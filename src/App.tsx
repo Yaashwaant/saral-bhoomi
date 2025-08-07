@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
 import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,7 +29,11 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Navigate to="/saral/login" replace />} />
                 <Route path="/saral/login" element={<LoginPage />} />
-                <Route path="/saral/dashboard" element={<DashboardPage />} />
+                <Route path="/saral/dashboard" element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="*" element={<Navigate to="/saral/login" replace />} />
               </Routes>
               <Toaster />
