@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaral } from '@/contexts/SaralContext';
-import SaralHeader from '@/components/saral/layout/SaralHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +15,12 @@ import {
   FileText,
   Users,
   Eye,
-  Download
+  Download,
+  Shield,
+  Building2,
+  Landmark
 } from 'lucide-react';
+import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
 import CSVUploadManager from './CSVUploadManager';
 import VillageWiseReports from './VillageWiseReports';
@@ -130,250 +133,288 @@ const OfficerDashboard = () => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      maximumFractionDigits: 0
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge className="bg-green-100 text-green-700">{t.approved}</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-700">{t.pending}</Badge>;
-      case 'rejected':
-        return <Badge className="bg-red-100 text-red-700">{t.rejected}</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const getStatusBadge = (status: any) => {
+    // Handle both string and object status
+    if (typeof status === 'string') {
+      switch (status.toLowerCase()) {
+        case 'pending':
+          return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{t.pending}</Badge>;
+        case 'approved':
+          return <Badge variant="secondary" className="bg-green-100 text-green-800">{t.approved}</Badge>;
+        case 'rejected':
+          return <Badge variant="secondary" className="bg-red-100 text-red-800">{t.rejected}</Badge>;
+        default:
+          return <Badge variant="secondary" className="bg-gray-100 text-gray-800">{status}</Badge>;
+      }
     }
+    
+    // Handle object status (project status object)
+    if (typeof status === 'object' && status !== null) {
+      const statusValues = Object.values(status);
+      const hasApproved = statusValues.includes('approved');
+      const hasRejected = statusValues.includes('rejected');
+      const hasPending = statusValues.includes('pending');
+      
+      if (hasRejected) {
+        return <Badge variant="secondary" className="bg-red-100 text-red-800">{t.rejected}</Badge>;
+      } else if (hasApproved && !hasPending) {
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">{t.approved}</Badge>;
+      } else {
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{t.pending}</Badge>;
+      }
+    }
+    
+    // Fallback
+    return <Badge variant="secondary" className="bg-gray-100 text-gray-800">Unknown</Badge>;
   };
 
+  const recentProjects = projects.slice(0, 5);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SaralHeader />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Welcome Header */}
-        <div className="mb-6 flex justify-between items-center">
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              {t.welcome}, {user?.name}
-            </h1>
-            <p className="text-gray-600">{t.dashboard}</p>
+            <h1 className="text-2xl font-bold" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+            }}>{t.welcome}, {user?.name}!</h1>
+            <p className="text-blue-100 mt-1" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 500,
+              letterSpacing: '0.2px'
+            }}>{t.dashboard}</p>
           </div>
-          <Button 
-            onClick={() => setActiveTab('csv')}
-            className="bg-orange-600 hover:bg-orange-700"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            CSV Upload
-          </Button>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium" style={{ 
+              fontFamily: "'Noto Sans', 'Arial', sans-serif",
+              fontWeight: 600,
+              letterSpacing: '0.2px'
+            }}>Land Officer</span>
+          </div>
         </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-9 bg-white border border-orange-200">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.overview}
-            </TabsTrigger>
-            <TabsTrigger value="projects" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.projects}
-            </TabsTrigger>
-            <TabsTrigger value="csv" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.csvUpload}
-            </TabsTrigger>
-            <TabsTrigger value="surveys" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.surveys}
-            </TabsTrigger>
-            <TabsTrigger value="notices" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.notices}
-            </TabsTrigger>
-            <TabsTrigger value="villages" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.villages}
-            </TabsTrigger>
-            <TabsTrigger value="kyc" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.kycApproval}
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              {t.payments}
-            </TabsTrigger>
-            <TabsTrigger value="agents" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
-              Agent Assignment
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="border-orange-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <FileText className="h-8 w-8 text-orange-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{stats.totalProjects}</p>
-                      <p className="text-sm text-gray-600">{t.totalProjects}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-green-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-8 w-8 text-green-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{stats.completedKYC}</p>
-                      <p className="text-sm text-gray-600">{t.completedKYC}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-blue-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <IndianRupee className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="text-lg font-bold text-gray-800">{formatCurrency(stats.totalCompensation)}</p>
-                      <p className="text-sm text-gray-600">{t.totalCompensation}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-yellow-200">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-8 w-8 text-yellow-600" />
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{stats.pendingPayments}</p>
-                      <p className="text-sm text-gray-600">{t.pendingPayments}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Recent Projects and Quick Actions */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Recent Projects */}
-              <Card className="border-orange-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-orange-600" />
-                    <span>{t.recentProjects}</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {projects.slice(0, 3).map((project) => (
-                      <div key={project.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-medium text-gray-800 truncate">
-                            {project.projectName}
-                          </h4>
-                          <p className="text-xs text-gray-500">
-                            {project.landToBeAcquired} {t.hectares}
-                          </p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {getStatusBadge(project.status.stage3A)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Quick Actions */}
-              <Card className="border-orange-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FolderPlus className="h-5 w-5 text-orange-600" />
-                    <span>{t.quickActions}</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button 
-                      className="flex items-center space-x-2 h-16 bg-blue-600 hover:bg-blue-700"
-                      onClick={() => setActiveTab('projects')}
-                    >
-                      <FolderPlus className="h-5 w-5" />
-                      <span className="text-sm">{t.createProject}</span>
-                    </Button>
-                    
-                    <Button 
-                      className="flex items-center space-x-2 h-16 bg-orange-600 hover:bg-orange-700"
-                      onClick={() => setActiveTab('csv')}
-                    >
-                      <Upload className="h-5 w-5" />
-                      <span className="text-sm">{t.uploadCSV}</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="flex items-center space-x-2 h-16 border-green-200 text-green-700 hover:bg-green-50"
-                      onClick={() => setActiveTab('villages')}
-                    >
-                      <MapPin className="h-5 w-5" />
-                      <span className="text-sm">{t.viewVillages}</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="flex items-center space-x-2 h-16 border-purple-200 text-purple-700 hover:bg-purple-50"
-                      onClick={() => setActiveTab('kyc')}
-                    >
-                      <Users className="h-5 w-5" />
-                      <span className="text-sm">{t.approveKYC}</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="flex items-center space-x-2 h-16 border-red-200 text-red-700 hover:bg-red-50"
-                      onClick={() => setActiveTab('notices')}
-                    >
-                      <FileText className="h-5 w-5" />
-                      <span className="text-sm">Generate Notices</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="projects">
-            <ProjectManagement />
-          </TabsContent>
-
-          <TabsContent value="csv">
-            <CSVUploadManager />
-          </TabsContent>
-
-          <TabsContent value="surveys">
-            <SurveyNumberManager />
-          </TabsContent>
-
-          <TabsContent value="notices">
-            <NoticeGenerator />
-          </TabsContent>
-
-          <TabsContent value="villages">
-            <VillageWiseReports />
-          </TabsContent>
-
-          <TabsContent value="kyc">
-            <KYCApprovalQueue />
-          </TabsContent>
-
-          <TabsContent value="payments">
-            <PaymentInitiation />
-          </TabsContent>
-
-          <TabsContent value="agents">
-            <SimpleAgentAssignment />
-          </TabsContent>
-        </Tabs>
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="bg-white/80 backdrop-blur-md border-blue-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-blue-800">{t.totalProjects}</CardTitle>
+            <Building2 className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-900">{stats.totalProjects}</div>
+            <p className="text-xs text-blue-600 mt-1">Land acquisition projects</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/80 backdrop-blur-md border-orange-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-orange-800">{t.totalCompensation}</CardTitle>
+            <IndianRupee className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-900">{formatCurrency(stats.totalCompensation)}</div>
+            <p className="text-xs text-orange-600 mt-1">Total compensation amount</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/80 backdrop-blur-md border-green-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-green-800">{t.pendingKYC}</CardTitle>
+            <Shield className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-900">{stats.pendingKYC}</div>
+            <p className="text-xs text-green-600 mt-1">Awaiting approval</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/80 backdrop-blur-md border-purple-200 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-purple-800">{t.pendingPayments}</CardTitle>
+            <Clock className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-900">{stats.pendingPayments}</div>
+            <p className="text-xs text-purple-600 mt-1">Payment processing</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Tabs */}
+      <Card className="bg-white/80 backdrop-blur-md border-blue-200 shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Land Acquisition Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-8 bg-blue-50">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.overview}
+              </TabsTrigger>
+              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.projects}
+              </TabsTrigger>
+              <TabsTrigger value="csv" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.csvUpload}
+              </TabsTrigger>
+              <TabsTrigger value="surveys" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.surveys}
+              </TabsTrigger>
+              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.notices}
+              </TabsTrigger>
+              <TabsTrigger value="villages" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.villages}
+              </TabsTrigger>
+              <TabsTrigger value="kyc" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.kycApproval}
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                {t.payments}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent Projects */}
+                <Card className="bg-white/70 backdrop-blur-md border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="text-blue-900 flex items-center space-x-2">
+                      <Building2 className="h-5 w-5" />
+                      <span>{t.recentProjects}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {recentProjects.map((project) => (
+                        <div key={project.id} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">{project.name}</p>
+                            <p className="text-xs text-blue-600">{project.village} • {project.area} {t.hectares}</p>
+                          </div>
+                          {getStatusBadge(project.status)}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Actions */}
+                <Card className="bg-white/70 backdrop-blur-md border-orange-200">
+                  <CardHeader>
+                    <CardTitle className="text-orange-900 flex items-center space-x-2">
+                      <FolderPlus className="h-5 w-5" />
+                      <span>{t.quickActions}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 gap-3">
+                      <Button 
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => setActiveTab('projects')}
+                      >
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        {t.createProject}
+                      </Button>
+                      <Button 
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        onClick={() => setActiveTab('csv')}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t.uploadCSV}
+                      </Button>
+                      <Button 
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => setActiveTab('villages')}
+                      >
+                        <MapPin className="h-4 w-4 mr-2" />
+                        {t.viewVillages}
+                      </Button>
+                      <Button 
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                        onClick={() => setActiveTab('kyc')}
+                      >
+                        <Shield className="h-4 w-4 mr-2" />
+                        {t.approveKYC}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="projects" className="mt-6">
+              <ProjectManagement />
+            </TabsContent>
+
+            <TabsContent value="csv" className="mt-6">
+              <CSVUploadManager />
+            </TabsContent>
+
+            <TabsContent value="surveys" className="mt-6">
+              <SurveyNumberManager />
+            </TabsContent>
+
+            <TabsContent value="notices" className="mt-6">
+              <NoticeGenerator />
+            </TabsContent>
+
+            <TabsContent value="villages" className="mt-6">
+              <VillageWiseReports />
+            </TabsContent>
+
+            <TabsContent value="kyc" className="mt-6">
+              <KYCApprovalQueue />
+            </TabsContent>
+
+            <TabsContent value="payments" className="mt-6">
+              <PaymentInitiation />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };
