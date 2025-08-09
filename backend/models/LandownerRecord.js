@@ -159,6 +159,18 @@ const LandownerRecord = sequelize.define('LandownerRecord', {
   contactAddress: {
     type: DataTypes.TEXT
   },
+  // Tribal (Scheduled Tribe) flags
+  isTribal: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  tribalCertificateNo: {
+    type: DataTypes.STRING
+  },
+  tribalLag: {
+    // Local allowance/lag flag if applicable
+    type: DataTypes.STRING
+  },
   // Bank details for payment
   bankAccountNumber: {
     type: DataTypes.STRING

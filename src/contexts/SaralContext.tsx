@@ -58,6 +58,10 @@ export interface LandownerRecord {
   transactionId?: string;
   utrNumber?: string;
   paymentDate?: Date;
+  // Tribal flags
+  isTribal?: boolean;
+  tribalCertificateNo?: string;
+  tribalLag?: string;
 }
 
 export interface KYCDocument {

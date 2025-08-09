@@ -65,4 +65,32 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// @desc    Update landowner record (partial)
+// @route   PUT /api/landowners/:id
+// @access  Public (temporarily)
+router.put('/:id', async (req, res) => {
+  try {
+    const record = await LandownerRecord.findByPk(req.params.id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Landowner record not found' });
+    }
+
+    const updatable = [
+      'kycStatus', 'paymentStatus', 'assignedAgent', 'assignedAt', 'contactPhone', 'contactEmail',
+      'contactAddress', 'bankAccountNumber', 'bankIfscCode', 'bankName', 'bankBranchName',
+      'bankAccountHolderName', 'documents', 'notes', 'isActive',
+      // tribal-specific
+      'isTribal', 'tribalCertificateNo', 'tribalLag'
+    ];
+    const updates = {};
+    updatable.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+
+    await record.update(updates);
+    res.status(200).json({ success: true, record });
+  } catch (error) {
+    console.error('Update landowner error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 export default router; 

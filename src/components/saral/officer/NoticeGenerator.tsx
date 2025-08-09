@@ -53,7 +53,7 @@ const NoticeGenerator: React.FC = () => {
   
   // Hearing Notice builder state
   type Recipient = { name: string; relation?: string; address?: string };
-  const [noticeType, setNoticeType] = useState<'existing' | 'hearing' | 'payment'>('existing');
+  const [noticeType, setNoticeType] = useState<'existing' | 'hearing'>('existing');
   const [hearingRecipients, setHearingRecipients] = useState<Recipient[]>([{ name: '' }]);
   const [hearingPhones, setHearingPhones] = useState<string>('');
   const [hearingForm, setHearingForm] = useState({
@@ -100,25 +100,6 @@ const NoticeGenerator: React.FC = () => {
   });
   const [jmrCount, setJmrCount] = useState<number>(0);
   const [awardCount, setAwardCount] = useState<number>(0);
-
-  // Payment Notice builder state
-  const [paymentForm, setPaymentForm] = useState({
-    officeName: 'उपजिल्हाधिकारी (भूसंपादन) सुर्या प्रकल्प, दहाणू',
-    officeAddress: 'इराणी रोड, ता. दहाणू, जि. पालघर',
-    noticeDate: new Date().toISOString().slice(0, 10),
-    payeeName: '',
-    village: '',
-    amount: '',
-    dueDate: new Date(new Date().getTime() + 7*24*60*60*1000).toISOString().slice(0,10),
-    bankName: '',
-    accountHolder: '',
-    accountNumber: '',
-    ifsc: '',
-    notes: '',
-    signatoryName: 'सक्षम प्राधिकारी',
-    designation: 'उपजिल्हाधिकारी (भूसंपादन)',
-    linkForSMS: ''
-  });
 
   const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
     setHearingRecipients(prev => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
@@ -177,36 +158,6 @@ const NoticeGenerator: React.FC = () => {
         <div>(${hearingForm.signatoryName})</div>
         <div>${hearingForm.designation}</div>
         <div>${hearingForm.officeFooter}</div>
-      </div>
-    `;
-  };
-
-  const buildPaymentNoticeHTML = (): string => {
-    return `
-      <div style="text-align:center; font-weight:700;">महाराष्ट्र शासन</div>
-      <div style="text-align:center; margin-top:4px;">${paymentForm.officeName}</div>
-      <div style="text-align:center; font-size:12px;">${paymentForm.officeAddress}</div>
-      <hr/>
-      <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <div>जा.क्र./भूसंपादन/पेमेंट</div>
-        <div>दिनांक: ${paymentForm.noticeDate}</div>
-      </div>
-      <h3 style="text-align:center; margin:8px 0;">पेमेंट नोटीस</h3>
-      <div style="margin:8px 0;">प्रति: <b>${paymentForm.payeeName || '—'}</b>${paymentForm.village ? `, मौजे ${paymentForm.village}` : ''}</div>
-      <div style="margin:8px 0;">आपल्याला देय असलेली रक्कम रुपये <b>${paymentForm.amount || '—'}</b> इतकी असून ती <b>${paymentForm.dueDate || '—'}</b> पर्यंत स्वीकारावी.</div>
-      <div style="margin:8px 0;">
-        <h4>बँक तपशील</h4>
-        <table style="border-collapse:collapse; width:100%; font-size:12px;" border="1" cellpadding="4">
-          <tr><td>Bank</td><td>${paymentForm.bankName || '—'}</td></tr>
-          <tr><td>Account Holder</td><td>${paymentForm.accountHolder || '—'}</td></tr>
-          <tr><td>Account No.</td><td>${paymentForm.accountNumber || '—'}</td></tr>
-          <tr><td>IFSC</td><td>${paymentForm.ifsc || '—'}</td></tr>
-        </table>
-      </div>
-      ${paymentForm.notes ? `<div style="margin:8px 0;">टीप: ${paymentForm.notes}</div>` : ''}
-      <div style="margin-top:24px; text-align:right;">
-        <div>(${paymentForm.signatoryName})</div>
-        <div>${paymentForm.designation}</div>
       </div>
     `;
   };
@@ -883,7 +834,6 @@ const NoticeGenerator: React.FC = () => {
               <SelectContent>
                 <SelectItem value="existing">CSV/Existing Notice (default)</SelectItem>
                 <SelectItem value="hearing">Hearing Notice (custom)</SelectItem>
-                <SelectItem value="payment">Payment Notice</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1188,91 +1138,6 @@ const NoticeGenerator: React.FC = () => {
             </div>
           )}
 
-          {noticeType === 'payment' && (
-            <div className="space-y-4 border rounded-md p-4">
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="grid gap-2">
-                  <Label>Notice Date</Label>
-                  <Input type="date" value={paymentForm.noticeDate} onChange={e => setPaymentForm({ ...paymentForm, noticeDate: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Due Date</Label>
-                  <Input type="date" value={paymentForm.dueDate} onChange={e => setPaymentForm({ ...paymentForm, dueDate: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Amount (₹)</Label>
-                  <Input type="number" step="0.01" value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="grid gap-2">
-                  <Label>Payee Name</Label>
-                  <Input value={paymentForm.payeeName} onChange={e => setPaymentForm({ ...paymentForm, payeeName: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Village</Label>
-                  <Input value={paymentForm.village} onChange={e => setPaymentForm({ ...paymentForm, village: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Bank</Label>
-                  <Input value={paymentForm.bankName} onChange={e => setPaymentForm({ ...paymentForm, bankName: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="grid gap-2">
-                  <Label>Account Holder</Label>
-                  <Input value={paymentForm.accountHolder} onChange={e => setPaymentForm({ ...paymentForm, accountHolder: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Account No.</Label>
-                  <Input value={paymentForm.accountNumber} onChange={e => setPaymentForm({ ...paymentForm, accountNumber: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>IFSC</Label>
-                  <Input value={paymentForm.ifsc} onChange={e => setPaymentForm({ ...paymentForm, ifsc: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label>Notes (optional)</Label>
-                <Textarea rows={2} value={paymentForm.notes} onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })} />
-              </div>
-              <div className="grid md:grid-cols-2 gap-3">
-                <div className="grid gap-2">
-                  <Label>Signatory Name</Label>
-                  <Input value={paymentForm.signatoryName} onChange={e => setPaymentForm({ ...paymentForm, signatoryName: e.target.value })} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Designation</Label>
-                  <Input value={paymentForm.designation} onChange={e => setPaymentForm({ ...paymentForm, designation: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label>Notice Link for SMS (optional)</Label>
-                <Input value={paymentForm.linkForSMS} onChange={e => setPaymentForm({ ...paymentForm, linkForSMS: e.target.value })} />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={() => { setPreviewContent(buildPaymentNoticeHTML()); setIsPreviewOpen(true); }}><Eye className="h-4 w-4 mr-1" /> Preview</Button>
-                <Button variant="outline" onClick={() => {
-                  const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>payment-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildPaymentNoticeHTML()}</body>\n</html>`;
-                  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-                  const a = document.createElement('a'); a.href = url; a.download = 'payment-notice.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-                }}><Download className="h-4 w-4 mr-1" /> Download HTML</Button>
-                <Button variant="default" onClick={async () => {
-                  try {
-                    const resp = await fetch(`${API_BASE_URL}/notices/save-custom`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: selectedProject, noticeNumber: `PAY-${Date.now()}`, noticeDate: paymentForm.noticeDate, noticeContent: buildPaymentNoticeHTML() }) });
-                    const data = await resp.json();
-                    if (!resp.ok || !data.success) throw new Error(data.message || 'Failed to save');
-                    setPaymentForm(prev => ({ ...prev, linkForSMS: data.data?.url || prev.linkForSMS }));
-                    await navigator.clipboard.writeText(data.data?.url || '');
-                    toast.success('Payment notice saved. Link copied');
-                  } catch (e: any) {
-                    toast.error(e?.message || 'Failed to save payment notice');
-                  }
-                }}><Send className="h-4 w-4 mr-1" /> Save to Server</Button>
-              </div>
-            </div>
-          )}
-
         </CardContent>
       </Card>
 
@@ -1299,6 +1164,7 @@ const NoticeGenerator: React.FC = () => {
                 <TableHead>Village</TableHead>
                 <TableHead>Area (Ha)</TableHead>
                 <TableHead>Compensation</TableHead>
+                <TableHead>Tribal</TableHead>
                 <TableHead>Notice Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -1320,6 +1186,49 @@ const NoticeGenerator: React.FC = () => {
                     <Badge>
                       ₹{(parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') as any || '0') / 100000).toFixed(1)}L
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={Boolean((record as any).isTribal)}
+                        onCheckedChange={async (v) => {
+                          const val = !!v;
+                          try {
+                            await updateLandownerRecord(record.id, { isTribal: val });
+                            (record as any).isTribal = val;
+                            setFilteredRecords([...filteredRecords]);
+                            toast.success(val ? 'Marked Tribal' : 'Unmarked Tribal');
+                          } catch {
+                            toast.error('Failed to update tribal flag');
+                          }
+                        }}
+                      />
+                      <Input
+                        placeholder="Tribal Lag/Cert No"
+                        value={(record as any).tribalLag || (record as any).tribalCertificateNo || ''}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          (record as any).tribalLag = val;
+                          setFilteredRecords([...filteredRecords]);
+                        }}
+                        className="h-8 w-40"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await updateLandownerRecord(record.id, {
+                              tribalLag: (record as any).tribalLag,
+                              tribalCertificateNo: (record as any).tribalLag
+                            });
+                            toast.success('Saved tribal details');
+                          } catch {
+                            toast.error('Failed to save');
+                          }
+                        }}
+                      >Save</Button>
+                    </div>
                   </TableCell>
                   <TableCell>
                     {record.noticeGenerated ? (
