@@ -195,6 +195,7 @@ const CSVUploadManager = () => {
       const response = await fetch(`${API_BASE_URL}/csv/ingest/${selectedProject}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Avoid nested JSON issues by ensuring a clean JSON string
         body: JSON.stringify({
           csvContent: csvRawText,
           assignToAgent: !!selectedAgent,

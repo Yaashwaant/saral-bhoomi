@@ -757,7 +757,9 @@ router.get('/stats/:projectId', async (req, res) => {
 router.post('/ingest/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { csvContent, rows, assignToAgent = false, agentId, generateNotice = false, overwrite = false } = req.body || {};
+    // Support raw text or nested JSON body (handle frontend quirks)
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const { csvContent, rows, assignToAgent = false, agentId, generateNotice = false, overwrite = false } = body;
 
     const assignToAgentBool = String(assignToAgent) === 'true' || assignToAgent === true;
     const generateNoticeBool = String(generateNotice) === 'true' || generateNotice === true;
@@ -787,10 +789,11 @@ router.post('/ingest/:projectId', async (req, res) => {
       // Normalize headers (Marathi/English variants)
       row = normalizeRow(row);
 
+      // Keep taluka/district optional to match basic upload route
       const requiredFields = [
         'खातेदाराचे_नांव', 'सर्वे_नं', 'क्षेत्र', 'संपादित_क्षेत्र',
         'दर', 'एकूण_मोबदला', 'सोलेशियम_100', 'अंतिम_रक्कम',
-        'village', 'taluka', 'district'
+        'village'
       ];
       requiredFields.forEach(f => { if (row[f] !== undefined && row[f] !== null) row[f] = String(row[f]).trim(); });
       const missingFields = requiredFields.filter(field => !row[field]);
@@ -811,8 +814,8 @@ router.post('/ingest/:projectId', async (req, res) => {
         सोलेशियम_100: row.सोलेशियम_100,
         अंतिम_रक्कम: row.अंतिम_रक्कम,
         village: row.village,
-        taluka: row.taluka,
-        district: row.district,
+        taluka: row.taluka || '',
+        district: row.district || '',
         contactPhone: row.phone || '',
         contactEmail: row.email || '',
         contactAddress: row.address || '',
