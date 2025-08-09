@@ -32,6 +32,7 @@ interface ProjectFormData {
   landToBeAcquired: string;
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
+  description: string;
 }
 
 const ProjectManagement = () => {
@@ -39,6 +40,8 @@ const ProjectManagement = () => {
   const { projects, createProject, updateProject, deleteProject } = useSaral();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewProject, setViewProject] = useState<any>(null);
   const [formData, setFormData] = useState<ProjectFormData>({
     projectName: '',
     pmisCode: '',
@@ -47,7 +50,8 @@ const ProjectManagement = () => {
     landAvailable: '',
     landToBeAcquired: '',
     type: 'greenfield',
-    videoUrl: ''
+    videoUrl: '',
+    description: ''
   });
 
   const translations = {
@@ -177,6 +181,7 @@ const ProjectManagement = () => {
         landToBeAcquired: parseFloat(formData.landToBeAcquired),
         type: formData.type,
         videoUrl: formData.videoUrl,
+        description: formData.description,
         status: {
           stage3A: 'pending',
           stage3D: 'pending',
@@ -204,7 +209,8 @@ const ProjectManagement = () => {
         landAvailable: '',
         landToBeAcquired: '',
         type: 'greenfield',
-        videoUrl: ''
+        videoUrl: '',
+        description: ''
       });
     } catch (error) {
       toast.error('Failed to save project');
@@ -221,7 +227,8 @@ const ProjectManagement = () => {
       landAvailable: project.landAvailable.toString(),
       landToBeAcquired: project.landToBeAcquired.toString(),
       type: project.type,
-      videoUrl: project.videoUrl || ''
+      videoUrl: project.videoUrl || '',
+      description: project.description || ''
     });
     setIsDialogOpen(true);
   };
@@ -342,6 +349,15 @@ const ProjectManagement = () => {
                     onChange={(e) => setFormData({...formData, videoUrl: e.target.value})}
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="description">Project Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief description, legal context, acquisition act/sections, etc."
+                  />
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -352,6 +368,41 @@ const ProjectManagement = () => {
                 </Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+        {/* View Project Dialog */}
+        <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Eye className="h-5 w-5" />
+                <span>Project Details</span>
+              </DialogTitle>
+            </DialogHeader>
+            {viewProject ? (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-xs text-gray-500">{t.projectName}</Label>
+                  <div className="font-medium">{viewProject.projectName}</div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs text-gray-500">{t.pmisCode}</Label>
+                    <div>{viewProject.pmisCode}</div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">{t.type}</Label>
+                    <div>{viewProject.type}</div>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Description</Label>
+                  <div className="whitespace-pre-wrap text-sm text-gray-800">
+                    {viewProject.description || '—'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -413,6 +464,14 @@ const ProjectManagement = () => {
                           onClick={() => handleEdit(project)}
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setViewProject(project); setIsViewOpen(true); }}
+                          title={t.view}
+                        >
+                          <Eye className="h-4 w-4" />
                         </Button>
                         <Button
                           size="sm"
