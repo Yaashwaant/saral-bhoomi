@@ -30,10 +30,7 @@ router.get('/list', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching agents:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch agents'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch agents', agents: [] });
   }
 });
 

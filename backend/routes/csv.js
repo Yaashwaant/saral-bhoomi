@@ -835,10 +835,23 @@ router.post('/ingest/:projectId', async (req, res) => {
     };
 
     if (Array.isArray(rows) && rows.length > 0) {
-      rows.forEach(handleRow);
+      // If rows came from frontend parsed CSV, ensure keys are trimmed and quoted values cleaned
+      rows.forEach((raw) => {
+        const cleaned = {};
+        Object.keys(raw || {}).forEach((k) => {
+          const key = String(k).trim().replace(/"/g, '');
+          let val = raw[k];
+          if (typeof val === 'string') {
+            val = val.trim().replace(/"/g, '');
+          }
+          cleaned[key] = val;
+        });
+        handleRow(cleaned);
+      });
     } else if (typeof csvContent === 'string' && csvContent.trim().length > 0) {
+      const cleanedCsv = csvContent.replace(/\uFEFF/g, '').replace(/\r/g, '');
       await new Promise((resolve, reject) => {
-        Readable.from(csvContent)
+        Readable.from(cleanedCsv)
           .pipe(csv())
           .on('data', (row) => handleRow(row))
           .on('end', resolve)

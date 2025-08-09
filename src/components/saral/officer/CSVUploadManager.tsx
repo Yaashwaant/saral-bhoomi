@@ -34,8 +34,17 @@ interface CSVData {
   सोलेशियम_100?: string;
   अंतिम_रक्कम?: string;
   village: string;
-  taluka: string;
-  district: string;
+  taluka?: string;
+  district?: string;
+  // Newly accepted optional fields (Marathi/English headers are normalized on server)
+  phone?: string;
+  email?: string;
+  address?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  bankName?: string;
+  branchName?: string;
+  accountHolderName?: string;
 }
 
 const CSVUploadManager = () => {
@@ -108,12 +117,12 @@ const CSVUploadManager = () => {
   const loadAgents = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agents/list`);
-      const data = await response.json();
-      if (data.success) {
-        setAgents(data.agents || []);
-      }
+      if (!response.ok) return; // silently ignore if server not ready
+      let data: any = null;
+      try { data = await response.json(); } catch (_) { data = null; }
+      if (data && data.success) setAgents(data.agents || []);
     } catch (err) {
-      console.error('Error loading agents:', err);
+      // do not spam console; agent loading is optional for CSV upload
     }
   };
 
@@ -195,8 +204,9 @@ const CSVUploadManager = () => {
       const response = await fetch(`${API_BASE_URL}/csv/ingest/${selectedProject}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Avoid nested JSON issues by ensuring a clean JSON string
         body: JSON.stringify({
+          // Send both; server will pick whichever is available/valid
+          rows: csvData,
           csvContent: csvRawText,
           assignToAgent: !!selectedAgent,
           agentId: selectedAgent || undefined,
@@ -223,7 +233,19 @@ const CSVUploadManager = () => {
           fileInputRef.current.value = '';
         }
       } else {
-        toast.error(data.message || `Upload failed (${response.status})`);
+        if (!response.ok && !data?.success) {
+          try {
+            const text = await response.text();
+            // attempt to surface server-provided errors
+            const maybe = JSON.parse(text);
+            const details = maybe?.errors ? `: ${maybe.errors.map((e: any) => `row ${e.row} - ${e.error}`).join('; ')}` : '';
+            toast.error((maybe?.message || `Upload failed (${response.status})`) + details);
+          } catch {
+            toast.error(data?.message || `Upload failed (${response.status})`);
+          }
+        } else {
+          toast.error(data?.message || `Upload failed (${response.status})`);
+        }
       }
     } catch (error) {
       console.error('Error uploading CSV:', error);
