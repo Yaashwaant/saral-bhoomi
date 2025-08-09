@@ -155,6 +155,14 @@ const ProjectManagement = () => {
 
   const t = translations[user?.language || 'marathi'];
 
+  // Normalize status whether it's nested under project.status or top-level fields
+  const getProjectStatus = (p: any) => ({
+    stage3A: p?.status?.stage3A ?? p?.stage3A ?? 'pending',
+    stage3D: p?.status?.stage3D ?? p?.stage3D ?? 'pending',
+    corrigendum: p?.status?.corrigendum ?? p?.corrigendum ?? 'pending',
+    award: p?.status?.award ?? p?.award ?? 'pending'
+  });
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -448,11 +456,11 @@ const ProjectManagement = () => {
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <span className="text-xs">{t.stage3A}:</span>
-                          {getStatusBadge(project.status.stage3A)}
+                          {getStatusBadge(getProjectStatus(project).stage3A)}
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-xs">{t.stage3D}:</span>
-                          {getStatusBadge(project.status.stage3D)}
+                          {getStatusBadge(getProjectStatus(project).stage3D)}
                         </div>
                       </div>
                     </TableCell>
