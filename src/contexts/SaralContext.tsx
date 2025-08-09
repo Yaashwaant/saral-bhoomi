@@ -16,6 +16,7 @@ export interface Project {
   type: 'greenfield' | 'brownfield';
   indexMap?: File;
   videoUrl?: string;
+  description?: string;
   status: {
     stage3A: 'pending' | 'approved' | 'rejected';
     stage3D: 'pending' | 'approved' | 'rejected';

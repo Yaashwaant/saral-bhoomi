@@ -32,6 +32,7 @@ interface ProjectFormData {
   landToBeAcquired: string;
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
+  description?: string;
 }
 
 const ProjectManagement = () => {
@@ -47,7 +48,8 @@ const ProjectManagement = () => {
     landAvailable: '',
     landToBeAcquired: '',
     type: 'greenfield',
-    videoUrl: ''
+    videoUrl: '',
+    description: ''
   });
 
   const translations = {
@@ -66,6 +68,7 @@ const ProjectManagement = () => {
       videoUrl: 'व्हिडिओ URL',
       save: 'जतन करा',
       cancel: 'रद्द करा',
+      description: 'प्रकल्पाचे वर्णन',
       edit: 'संपादन करा',
       delete: 'हटवा',
       view: 'पाहा',
@@ -98,6 +101,7 @@ const ProjectManagement = () => {
       videoUrl: 'Video URL',
       save: 'Save',
       cancel: 'Cancel',
+      description: 'Project Description',
       edit: 'Edit',
       delete: 'Delete',
       view: 'View',
@@ -130,6 +134,7 @@ const ProjectManagement = () => {
       videoUrl: 'वीडियो URL',
       save: 'सहेजें',
       cancel: 'रद्द करें',
+      description: 'परियोजना विवरण',
       edit: 'संपादित करें',
       delete: 'हटाएं',
       view: 'देखें',
@@ -186,6 +191,7 @@ const ProjectManagement = () => {
         landToBeAcquired: parseFloat(formData.landToBeAcquired),
         type: formData.type,
         videoUrl: formData.videoUrl,
+        description: formData.description,
         status: {
           stage3A: 'pending',
           stage3D: 'pending',
@@ -213,7 +219,8 @@ const ProjectManagement = () => {
         landAvailable: '',
         landToBeAcquired: '',
         type: 'greenfield',
-        videoUrl: ''
+        videoUrl: '',
+        description: ''
       });
     } catch (error) {
       toast.error('Failed to save project');
@@ -230,7 +237,8 @@ const ProjectManagement = () => {
       landAvailable: project.landAvailable.toString(),
       landToBeAcquired: project.landToBeAcquired.toString(),
       type: project.type,
-      videoUrl: project.videoUrl || ''
+      videoUrl: project.videoUrl || '',
+      description: project.description || ''
     });
     setIsDialogOpen(true);
   };
@@ -351,6 +359,15 @@ const ProjectManagement = () => {
                     onChange={(e) => setFormData({...formData, videoUrl: e.target.value})}
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="description">{t.description}</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={4}
+                  />
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -412,6 +429,9 @@ const ProjectManagement = () => {
                           <span className="text-xs">{t.stage3D}:</span>
                           {getStatusBadge(getProjectStatus(project).stage3D)}
                         </div>
+                        {project.description && (
+                          <div className="text-xs text-gray-600 line-clamp-2">{project.description}</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
