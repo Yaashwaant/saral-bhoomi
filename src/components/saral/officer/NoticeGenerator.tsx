@@ -930,6 +930,27 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                 <Button variant="outline" onClick={downloadHearingNotice}><Download className="h-4 w-4 mr-1" /> Download HTML</Button>
                 <Button variant="outline" onClick={copySmsText}><Copy className="h-4 w-4 mr-1" /> Copy SMS Text</Button>
                 <Button variant="default" onClick={saveHearingNoticeToServer}><Send className="h-4 w-4 mr-1" /> Save to Server</Button>
+                <Button variant="default" onClick={async () => {
+                  try {
+                    const numbers = (hearingPhones || '').split(/\n|,/).map(s => s.trim()).filter(Boolean);
+                    if (numbers.length === 0) { toast.error('Add phone numbers first'); return; }
+                    if (!hearingForm.linkForSMS) { toast.error('Save notice to get link first'); return; }
+                    const resp = await fetch(`${API_BASE_URL}/notices/send-sms`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        toNumbers: numbers,
+                        body: `सूचना: दि. ${hearingForm.hearingDate} रोजी वेळ ${hearingForm.hearingTime} वाजता, ${hearingForm.venue} येथे सुनावणी आहे. कृपया वेळेत उपस्थित रहा.`,
+                        link: hearingForm.linkForSMS
+                      })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success) throw new Error(data.message || 'Failed to send SMS');
+                    toast.success('SMS sent');
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Failed to send SMS');
+                  }
+                }}>Send via SMS</Button>
               </div>
             </div>
           )}

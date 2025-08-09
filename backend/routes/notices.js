@@ -10,6 +10,7 @@ import sequelize from '../config/database.js';
 import { Op } from 'sequelize';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
+import twilio from 'twilio';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -427,6 +428,45 @@ router.post('/save-custom', async (req, res) => {
   } catch (error) {
     console.error('Save custom notice error:', error);
     return res.status(500).json({ success: false, message: 'Server error while saving notice' });
+  }
+});
+
+// @desc    Send notice link via SMS (Twilio)
+// @route   POST /api/notices/send-sms
+// @access  Public (temporarily)
+router.post('/send-sms', async (req, res) => {
+  try {
+    const { toNumbers = [], body, link } = req.body || {};
+    if (!Array.isArray(toNumbers) || toNumbers.length === 0) {
+      return res.status(400).json({ success: false, message: 'toNumbers array is required' });
+    }
+    const msg = `${body || 'सूचना'} ${link ? `\n${link}` : ''}`.trim();
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const apiKey = process.env.TWILIO_API_KEY_SID;
+    const apiSecret = process.env.TWILIO_API_KEY_SECRET;
+    const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+
+    if (!accountSid || !apiKey || !apiSecret || !messagingServiceSid) {
+      return res.status(500).json({ success: false, message: 'Twilio env vars missing' });
+    }
+
+    const client = twilio(apiKey, apiSecret, { accountSid });
+    const results = [];
+    for (const raw of toNumbers) {
+      const to = String(raw).trim();
+      if (!to) continue;
+      try {
+        const resp = await client.messages.create({ to, body: msg, messagingServiceSid });
+        results.push({ to, sid: resp.sid, status: resp.status });
+      } catch (e) {
+        results.push({ to, error: e && (e.message || String(e)) });
+      }
+    }
+    return res.status(200).json({ success: true, data: { results } });
+  } catch (error) {
+    console.error('Send SMS error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while sending SMS' });
   }
 });
 
