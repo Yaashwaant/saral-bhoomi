@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useSaral } from '@/contexts/SaralContext';
 import { toast } from 'sonner';
-import { FileText, Download, Eye, Printer, UserCheck, ArrowRight } from 'lucide-react';
+import { FileText, Download, Eye, Printer, UserCheck, ArrowRight, Copy, Send } from 'lucide-react';
 
 interface GeneratedNotice {
   id: string;
@@ -48,6 +49,131 @@ const NoticeGenerator: React.FC = () => {
   ]);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+  
+  // Hearing Notice builder state
+  type Recipient = { name: string; relation?: string; address?: string };
+  const [noticeType, setNoticeType] = useState<'existing' | 'hearing'>('existing');
+  const [hearingRecipients, setHearingRecipients] = useState<Recipient[]>([{ name: '' }]);
+  const [hearingPhones, setHearingPhones] = useState<string>('');
+  const [hearingForm, setHearingForm] = useState({
+    officeName: 'उपजिल्हाधिकारी (भूसंपादन) सुर्या प्रकल्प, दहाणू',
+    officeAddress: 'इराणी रोड, आय.डी.बी.आय. बँकेच्या समोर, ता. दहाणू, जि. पालघर',
+    officeEmail: 'desplandacquisition@gmail.com',
+    officePhone: '02528-220180',
+    refNo: '',
+    noticeDate: new Date().toISOString().slice(0, 10),
+    projectName: 'रेल्वे उड्डाणपूल प्रकल्प',
+    village: '',
+    taluka: '',
+    district: '',
+    surveyNumbers: '',
+    ccRecipients: '',
+    hearingDate: new Date().toISOString().slice(0, 10),
+    hearingTime: '12:30',
+    venue: 'उपजिल्हाधिकारी (भूसंपादन) सुर्या प्रकल्प, दहाणू कार्यालय',
+    signatoryName: 'संजय सावंत',
+    designation: 'उपजिल्हाधिकारी (भूसंपादन)',
+    officeFooter: 'सुर्या प्रकल्प, दहाणू',
+    required7x12: true,
+    requiredId: true,
+    requiredPassbook: true,
+    linkForSMS: ''
+  });
+
+  const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
+    setHearingRecipients(prev => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
+  };
+  const addRecipient = () => setHearingRecipients(prev => [...prev, { name: '' }]);
+  const removeRecipient = (idx: number) => setHearingRecipients(prev => prev.filter((_, i) => i !== idx));
+
+  const buildHearingNoticeHTML = (): string => {
+    const recipientsHtml = hearingRecipients
+      .filter(r => r.name.trim())
+      .map(r => `<div>${r.name}${r.relation ? ` (${r.relation})` : ''}${r.address ? `, ${r.address}` : ''}</div>`)
+      .join('');
+    const ccHtml = (hearingForm.ccRecipients || '')
+      .split(/\n|,/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(name => `<div>${name}</div>`)
+      .join('');
+    const docs: string[] = [];
+    if (hearingForm.required7x12) docs.push('जमिनीचा ७/१२ उतारा');
+    if (hearingForm.requiredId) docs.push('ओळखपत्र (आधार/मतदार ओळखपत्र/पॅन)');
+    if (hearingForm.requiredPassbook) docs.push('राष्ट्रीयकृत बँक पासबुक');
+    const docsHtml = docs.map(d => `<li>${d}</li>`).join('');
+    const surveyList = (hearingForm.surveyNumbers || '')
+      .split(/\n|,/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(', ');
+
+    return `
+      <div style="text-align:center; font-weight:700;">महाराष्ट्र शासन</div>
+      <div style="text-align:center; margin-top:4px;">${hearingForm.officeName}</div>
+      <div style="text-align:center; font-size:12px;">${hearingForm.officeAddress}<br/>Email: ${hearingForm.officeEmail} | दूरध्वनी: ${hearingForm.officePhone}</div>
+      <hr/>
+      <div style="display:flex; justify-content:space-between; font-size:13px;">
+        <div>जा.क्र./भूसंपादन/${hearingForm.projectName}/${hearingForm.refNo || '—'}</div>
+        <div>दिनांक: ${hearingForm.noticeDate}</div>
+      </div>
+      <h3 style="text-align:center; margin:8px 0;">सूचना नोटीस</h3>
+      <div style="margin:8px 0;">
+        <div style="font-weight:600;">प्रति,</div>
+        ${recipientsHtml || '<div>—</div>'}
+      </div>
+      ${ccHtml ? `<div style=\"margin:8px 0;\"><div style=\"font-weight:600;\">प्रतिलिपी सादरांसाठी:</div>${ccHtml}</div>` : ''}
+      <div style="margin:12px 0;">
+        विषय: गाव – ${hearingForm.village || '—'}, तालुका – ${hearingForm.taluka || '—'}, जिल्हा – ${hearingForm.district || '—'} येथील स.नं./गट क्र. ${surveyList || '—'} वरील ${hearingForm.projectName} संदर्भात.
+      </div>
+      <div style="margin:12px 0;">
+        वरील विषयानुसार नमूद प्रकरण हे, ${hearingForm.projectName} अंमलबजावणी संदर्भाने भूसंपादन, पुनर्वसन व पुनर्स्थापना कायदा, 2013 चे तरतुदी लागू होत असून संबंधित खातेदारांकडून आक्षेप/मागण्या/कागदपत्रे पडताळणे आवश्यक आहे.
+      </div>
+      <div style="margin:12px 0; font-weight:600;">
+        त्यानुसार, आपण/आपले प्रतिनिधी यांनी दि. ${hearingForm.hearingDate} रोजी वेळ ${hearingForm.hearingTime} वाजता, ${hearingForm.venue} येथे होणाऱ्या सुनावणीस उपस्थित राहावे. अनुपस्थित राहिल्यास, उपलब्ध दाखल्यांच्या आधारे निर्णय घेण्यात येईल व तीच अंतिम मानली जाईल.
+      </div>
+      ${docsHtml ? `<div style=\"margin:12px 0;\">कृपया खालील कागदपत्रे सोबत आणावीत:<ul>${docsHtml}</ul></div>` : ''}
+      <div style="margin-top:24px; text-align:right;">
+        <div>(${hearingForm.signatoryName})</div>
+        <div>${hearingForm.designation}</div>
+        <div>${hearingForm.officeFooter}</div>
+      </div>
+    `;
+  };
+
+  const previewHearingNotice = () => {
+    setPreviewContent(buildHearingNoticeHTML());
+    setIsPreviewOpen(true);
+  };
+
+  const downloadHearingNotice = () => {
+    const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'hearing-notice.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const copySmsText = async () => {
+    const numbers = (hearingPhones || '')
+      .split(/\n|,/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(', ');
+    const msg = `सूचना: दि. ${hearingForm.hearingDate} रोजी वेळ ${hearingForm.hearingTime} वाजता, ${hearingForm.venue} येथे सुनावणी आहे. कृपया वेळेत उपस्थित रहा. तपशील व नोटीस: ${hearingForm.linkForSMS || ''}`;
+    try {
+      await navigator.clipboard.writeText(`To: ${numbers}\n${msg}`);
+      toast.success('SMS text copied to clipboard');
+    } catch {
+      toast.error('Failed to copy SMS text');
+    }
+  };
+
+  // duplicate definitions cleanup (none below)
 
   // Load existing generated notices on component mount
   useEffect(() => {
@@ -622,13 +748,27 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
         <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              KYC Assignment
+              Notice Generation
             </CardTitle>
           <CardDescription>
-              Assign generated notices to agents for KYC collection
+              Generate notices or manage KYC assignments
           </CardDescription>
         </CardHeader>
           <CardContent className="space-y-4">
+          {/* Notice Type */}
+          <div className="grid gap-2">
+            <Label>Notice Type</Label>
+            <Select value={noticeType} onValueChange={(v: any) => setNoticeType(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="existing">CSV/Existing Notice (default)</SelectItem>
+                <SelectItem value="hearing">Hearing Notice (custom)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Project Selection */}
           <div className="space-y-2">
             <Label htmlFor="project">Select Project</Label>
@@ -656,7 +796,118 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
             />
           </div>
 
-          {/* No notice generation here; notices are already generated during CSV ingest */}
+          {noticeType === 'hearing' && (
+            <div className="space-y-4 border rounded-md p-4">
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="grid gap-2">
+                  <Label>Ref No</Label>
+                  <Input value={hearingForm.refNo} onChange={e => setHearingForm({ ...hearingForm, refNo: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Notice Date</Label>
+                  <Input type="date" value={hearingForm.noticeDate} onChange={e => setHearingForm({ ...hearingForm, noticeDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Project Name</Label>
+                  <Input value={hearingForm.projectName} onChange={e => setHearingForm({ ...hearingForm, projectName: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="grid gap-2">
+                  <Label>Village</Label>
+                  <Input value={hearingForm.village} onChange={e => setHearingForm({ ...hearingForm, village: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Taluka</Label>
+                  <Input value={hearingForm.taluka} onChange={e => setHearingForm({ ...hearingForm, taluka: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>District</Label>
+                  <Input value={hearingForm.district} onChange={e => setHearingForm({ ...hearingForm, district: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Survey Numbers (comma or newline separated)</Label>
+                <Textarea rows={2} value={hearingForm.surveyNumbers} onChange={e => setHearingForm({ ...hearingForm, surveyNumbers: e.target.value })} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Recipients</Label>
+                <div className="space-y-2">
+                  {hearingRecipients.map((r, idx) => (
+                    <div key={idx} className="grid md:grid-cols-3 gap-2">
+                      <Input placeholder="Full name" value={r.name} onChange={e => updateRecipient(idx, 'name', e.target.value)} />
+                      <Input placeholder="Relation/Note (optional)" value={r.relation || ''} onChange={e => updateRecipient(idx, 'relation', e.target.value)} />
+                      <div className="flex gap-2">
+                        <Input placeholder="Address (optional)" value={r.address || ''} onChange={e => updateRecipient(idx, 'address', e.target.value)} />
+                        <Button variant="outline" onClick={() => removeRecipient(idx)}>-</Button>
+                      </div>
+                    </div>
+                  ))}
+                  <Button variant="outline" onClick={addRecipient}>+ Add Recipient</Button>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="grid gap-2">
+                  <Label>Hearing Date</Label>
+                  <Input type="date" value={hearingForm.hearingDate} onChange={e => setHearingForm({ ...hearingForm, hearingDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Hearing Time</Label>
+                  <Input type="time" value={hearingForm.hearingTime} onChange={e => setHearingForm({ ...hearingForm, hearingTime: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Venue</Label>
+                  <Input value={hearingForm.venue} onChange={e => setHearingForm({ ...hearingForm, venue: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>CC Recipients (comma or newline separated)</Label>
+                <Textarea rows={2} value={hearingForm.ccRecipients} onChange={e => setHearingForm({ ...hearingForm, ccRecipients: e.target.value })} />
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2"><Checkbox checked={hearingForm.required7x12} onCheckedChange={v => setHearingForm({ ...hearingForm, required7x12: !!v })} /> <Label>7/12 Extract</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={hearingForm.requiredId} onCheckedChange={v => setHearingForm({ ...hearingForm, requiredId: !!v })} /> <Label>ID Proof</Label></div>
+                <div className="flex items-center gap-2"><Checkbox checked={hearingForm.requiredPassbook} onCheckedChange={v => setHearingForm({ ...hearingForm, requiredPassbook: !!v })} /> <Label>Bank Passbook</Label></div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label>Signatory Name</Label>
+                  <Input value={hearingForm.signatoryName} onChange={e => setHearingForm({ ...hearingForm, signatoryName: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Designation</Label>
+                  <Input value={hearingForm.designation} onChange={e => setHearingForm({ ...hearingForm, designation: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Office Footer</Label>
+                <Input value={hearingForm.officeFooter} onChange={e => setHearingForm({ ...hearingForm, officeFooter: e.target.value })} />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Phone Numbers (comma or newline separated)</Label>
+                <Textarea rows={2} value={hearingPhones} onChange={e => setHearingPhones(e.target.value)} />
+              </div>
+              <div className="grid gap-2">
+                <Label>Notice Link for SMS (optional)</Label>
+                <Input value={hearingForm.linkForSMS} onChange={e => setHearingForm({ ...hearingForm, linkForSMS: e.target.value })} />
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={previewHearingNotice}><Eye className="h-4 w-4 mr-1" /> Preview</Button>
+                <Button variant="outline" onClick={downloadHearingNotice}><Download className="h-4 w-4 mr-1" /> Download HTML</Button>
+                <Button variant="outline" onClick={copySmsText}><Copy className="h-4 w-4 mr-1" /> Copy SMS Text</Button>
+              </div>
+            </div>
+          )}
+
         </CardContent>
       </Card>
 
@@ -900,7 +1151,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
 
       {/* Preview Dialog */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Notice Preview</DialogTitle>
             <DialogDescription>
