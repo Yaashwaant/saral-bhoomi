@@ -81,6 +81,26 @@ const NoticeGenerator: React.FC = () => {
     linkForSMS: ''
   });
 
+  // JMR & Award state (lightweight helpers)
+  const [jmrForm, setJmrForm] = useState({
+    surveyNumber: '',
+    measuredArea: '',
+    category: '',
+    date: new Date().toISOString().slice(0, 10),
+    landownerId: ''
+  });
+  const [awardForm, setAwardForm] = useState({
+    landownerId: '',
+    awardNumber: '',
+    awardDate: new Date().toISOString().slice(0, 10),
+    baseAmount: '',
+    solatium: '',
+    totalAmount: '',
+    notes: ''
+  });
+  const [jmrCount, setJmrCount] = useState<number>(0);
+  const [awardCount, setAwardCount] = useState<number>(0);
+
   const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
     setHearingRecipients(prev => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
   };
@@ -289,6 +309,26 @@ const NoticeGenerator: React.FC = () => {
     }
   }, [selectedProject, searchTerm, landownerRecords]);
 
+  // Fetch JMR/Award counts when project changes
+  useEffect(() => {
+    const loadCounts = async () => {
+      if (!selectedProject) { setJmrCount(0); setAwardCount(0); return; }
+      try {
+        const [jmrRes, awardRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/jmr/${selectedProject}`),
+          fetch(`${API_BASE_URL}/awards/${selectedProject}`)
+        ]);
+        const j = await jmrRes.json().catch(() => ({ data: [] }));
+        const a = await awardRes.json().catch(() => ({ data: [] }));
+        setJmrCount(Array.isArray(j.data) ? j.data.length : 0);
+        setAwardCount(Array.isArray(a.data) ? a.data.length : 0);
+      } catch {
+        setJmrCount(0); setAwardCount(0);
+      }
+    };
+    loadCounts();
+  }, [selectedProject]);
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedRecords(filteredRecords.map(r => r.id));
@@ -448,7 +488,7 @@ const NoticeGenerator: React.FC = () => {
       </div>
 
       <h4 style="margin:12px 0 6px;">जमिनीचा तपशील</h4>
-      <table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:12px;">
+<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:12px;">
   <thead>
     <tr>
       <th style="width:8%;">स.नं/हि.नं/ग.नं</th>
@@ -499,7 +539,7 @@ const NoticeGenerator: React.FC = () => {
       <td>${safeNumericField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम')}</td>
     </tr>
   </tbody>
-      </table>
+</table>
 
       <div style="margin:12px 0;">
         <div>संमतीपत्र सादर केल्यास खालील आवश्यक कागदपत्रे (मूळ व Attested):</div>
@@ -814,6 +854,143 @@ const NoticeGenerator: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Joint Measurement & Award (optional, does not block notices) */}
+          {selectedProject && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* JMR */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Joint Measurement (JMR)</span>
+                    <Badge variant="outline">{jmrCount} records</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Survey Number</Label>
+                      <Input value={jmrForm.surveyNumber} onChange={e => setJmrForm({ ...jmrForm, surveyNumber: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Measured Area (Ha)</Label>
+                      <Input type="number" step="0.0001" value={jmrForm.measuredArea} onChange={e => setJmrForm({ ...jmrForm, measuredArea: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Category</Label>
+                      <Input value={jmrForm.category} onChange={e => setJmrForm({ ...jmrForm, category: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Date</Label>
+                      <Input type="date" value={jmrForm.date} onChange={e => setJmrForm({ ...jmrForm, date: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Landowner ID (optional)</Label>
+                    <Input value={jmrForm.landownerId || (selectedRecords[0] || '')} onChange={e => setJmrForm({ ...jmrForm, landownerId: e.target.value })} />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={async () => {
+                      try {
+                        if (!jmrForm.surveyNumber || !jmrForm.measuredArea) { toast.error('Enter survey and measured area'); return; }
+                        const resp = await fetch(`${API_BASE_URL}/jmr`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            project_id: selectedProject,
+                            landowner_id: jmrForm.landownerId || selectedRecords[0] || 'unknown',
+                            survey_number: jmrForm.surveyNumber,
+                            measured_area: parseFloat(jmrForm.measuredArea || '0'),
+                            category: jmrForm.category,
+                            date_of_measurement: jmrForm.date
+                          })
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok || !data.success) throw new Error(data.message || 'Failed');
+                        toast.success('JMR saved');
+                        setJmrCount(c => c + 1);
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Failed to save JMR');
+                      }
+                    }}>Save JMR</Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Award */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Award Declaration</span>
+                    <Badge variant="outline">{awardCount} records</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Landowner ID</Label>
+                      <Input value={awardForm.landownerId || (selectedRecords[0] || '')} onChange={e => setAwardForm({ ...awardForm, landownerId: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Award Number</Label>
+                      <Input value={awardForm.awardNumber} onChange={e => setAwardForm({ ...awardForm, awardNumber: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Award Date</Label>
+                      <Input type="date" value={awardForm.awardDate} onChange={e => setAwardForm({ ...awardForm, awardDate: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Base Amount</Label>
+                      <Input type="number" step="0.01" value={awardForm.baseAmount} onChange={e => setAwardForm({ ...awardForm, baseAmount: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Solatium</Label>
+                      <Input type="number" step="0.01" value={awardForm.solatium} onChange={e => setAwardForm({ ...awardForm, solatium: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Total Amount</Label>
+                      <Input type="number" step="0.01" value={awardForm.totalAmount} onChange={e => setAwardForm({ ...awardForm, totalAmount: e.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Notes</Label>
+                      <Input value={awardForm.notes} onChange={e => setAwardForm({ ...awardForm, notes: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={async () => {
+                      try {
+                        if (!awardForm.landownerId || !awardForm.totalAmount) { toast.error('Enter landowner and total amount'); return; }
+                        const resp = await fetch(`${API_BASE_URL}/awards`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            project_id: selectedProject,
+                            landowner_id: awardForm.landownerId || selectedRecords[0] || 'unknown',
+                            award_number: awardForm.awardNumber,
+                            award_date: awardForm.awardDate,
+                            base_amount: parseFloat(awardForm.baseAmount || '0'),
+                            solatium: parseFloat(awardForm.solatium || '0'),
+                            total_amount: parseFloat(awardForm.totalAmount || '0'),
+                            notes: awardForm.notes
+                          })
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok || !data.success) throw new Error(data.message || 'Failed');
+                        toast.success('Award saved');
+                        setAwardCount(c => c + 1);
+                      } catch (e: any) {
+                        toast.error(e?.message || 'Failed to save Award');
+                      }
+                    }}>Save Award</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Search */}
           <div className="space-y-2">
