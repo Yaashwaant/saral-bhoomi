@@ -1,5 +1,7 @@
 import express from 'express';
 import Project from '../models/Project.js';
+import { LandownerRecord } from '../models/index.js';
+import sequelize from '../config/database.js';
 import User from '../models/User.js';
 import { authorize } from '../middleware/auth.js';
 
@@ -59,6 +61,26 @@ router.get('/', async (req, res) => {
       success: false,
       message: 'Server error'
     });
+  }
+});
+
+// Lightweight analytics for chatbot (read-only)
+// GET /api/projects/:id/analytics
+router.get('/:id/analytics', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const total = await LandownerRecord.count({ where: { project_id: projectId } });
+    const withNotices = await LandownerRecord.count({ where: { project_id: projectId, noticeGenerated: true } });
+    const pendingNotices = total - withNotices;
+    const tribal = await LandownerRecord.count({ where: { project_id: projectId, isTribal: true } }).catch(() => 0);
+    const byVillageRaw = await LandownerRecord.findAll({
+      attributes: ['village', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      where: { project_id: projectId }, group: ['village']
+    });
+    const byVillage = byVillageRaw.map(r => ({ village: r.village, count: Number(r.get('count')) }));
+    res.json({ success: true, data: { total, noticesGenerated: withNotices, noticesPending: pendingNotices, tribal, byVillage } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Failed to compute analytics' });
   }
 });
 
