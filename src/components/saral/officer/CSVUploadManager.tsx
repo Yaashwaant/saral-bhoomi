@@ -46,6 +46,7 @@ const CSVUploadManager = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [csvData, setCsvData] = useState<CSVData[]>([]);
+  const [csvRawText, setCsvRawText] = useState<string>('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -122,11 +123,11 @@ const CSVUploadManager = () => {
         return;
       }
       
-      const validExtensions = ['.csv', '.xlsx'];
+      const validExtensions = ['.csv'];
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       
       if (!validExtensions.includes(fileExtension)) {
-        toast.error('Invalid file format. Please upload .csv or .xlsx file');
+        toast.error('Invalid file format. Please upload a .csv file');
         return;
       }
       
@@ -142,6 +143,7 @@ const CSVUploadManager = () => {
     try {
       // Read the actual CSV file
       const text = await file.text();
+      setCsvRawText(text);
       const lines = text.split('\n');
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
       
@@ -188,24 +190,29 @@ const CSVUploadManager = () => {
     setIsProcessing(true);
     
     try {
-      const formData = new FormData();
-      formData.append('csvFile', uploadedFile);
-      formData.append('assignToAgent', selectedAgent ? 'true' : 'false');
-      if (selectedAgent) {
-        formData.append('agentId', selectedAgent);
-      }
-      formData.append('generateNotice', generateNotices ? 'true' : 'false');
-
-      const response = await fetch(`/api/csv/upload-with-assignment/${selectedProject}`, {
+      const response = await fetch(`/api/csv/ingest/${selectedProject}`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csvContent: csvRawText,
+          assignToAgent: !!selectedAgent,
+          agentId: selectedAgent || undefined,
+          generateNotice: !!generateNotices,
+          overwrite: true
+        })
       });
 
-      const data = await response.json();
+      let data: any = { success: false };
+      try {
+        data = await response.json();
+      } catch (_) {
+        // Non-JSON response
+      }
       
-      if (data.success) {
+      if (response.ok && data.success) {
         toast.success(t.uploadSuccess);
         setCsvData([]);
+        setCsvRawText('');
         setUploadedFile(null);
         setSelectedProject('');
         setSelectedAgent('');
@@ -213,7 +220,7 @@ const CSVUploadManager = () => {
           fileInputRef.current.value = '';
         }
       } else {
-        toast.error(data.message || t.uploadFailed);
+        toast.error(data.message || `Upload failed (${response.status})`);
       }
     } catch (error) {
       console.error('Error uploading CSV:', error);
@@ -325,8 +332,11 @@ const CSVUploadManager = () => {
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(projects || []).map((project) => (
-                      <SelectItem key={project?.id || project?._id} value={project?.id || project?._id}>
+                    {(projects || []).map((project, index) => (
+                      <SelectItem 
+                        key={project?.id || project?._id || `project-${index}`} 
+                        value={String(project?.id || project?._id || index)}
+                      >
                         {project?.projectName || 'Unknown Project'}
                       </SelectItem>
                     ))}
@@ -345,11 +355,11 @@ const CSVUploadManager = () => {
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.xlsx"
+                accept=".csv"
                 onChange={handleFileSelect}
                 className="cursor-pointer"
               />
-              <p className="text-sm text-gray-500">{t.supportedFormats}</p>
+              <p className="text-sm text-gray-500">Supported format: .csv</p>
               <p className="text-sm text-gray-500">{t.maxSize}</p>
             </div>
 
@@ -374,8 +384,11 @@ const CSVUploadManager = () => {
                     <SelectValue placeholder={t.optionalAssignment} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(agents || []).map((agent) => (
-                      <SelectItem key={agent?._id} value={agent?._id}>
+                    {(agents || []).map((agent, index) => (
+                      <SelectItem 
+                        key={agent?._id || agent?.id || `agent-${index}`} 
+                        value={String(agent?._id || agent?.id || index)}
+                      >
                         {agent?.name || 'Unknown Agent'}
                       </SelectItem>
                     ))}

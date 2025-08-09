@@ -18,7 +18,7 @@ async function testAgentAssignment() {
     }
     
     const agent = agentsResult.data[0];
-    console.log('✅ Agent found:', agent.name, agent._id);
+    console.log('✅ Agent found:', agent.name, agent.id);
 
     // 2. Get a landowner record to test with
     console.log('\n2. Getting landowner records...');
@@ -30,7 +30,7 @@ async function testAgentAssignment() {
     }
     
     const record = recordsResult.data[0];
-    console.log('✅ Record found:', record.खातेदाराचे_नांव, record._id);
+    console.log('✅ Record found:', record.खातेदाराचे_नांव, record.id);
 
     // 3. Test agent assignment
     console.log('\n3. Testing agent assignment...');
@@ -40,8 +40,8 @@ async function testAgentAssignment() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        landownerId: record._id,
-        agentId: agent._id,
+        landownerId: record.id,
+        agentId: agent.id,
         noticeData: {
           noticeNumber: `TEST-${Date.now()}`,
           noticeDate: new Date(),
@@ -63,11 +63,11 @@ async function testAgentAssignment() {
 
     // 4. Verify the assignment worked
     console.log('\n4. Verifying assignment...');
-    const verifyResponse = await fetch(`${API_BASE}/agents/assigned-with-notices?agentId=${agent._id}`);
+    const verifyResponse = await fetch(`${API_BASE}/agents/assigned-with-notices?agentId=${agent.id}`);
     const verifyResult = await verifyResponse.json();
     
     if (verifyResult.success && verifyResult.count > 0) {
-      const assignedRecord = verifyResult.data.find(r => r._id === record._id);
+      const assignedRecord = verifyResult.data.find(r => r.id === record.id);
       if (assignedRecord) {
         console.log('✅ Assignment verified in agent portal');
         console.log(`   KYC Status: ${assignedRecord.kycStatus}`);

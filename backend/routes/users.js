@@ -10,7 +10,9 @@ const router = express.Router();
 // @access  Public (temporarily)
 router.get('/', async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.findAll({
+      attributes: { exclude: ['password'] }
+    });
     
     res.status(200).json({
       success: true,
@@ -31,7 +33,9 @@ router.get('/', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/:id', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findByPk(req.params.id, {
+      attributes: { exclude: ['password'] }
+    });
     
     if (!user) {
       return res.status(404).json({
@@ -61,7 +65,7 @@ router.post('/', async (req, res) => {
     const { name, email, password, role, department, phone, language } = req.body;
     
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -83,7 +87,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       success: true,
       data: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -108,7 +112,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, email, role, department, phone, language, isActive } = req.body;
     
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -117,20 +121,20 @@ router.put('/:id', async (req, res) => {
     }
     
     // Update fields
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (role) user.role = role;
-    if (department) user.department = department;
-    if (phone) user.phone = phone;
-    if (language) user.language = language;
-    if (typeof isActive === 'boolean') user.isActive = isActive;
-    
-    await user.save();
+    await user.update({
+      name: name || user.name,
+      email: email || user.email,
+      role: role || user.role,
+      department: department || user.department,
+      phone: phone || user.phone,
+      language: language || user.language,
+      isActive: typeof isActive === 'boolean' ? isActive : user.isActive
+    });
     
     res.status(200).json({
       success: true,
       data: {
-        id: user._id,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -154,7 +158,7 @@ router.put('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.delete('/:id', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     
     if (!user) {
       return res.status(404).json({
@@ -163,7 +167,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    await user.deleteOne();
+    await user.destroy();
     
     res.status(200).json({
       success: true,
@@ -183,10 +187,13 @@ router.delete('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/role/:role', async (req, res) => {
   try {
-    const users = await User.find({ 
-      role: req.params.role,
-      isActive: true 
-    }).select('-password');
+    const users = await User.findAll({ 
+      where: {
+        role: req.params.role,
+        isActive: true 
+      },
+      attributes: { exclude: ['password'] }
+    });
     
     res.status(200).json({
       success: true,
@@ -216,7 +223,7 @@ router.put('/:id/password', async (req, res) => {
       });
     }
     
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -226,8 +233,8 @@ router.put('/:id/password', async (req, res) => {
     
     // Hash new password
     const salt = await bcrypt.genSalt(12);
-    user.password = await bcrypt.hash(password, salt);
-    await user.save();
+    const hashedPassword = await bcrypt.hash(password, salt);
+    await user.update({ password: hashedPassword });
     
     res.status(200).json({
       success: true,

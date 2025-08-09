@@ -5,30 +5,20 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import LandownerRecord from '../models/LandownerRecord.js';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
+import sequelize from '../config/database.js';
+import { Op } from 'sequelize';
 import { authorize } from '../middleware/auth.js';
+import { getCloudinary } from '../services/cloudinaryService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Configure multer for notice header upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/notices');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'notice-header-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for notice header upload (in-memory)
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
   },
@@ -58,7 +48,7 @@ router.post('/generate/:projectId', async (req, res) => {
     } = req.body;
 
     // Validate project exists
-    const project = await Project.findById(projectId);
+    const project = await Project.findByPk(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -67,17 +57,17 @@ router.post('/generate/:projectId', async (req, res) => {
     }
 
     // Build query for landowner records
-    let query = { projectId };
+    let where = { project_id: projectId };
     if (targetRecords && targetRecords.length > 0) {
-      query._id = { $in: targetRecords };
+      where.id = targetRecords;
     }
     
     // If not overwriting, only target records without notices
     if (!overwrite) {
-      query.noticeGenerated = { $ne: true };
+      where.noticeGenerated = { [Op.ne]: true };
     }
 
-    const records = await LandownerRecord.find(query);
+    const records = await LandownerRecord.findAll({ where });
 
     if (records.length === 0) {
       return res.status(400).json({
@@ -108,7 +98,7 @@ router.post('/generate/:projectId', async (req, res) => {
         }
 
         // Update the record with notice information
-        await LandownerRecord.findByIdAndUpdate(record._id, {
+        await record.update({
           noticeGenerated: true,
           noticeNumber,
           noticeDate,
@@ -116,7 +106,7 @@ router.post('/generate/:projectId', async (req, res) => {
         });
 
         generatedNotices.push({
-          recordId: record._id,
+          recordId: record.id,
           landownerName: record.खातेदाराचे_नांव,
           surveyNumber: record.सर्वे_नं,
           noticeNumber,
@@ -127,7 +117,7 @@ router.post('/generate/:projectId', async (req, res) => {
         noticeCounter++;
       } catch (error) {
         errors.push({
-          recordId: record._id,
+          recordId: record.id,
           landownerName: record.खातेदाराचे_नांव,
           error: error.message
         });
@@ -169,22 +159,17 @@ router.get('/project/:projectId', async (req, res) => {
     } = req.query;
 
     // Build filter
-    const filter = { 
-      projectId,
+    const where = { 
+      project_id: projectId,
       noticeGenerated: noticeGenerated === 'true'
     };
-    if (village) filter.village = village;
+    if (village) where.village = village;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await LandownerRecord.find(filter)
-      .select('खातेदाराचे_नांव सर्वे_नं village noticeNumber noticeDate noticeContent assignedAgent')
-      .populate('assignedAgent', 'name email')
-      .sort({ noticeDate: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const records = await LandownerRecord.findAll({ where, offset, limit: parseInt(limit), order: [['noticeDate', 'DESC']] });
 
-    const total = await LandownerRecord.countDocuments(filter);
+    const total = await LandownerRecord.count({ where });
 
     res.status(200).json({
       success: true,
@@ -214,9 +199,12 @@ router.get('/:recordId', async (req, res) => {
   try {
     const { recordId } = req.params;
 
-    const record = await LandownerRecord.findById(recordId)
-      .populate('projectId', 'projectName pmisCode')
-      .populate('assignedAgent', 'name email phone');
+    const record = await LandownerRecord.findByPk(recordId, {
+      include: [
+        { model: Project, attributes: ['projectName', 'pmisCode'] },
+        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email', 'phone'] }
+      ]
+    });
 
     if (!record || !record.noticeGenerated) {
       return res.status(404).json({
@@ -238,8 +226,8 @@ router.get('/:recordId', async (req, res) => {
         village: record.village,
         taluka: record.taluka,
         district: record.district,
-        project: record.projectId,
-        assignedAgent: record.assignedAgent
+        project: record.Project,
+        assignedAgent: record.assignedAgentUser
       }
     });
 
@@ -266,14 +254,48 @@ router.post('/upload-header', upload.single('headerFile'), async (req, res) => {
 
     const { version = '1.0', description = '' } = req.body;
 
-    // In a real implementation, you would save this to a NoticeHeader model
+    const originalName = req.file.originalname || 'header';
+    const fileExt = path.extname(originalName).toLowerCase();
+    const safeName = `${Date.now()}-${originalName}`.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const mimeType = req.file.mimetype || 'application/octet-stream';
+
+    let finalFileUrl = null;
+
+    // Try Cloudinary first
+    try {
+      const cloudinary = getCloudinary();
+      const base64 = req.file.buffer.toString('base64');
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      const uploadRes = await cloudinary.uploader.upload(dataUri, {
+        public_id: `saral_bhoomi/notices/headers/${safeName}`,
+        resource_type: 'auto',
+        folder: `saral_bhoomi/notices/headers`
+      });
+      finalFileUrl = uploadRes.secure_url || uploadRes.url;
+    } catch (e) {
+      console.warn('Cloudinary header upload failed, falling back to local:', e && (e.message || e));
+    }
+
+    // Fallback to local filesystem
+    if (!finalFileUrl) {
+      const uploadDir = path.join(__dirname, '../uploads/notices');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const absPath = path.join(uploadDir, safeName);
+      fs.writeFileSync(absPath, req.file.buffer);
+      const publicPath = `/uploads/notices/${encodeURIComponent(safeName)}`;
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      finalFileUrl = `${baseUrl}${publicPath}`;
+    }
+
     const headerInfo = {
-      fileName: req.file.originalname,
-      filePath: req.file.path,
+      fileName: originalName,
+      url: finalFileUrl,
       version,
       description,
       uploadedAt: new Date(),
-      uploadedBy: req.user?.id || '674e23a1b8e8c9e8c9e8c9e8', // Default to a test user ID when auth is disabled
+      uploadedBy: req.user?.id || '674e23a1b8e8c9e8c9e8c9e8',
       isActive: true
     };
 
@@ -299,34 +321,41 @@ router.get('/stats/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const stats = await LandownerRecord.aggregate([
-      { $match: { projectId } },
-      {
-        $group: {
-          _id: null,
-          totalRecords: { $sum: 1 },
-          noticesGenerated: { $sum: { $cond: ['$noticeGenerated', 1, 0] } },
-          noticesPending: { $sum: { $cond: ['$noticeGenerated', 0, 1] } }
-        }
-      }
-    ]);
+    const records = await LandownerRecord.findAll({ where: { project_id: projectId } });
 
-    const villageStats = await LandownerRecord.aggregate([
-      { $match: { projectId } },
-      {
-        $group: {
-          _id: '$village',
-          totalRecords: { $sum: 1 },
-          noticesGenerated: { $sum: { $cond: ['$noticeGenerated', 1, 0] } }
-        }
-      },
-      { $sort: { totalRecords: -1 } }
-    ]);
+    const stats = {
+      totalRecords: records.length,
+      noticesGenerated: records.filter(r => r.noticeGenerated).length,
+      noticesPending: records.filter(r => !r.noticeGenerated).length
+    };
+
+    // Group by village
+    const villageMap = {};
+    records.forEach(record => {
+      const village = record.village;
+      if (!villageMap[village]) {
+        villageMap[village] = {
+          totalRecords: 0,
+          noticesGenerated: 0
+        };
+      }
+      villageMap[village].totalRecords++;
+      if (record.noticeGenerated) {
+        villageMap[village].noticesGenerated++;
+      }
+    });
+
+    const villageStats = Object.entries(villageMap)
+      .map(([village, stats]) => ({
+        _id: village,
+        ...stats
+      }))
+      .sort((a, b) => b.totalRecords - a.totalRecords);
 
     res.status(200).json({
       success: true,
       data: {
-        overview: stats[0] || {
+        overview: stats || {
           totalRecords: 0,
           noticesGenerated: 0,
           noticesPending: 0

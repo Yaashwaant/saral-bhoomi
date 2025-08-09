@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import sequelize from '../config/database.js';
 import dotenv from 'dotenv';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
@@ -6,20 +6,17 @@ import User from '../models/User.js';
 dotenv.config({ path: './config.env' });
 
 const run = async () => {
-  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/saral_bhoomi', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  await sequelize.authenticate();
 
-  const user = await User.findOne({ role: { $in: ['officer', 'admin'] } });
+  const user = await User.findOne({ where: { role: 'officer' } });
   if (!user) {
     console.error('No officer or admin user found. Please create one first.');
     process.exit(1);
   }
 
-  const existing = await Project.findOne({ pmisCode: 'SARAL-DEMO-001' });
+  const existing = await Project.findOne({ where: { pmisCode: 'SARAL-DEMO-001' } });
   if (existing) {
-    console.log('Demo project already exists:', existing._id);
+    console.log('Demo project already exists:', existing.id);
     process.exit(0);
   }
 
@@ -32,31 +29,25 @@ const run = async () => {
     landToBeAcquired: 12.3,
     type: 'greenfield',
     description: 'Demo project for testing Parishisht-K CSV upload and notice generation in Nande taluka, Palghar district.',
-    location: {
-      district: 'पालघर',
-      taluka: 'नांदे', 
-      villages: ['गाव1', 'गाव2', 'नांदे']
-    },
-    budget: {
-      estimatedCost: 25000000,
-      allocatedBudget: 20000000,
-      currency: 'INR'
-    },
-    timeline: {
-      startDate: new Date('2024-01-01'),
-      expectedCompletion: new Date('2025-12-31'),
-      actualCompletion: null
-    },
+    district: 'पालघर',
+    taluka: 'नांदे',
+    villages: ['गाव1', 'गाव2', 'नांदे'],
+    estimatedCost: 25000000,
+    allocatedBudget: 20000000,
+    currency: 'INR',
+    startDate: new Date('2024-01-01'),
+    expectedCompletion: new Date('2025-12-31'),
+    actualCompletion: null,
     stakeholders: [
       { name: 'Collector Office Palghar', role: 'Authority', contact: '02525-123456', email: 'collector@palghar.gov.in' },
       { name: 'Tehsildar Nande', role: 'Local Officer', contact: '02525-234567', email: 'tehsildar@nande.gov.in' }
     ],
     isActive: true,
-    createdBy: user._id,
+    createdBy: user.id,
     assignedOfficers: [],
     assignedAgents: []
   });
-  console.log('Demo project created:', demoProject._id);
+  console.log('Demo project created:', demoProject.id);
   process.exit(0);
 };
 

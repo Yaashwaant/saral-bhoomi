@@ -1,5 +1,7 @@
 import express from 'express';
 import LandownerRecord from '../models/LandownerRecord.js';
+import Project from '../models/Project.js';
+import User from '../models/User.js';
 import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -9,9 +11,13 @@ const router = express.Router();
 // @access  Public (for now)
 router.get('/list', async (req, res) => {
   try {
-    const records = await LandownerRecord.find({ isActive: true })
-      .populate('projectId', 'projectName pmisCode')
-      .sort({ createdAt: -1 });
+    const records = await LandownerRecord.findAll({
+      where: { isActive: true },
+      include: [
+        { model: Project, attributes: ['projectName', 'pmisCode'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
@@ -32,9 +38,12 @@ router.get('/list', async (req, res) => {
 // @access  Public (for now)
 router.get('/:id', async (req, res) => {
   try {
-    const record = await LandownerRecord.findById(req.params.id)
-      .populate('projectId', 'projectName pmisCode')
-      .populate('assignedAgent', 'name email phone');
+    const record = await LandownerRecord.findByPk(req.params.id, {
+      include: [
+        { model: Project, attributes: ['projectName', 'pmisCode'] },
+        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email', 'phone'] }
+      ]
+    });
 
     if (!record) {
       return res.status(404).json({

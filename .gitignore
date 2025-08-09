@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and local config
+backend/serviceAccount.json
+saral-bhoomi/backend/serviceAccount.json
+backend/config.env
+saral-bhoomi/backend/config.env
+
+# Local uploads and logs
+backend/uploads/
+saral-bhoomi/backend/uploads/
+backend/logs/
+saral-bhoomi/backend/logs/

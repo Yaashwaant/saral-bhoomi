@@ -1,5 +1,6 @@
 import express from 'express';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
 import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -20,24 +21,26 @@ router.get('/', async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = {};
-    if (district) filter['location.district'] = district;
-    if (taluka) filter['location.taluka'] = taluka;
-    if (type) filter.type = type;
-    if (status) filter[`status.${status}`] = 'approved';
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    const where = {};
+    if (district) where.district = district;
+    if (taluka) where.taluka = taluka;
+    if (type) where.type = type;
+    if (status) where[status] = 'approved';
+    if (isActive !== undefined) where.isActive = isActive === 'true';
     
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    const projects = await Project.find(filter)
-      .populate('createdBy', 'name email')
-      .populate('assignedOfficers', 'name email')
-      .populate('assignedAgents', 'name email')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    const projects = await Project.findAll({
+      where,
+      include: [
+        { model: User, as: 'creator', attributes: ['name', 'email'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit: parseInt(limit)
+    });
     
-    const total = await Project.countDocuments(filter);
+    const total = await Project.count({ where });
     
     res.status(200).json({
       success: true,
@@ -64,10 +67,11 @@ router.get('/', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/:id', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id)
-      .populate('createdBy', 'name email')
-      .populate('assignedOfficers', 'name email')
-      .populate('assignedAgents', 'name email');
+    const project = await Project.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'creator', attributes: ['name', 'email'] }
+      ]
+    });
     
     if (!project) {
       return res.status(404).json({
@@ -111,7 +115,7 @@ router.post('/', async (req, res) => {
     } = req.body;
     
     // Check if PMIS code already exists
-    const existingProject = await Project.findOne({ pmisCode });
+    const existingProject = await Project.findOne({ where: { pmisCode } });
     if (existingProject) {
       return res.status(400).json({
         success: false,
@@ -129,16 +133,24 @@ router.post('/', async (req, res) => {
       landToBeAcquired,
       type,
       description,
-      location,
-      budget,
-      timeline,
+      district: location?.district,
+      taluka: location?.taluka,
+      villages: location?.villages,
+      estimatedCost: budget?.estimatedCost,
+      allocatedBudget: budget?.allocatedBudget,
+      currency: budget?.currency,
+      startDate: timeline?.startDate,
+      expectedCompletion: timeline?.expectedCompletion,
       stakeholders,
       videoUrl,
       createdBy: req.user.id
     });
     
-    const populatedProject = await Project.findById(project._id)
-      .populate('createdBy', 'name email');
+    const populatedProject = await Project.findByPk(project.id, {
+      include: [
+        { model: User, as: 'creator', attributes: ['name', 'email'] }
+      ]
+    });
     
     res.status(201).json({
       success: true,
@@ -158,7 +170,7 @@ router.post('/', async (req, res) => {
 // @access  Public (temporarily)
 router.put('/:id', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findByPk(req.params.id);
     
     if (!project) {
       return res.status(404).json({
@@ -168,33 +180,55 @@ router.put('/:id', async (req, res) => {
     }
     
     // Update fields
+    const updateData = {};
     const updateFields = [
       'projectName', 'schemeName', 'landRequired', 'landAvailable', 
-      'landToBeAcquired', 'type', 'description', 'location', 'budget', 
-      'timeline', 'stakeholders', 'videoUrl', 'isActive'
+      'landToBeAcquired', 'type', 'description', 'stakeholders', 
+      'videoUrl', 'isActive'
     ];
     
     updateFields.forEach(field => {
       if (req.body[field] !== undefined) {
-        project[field] = req.body[field];
+        updateData[field] = req.body[field];
       }
     });
+    
+    // Handle location fields
+    if (req.body.location) {
+      if (req.body.location.district) updateData.district = req.body.location.district;
+      if (req.body.location.taluka) updateData.taluka = req.body.location.taluka;
+      if (req.body.location.villages) updateData.villages = req.body.location.villages;
+    }
+    
+    // Handle budget fields
+    if (req.body.budget) {
+      if (req.body.budget.estimatedCost) updateData.estimatedCost = req.body.budget.estimatedCost;
+      if (req.body.budget.allocatedBudget) updateData.allocatedBudget = req.body.budget.allocatedBudget;
+      if (req.body.budget.currency) updateData.currency = req.body.budget.currency;
+    }
+    
+    // Handle timeline fields
+    if (req.body.timeline) {
+      if (req.body.timeline.startDate) updateData.startDate = req.body.timeline.startDate;
+      if (req.body.timeline.expectedCompletion) updateData.expectedCompletion = req.body.timeline.expectedCompletion;
+    }
     
     // Update status if provided
     if (req.body.status) {
       Object.keys(req.body.status).forEach(key => {
-        if (project.status[key] !== undefined) {
-          project.status[key] = req.body.status[key];
+        if (['stage3A', 'stage3D', 'corrigendum', 'award'].includes(key)) {
+          updateData[key] = req.body.status[key];
         }
       });
     }
     
-    await project.save();
+    await project.update(updateData);
     
-    const updatedProject = await Project.findById(project._id)
-      .populate('createdBy', 'name email')
-      .populate('assignedOfficers', 'name email')
-      .populate('assignedAgents', 'name email');
+        const updatedProject = await Project.findByPk(project.id, {
+      include: [
+        { model: User, as: 'creator', attributes: ['name', 'email'] }
+      ]
+    });
     
     res.status(200).json({
       success: true,
@@ -214,7 +248,7 @@ router.put('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.delete('/:id', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findByPk(req.params.id);
     
     if (!project) {
       return res.status(404).json({
@@ -223,7 +257,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    await project.deleteOne();
+    await project.destroy();
     
     res.status(200).json({
       success: true,
@@ -243,50 +277,37 @@ router.delete('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/stats/overview', async (req, res) => {
   try {
-    const stats = await Project.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalProjects: { $sum: 1 },
-          activeProjects: { 
-            $sum: { $cond: [{ $eq: ['$isActive', true] }, 1, 0] }
-          },
-          totalLandRequired: { $sum: '$landRequired' },
-          totalLandAvailable: { $sum: '$landAvailable' },
-          totalLandToBeAcquired: { $sum: '$landToBeAcquired' },
-          totalBudget: { $sum: '$budget.allocatedBudget' }
-        }
-      }
-    ]);
+    // Get all projects for manual aggregation
+    const allProjects = await Project.findAll();
     
-    const statusStats = await Project.aggregate([
-      {
-        $group: {
-          _id: null,
-          stage3AApproved: { 
-            $sum: { $cond: [{ $eq: ['$status.stage3A', 'approved'] }, 1, 0] }
-          },
-          stage3DApproved: { 
-            $sum: { $cond: [{ $eq: ['$status.stage3D', 'approved'] }, 1, 0] }
-          },
-          corrigendumApproved: { 
-            $sum: { $cond: [{ $eq: ['$status.corrigendum', 'approved'] }, 1, 0] }
-          },
-          awardApproved: { 
-            $sum: { $cond: [{ $eq: ['$status.award', 'approved'] }, 1, 0] }
-          }
-        }
-      }
-    ]);
+    // Calculate stats manually
+    const stats = [{
+      totalProjects: allProjects.length,
+      activeProjects: allProjects.filter(p => p.isActive).length,
+      totalLandRequired: allProjects.reduce((sum, p) => sum + (parseFloat(p.landRequired) || 0), 0),
+      totalLandAvailable: allProjects.reduce((sum, p) => sum + (parseFloat(p.landAvailable) || 0), 0),
+      totalLandToBeAcquired: allProjects.reduce((sum, p) => sum + (parseFloat(p.landToBeAcquired) || 0), 0),
+      totalBudget: allProjects.reduce((sum, p) => sum + (parseFloat(p.allocatedBudget) || 0), 0)
+    }];
     
-    const typeStats = await Project.aggregate([
-      {
-        $group: {
-          _id: '$type',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
+    const statusStats = [{
+      stage3AApproved: allProjects.filter(p => p.stage3AStatus === 'approved').length,
+      stage3DApproved: allProjects.filter(p => p.stage3DStatus === 'approved').length,
+      corrigendumApproved: allProjects.filter(p => p.corrigendumStatus === 'approved').length,
+      awardApproved: allProjects.filter(p => p.awardStatus === 'approved').length
+    }];
+    
+    // Group by type
+    const typeMap = {};
+    allProjects.forEach(project => {
+      const type = project.type || 'unknown';
+      typeMap[type] = (typeMap[type] || 0) + 1;
+    });
+    
+    const typeStats = Object.entries(typeMap).map(([type, count]) => ({
+      _id: type,
+      count: count
+    }));
     
     res.status(200).json({
       success: true,
@@ -324,7 +345,7 @@ router.put('/:id/assign-officers', async (req, res) => {
   try {
     const { officerIds } = req.body;
     
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -332,11 +353,9 @@ router.put('/:id/assign-officers', async (req, res) => {
       });
     }
     
-    project.assignedOfficers = officerIds;
-    await project.save();
+    await project.update({ assignedOfficers: officerIds });
     
-    const updatedProject = await Project.findById(project._id)
-      .populate('assignedOfficers', 'name email');
+    const updatedProject = await Project.findByPk(project.id);
     
     res.status(200).json({
       success: true,
@@ -358,7 +377,7 @@ router.put('/:id/assign-agents', async (req, res) => {
   try {
     const { agentIds } = req.body;
     
-    const project = await Project.findById(req.params.id);
+    const project = await Project.findByPk(req.params.id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -366,11 +385,9 @@ router.put('/:id/assign-agents', async (req, res) => {
       });
     }
     
-    project.assignedAgents = agentIds;
-    await project.save();
+    await project.update({ assignedAgents: agentIds });
     
-    const updatedProject = await Project.findById(project._id)
-      .populate('assignedAgents', 'name email');
+    const updatedProject = await Project.findByPk(project.id);
     
     res.status(200).json({
       success: true,

@@ -1,85 +1,170 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import sequelize from '../config/database.js';
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
   name: {
-    type: String,
-    required: [true, 'Please add a name'],
-    trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Please add a name' },
+      len: { args: [1, 50], msg: 'Name cannot be more than 50 characters' }
+    }
   },
   email: {
-    type: String,
-    required: [true, 'Please add an email'],
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    match: [
-      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-      'Please add a valid email'
-    ]
+    validate: {
+      isEmail: { msg: 'Please add a valid email' },
+      notEmpty: { msg: 'Please add an email' }
+    }
   },
   password: {
-    type: String,
-    required: [true, 'Please add a password'],
-    minlength: 6,
-    select: false
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      len: { args: [6], msg: 'Password must be at least 6 characters' }
+    }
   },
   role: {
-    type: String,
-    enum: ['admin', 'officer', 'agent'],
-    default: 'officer'
+    type: DataTypes.ENUM('admin', 'officer', 'agent'),
+    defaultValue: 'officer'
   },
   department: {
-    type: String,
-    required: [true, 'Please add a department']
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Please add a department' }
+    }
   },
   phone: {
-    type: String,
-    required: [true, 'Please add a phone number']
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notEmpty: { msg: 'Please add a phone number' }
+    }
   },
   language: {
-    type: String,
-    enum: ['marathi', 'english', 'hindi'],
-    default: 'marathi'
+    type: DataTypes.ENUM('marathi', 'english', 'hindi'),
+    defaultValue: 'marathi'
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   lastLogin: {
-    type: Date
+    type: DataTypes.DATE
   },
-  // For agents: store assigned landowner record IDs
-  assignedRecords: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'LandownerRecord'
-  }],
-  resetPasswordToken: String,
-  resetPasswordExpire: Date
-}, {
-  timestamps: true
-});
-
-// Encrypt password using bcrypt
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
+  resetPasswordToken: {
+    type: DataTypes.STRING
+  },
+  resetPasswordExpire: {
+    type: DataTypes.DATE
   }
-
-  const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12);
-  this.password = await bcrypt.hash(this.password, salt);
+}, {
+  tableName: 'users',
+  timestamps: true,
+  underscored: false, // Database uses camelCase column names
+  hooks: {
+    beforeSave: async (user) => {
+      if (user.changed('password')) {
+        const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
+    }
+  }
 });
 
-// Sign JWT and return
-userSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
-  });
+// Instance methods
+User.prototype.getSignedJwtToken = function() {
+  return jwt.sign(
+    { 
+      id: this.id,
+      email: this.email,
+      role: this.role
+    }, 
+    process.env.JWT_SECRET, 
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+      issuer: 'saral-bhoomi',
+      audience: 'saral-bhoomi-users'
+    }
+  );
 };
 
-// Match user entered password to hashed password in database
-userSchema.methods.matchPassword = async function(enteredPassword) {
+User.prototype.getRefreshToken = async function() {
+  const refreshToken = jwt.sign(
+    { 
+      id: this.id,
+      type: 'refresh'
+    }, 
+    process.env.JWT_REFRESH_SECRET, 
+    {
+      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      issuer: 'saral-bhoomi',
+      audience: 'saral-bhoomi-users'
+    }
+  );
+
+  // Note: refreshToken storage not implemented in current database schema
+  return refreshToken;
+};
+
+User.prototype.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-export default mongoose.model('User', userSchema); 
+User.prototype.incrementLoginAttempts = async function() {
+  // Note: login attempts tracking not implemented in current database schema
+  return this;
+};
+
+User.prototype.resetLoginAttempts = async function() {
+  // Note: login attempts tracking not implemented in current database schema
+  return this;
+};
+
+User.prototype.isLocked = function() {
+  // Note: account locking not implemented in current database schema
+  return false;
+};
+
+User.prototype.updateLastActivity = async function() {
+  // Note: lastActivity tracking not implemented in current database schema
+  return this;
+};
+
+User.prototype.updateLastLogin = async function() {
+  return await this.update({ 
+    lastLogin: new Date()
+  });
+};
+
+User.prototype.invalidateRefreshToken = async function() {
+  // Note: refreshToken storage not implemented in current database schema
+  return this;
+};
+
+User.prototype.isRefreshTokenValid = function(token) {
+  // Note: refreshToken validation not implemented in current database schema
+  return false;
+};
+
+// Static methods
+User.findByEmail = function(email) {
+  return this.findOne({ where: { email } });
+};
+
+User.findByRefreshToken = function(token) {
+  // Note: refreshToken lookup not implemented in current database schema
+  return Promise.resolve(null);
+};
+
+export default User; 

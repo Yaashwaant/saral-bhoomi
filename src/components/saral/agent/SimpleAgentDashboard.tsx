@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSaral } from '@/contexts/SaralContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { storage, authReady } from '@/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -17,12 +21,14 @@ import {
   AlertCircle,
   Shield,
   Building2,
-  IndianRupee
+  IndianRupee,
+  Download
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 
 interface LandownerRecord {
-  _id: string;
+  id: string;
+  _id?: string;
   खातेदाराचे_नांव: string;
   सर्वे_नं: string;
   क्षेत्र: string;
@@ -42,12 +48,18 @@ const API_BASE_URL = 'http://localhost:5000/api';
 
 const SimpleAgentDashboard: React.FC = () => {
   const { user } = useAuth();
+  const { updateLandownerRecord } = useSaral();
   const [records, setRecords] = useState<LandownerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<LandownerRecord | null>(null);
   const [kycStatus, setKycStatus] = useState<string>('');
   const [kycNotes, setKycNotes] = useState<string>('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showDocumentDialog, setShowDocumentDialog] = useState(false);
+  const [selectedDocumentType, setSelectedDocumentType] = useState<string>('');
+  const [uploadingDocument, setUploadingDocument] = useState<string | null>(null);
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+  const [sevenTwelveFile, setSevenTwelveFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   const translations = {
@@ -115,15 +127,99 @@ const SimpleAgentDashboard: React.FC = () => {
 
   const t = translations[user?.language || 'marathi'];
 
+  const downloadNotice = (record: LandownerRecord) => {
+    const content = (record as any).noticeContent || 'Notice content not available';
+    const noticeNumber = (record as any).noticeNumber || `notice-${record.id}`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${noticeNumber}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const uploadWithType = async (docType: string, file: File) => {
+    if (!selectedRecord) throw new Error('No record selected');
+    try {
+      setUploadingDocument(docType);
+      // Ensure auth is ready so Storage rules see an authenticated context
+      await authReady;
+      // Convert to base64 and send to backend for server-side upload to avoid CORS
+      const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1] || '';
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(f);
+      });
+      const base64 = await toBase64(file);
+
+      // 2) Ask backend to upload and save metadata
+      const response = await fetch(`${API_BASE_URL}/agents/upload-document/${selectedRecord.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentType: docType,
+          fileName: file.name,
+          fileBase64: base64,
+          fileSize: file.size,
+          mimeType: file.type,
+          notes: `Uploaded by agent: ${user?.name || 'Agent'}`
+        })
+      });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'Upload failed');
+      toast({ title: 'Uploaded', description: `${file.name} uploaded successfully` });
+      // Mark KYC in progress locally
+      setRecords(prev => prev.map(r => r.id === selectedRecord.id ? { ...r, kycStatus: 'in_progress' as any } : r));
+    } catch (e: any) {
+      toast({ title: 'Upload failed', description: e?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setUploadingDocument(null);
+    }
+  };
+
+  const submitSelectedDocuments = async () => {
+    if (!selectedRecord) return;
+    if (!aadhaarFile && !sevenTwelveFile) {
+      toast({ title: 'No files selected', description: 'Please select Aadhaar and/or 7/12 file.', variant: 'destructive' });
+      return;
+    }
+    try {
+      if (aadhaarFile) {
+        await uploadWithType('aadhaar', aadhaarFile);
+      }
+      if (sevenTwelveFile) {
+        await uploadWithType('7_12_extract', sevenTwelveFile);
+      }
+      toast({ title: 'Success', description: 'All selected documents uploaded.' });
+      setShowDocumentDialog(false);
+    } finally {
+      setAadhaarFile(null);
+      setSevenTwelveFile(null);
+      setSelectedDocumentType('');
+    }
+  };
+
   // Load assigned records
   const loadAssignedRecords = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/agents/assigned`);
+      const agentEmailParam = user?.email ? `?agentEmail=${encodeURIComponent(user.email)}` : '';
+      const response = await fetch(`${API_BASE_URL}/agents/assigned${agentEmailParam}`);
       const data = await response.json();
       
       if (data.success) {
-        setRecords(data.records || []);
+        // support both {records} and {data}
+        const rows = (data.records || data.data || []).map((r: any) => ({ ...r, id: r.id || r._id }));
+        // Ensure every row has a stable DB id for later API calls
+        setRecords(rows.map((r: any) => ({ ...r, id: r.id || r._id })));
       } else {
         toast({
           title: "Error",
@@ -154,7 +250,7 @@ const SimpleAgentDashboard: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          landownerId: selectedRecord._id,
+          landownerId: selectedRecord.id,
           kycStatus,
           notes: kycNotes
         })
@@ -168,12 +264,21 @@ const SimpleAgentDashboard: React.FC = () => {
           description: "KYC status updated successfully"
         });
         
-        // Update local state
-        setRecords(prev => prev.map(record => 
-          record._id === selectedRecord._id 
+        // Update local state (guard against undefined _id matching all rows)
+        setRecords(prev => prev.map(record => {
+          const sameById = record.id === selectedRecord.id;
+          const sameByMongoId = !!record._id && !!selectedRecord._id && record._id === selectedRecord._id;
+          return (sameById || sameByMongoId)
             ? { ...record, kycStatus: kycStatus as any }
-            : record
-        ));
+            : record;
+        }));
+
+        // Also update global context so officer portal reflects immediately
+        const extra: any = {};
+        if (kycStatus === 'approved') {
+          extra.paymentStatus = 'pending';
+        }
+        updateLandownerRecord(String(selectedRecord.id), { kycStatus: kycStatus as any, ...extra });
         
         setIsDialogOpen(false);
         setSelectedRecord(null);
@@ -386,7 +491,7 @@ const SimpleAgentDashboard: React.FC = () => {
                        fontWeight: 600,
                        letterSpacing: '0.2px'
                      }}>{t.status}</TableHead>
-                     <TableHead className="text-blue-900 font-semibold" style={{ 
+                      <TableHead className="text-blue-900 font-semibold" style={{ 
                        fontFamily: "'Noto Sans', 'Arial', sans-serif",
                        fontWeight: 600,
                        letterSpacing: '0.2px'
@@ -395,7 +500,7 @@ const SimpleAgentDashboard: React.FC = () => {
                  </TableHeader>
                 <TableBody>
                   {records.map((record) => (
-                    <TableRow key={record._id} className="hover:bg-blue-50/50">
+                    <TableRow key={record.id} className="hover:bg-blue-50/50">
                       <TableCell className="font-medium text-blue-900">{record.खातेदाराचे_नांव}</TableCell>
                       <TableCell className="text-blue-800">{record.सर्वे_नं}</TableCell>
                       <TableCell className="text-blue-800">{record.क्षेत्र}</TableCell>
@@ -408,17 +513,45 @@ const SimpleAgentDashboard: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Dialog open={isDialogOpen && selectedRecord?._id === record._id} onOpenChange={setIsDialogOpen}>
-                          <DialogTrigger asChild>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                            onClick={() => downloadNotice(record)}
+                            disabled={!((record as any).noticeGenerated || (record as any).noticeContent)}
+                            title="Download Notice"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                            onClick={() => { setSelectedRecord(record); setShowDocumentDialog(true); }}
+                            title="Upload KYC Documents"
+                          >
+                            Upload Documents
+                          </Button>
+          <Dialog open={isDialogOpen && selectedRecord?.id === record.id} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setSelectedRecord(null);
+              setKycStatus('');
+              setKycNotes('');
+            }
+          }}>
+                            <DialogTrigger asChild>
                             <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                              onClick={() => setSelectedRecord(record)}
-                            >
-                              {t.updateKYC}
-                            </Button>
-                          </DialogTrigger>
+                                variant="outline" 
+                                size="sm"
+                                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                              onClick={() => { setSelectedRecord(record); setKycStatus(record.kycStatus || ''); }}
+                              >
+                                {t.updateKYC}
+                              </Button>
+                            </DialogTrigger>
                                                      <DialogContent className="bg-white/95 backdrop-blur-sm">
                              <DialogHeader>
                                <DialogTitle className="text-blue-900" style={{ 
@@ -507,6 +640,7 @@ const SimpleAgentDashboard: React.FC = () => {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -516,6 +650,69 @@ const SimpleAgentDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Document Upload Dialog */}
+      <Dialog open={showDocumentDialog} onOpenChange={setShowDocumentDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload KYC Documents</DialogTitle>
+          </DialogHeader>
+          {selectedRecord ? (
+            <div className="space-y-4">
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-medium">Aadhaar (आधार कार्ड)</h4>
+                    <p className="text-sm text-gray-600">Accepted: PDF, JPG, PNG (max ~5MB)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setAadhaarFile(file);
+                    }}
+                    disabled={uploadingDocument !== null}
+                  />
+                </div>
+              </div>
+
+              <div className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-medium">7/12 Extract (७/१२ उतारा)</h4>
+                    <p className="text-sm text-gray-600">Accepted: PDF, JPG, PNG (max ~10MB)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setSevenTwelveFile(file);
+                    }}
+                    disabled={uploadingDocument !== null}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setAadhaarFile(null); setSevenTwelveFile(null); setShowDocumentDialog(false); }}>
+                  {t.cancel}
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={submitSelectedDocuments} disabled={uploadingDocument !== null}>
+                  {t.submit}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">Select a record first</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

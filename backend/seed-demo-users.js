@@ -1,17 +1,17 @@
-import mongoose from 'mongoose';
+import sequelize from './config/database.js';
 import dotenv from 'dotenv';
 import User from './models/User.js';
 
 // Load environment variables
 dotenv.config({ path: './config.env' });
 
-// Connect to MongoDB
+// Connect to PostgreSQL
 const connectDB = async () => {
   try {
-    const connectionInstance = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB connected !! DB HOST: ${connectionInstance.connection.host}`);
+    await sequelize.authenticate();
+    console.log('PostgreSQL connected successfully!');
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('PostgreSQL connection error:', error);
     process.exit(1);
   }
 };
@@ -22,17 +22,19 @@ async function seedDemoUsers() {
     await connectDB();
 
     // Check if demo users already exist
-    const existingUsers = await User.find({
-      email: { $in: [
-        'admin@saral.gov.in', 
-        'officer@saral.gov.in', 
-        'agent@saral.gov.in',
-        'rajesh.patil@saral.gov.in',
-        'sunil.kambale@saral.gov.in',
-        'mahesh.deshmukh@saral.gov.in',
-        'vithal.jadhav@saral.gov.in',
-        'ramrao.pawar@saral.gov.in'
-      ]}
+    const existingUsers = await User.findAll({
+      where: {
+        email: [
+          'admin@saral.gov.in', 
+          'officer@saral.gov.in', 
+          'agent@saral.gov.in',
+          'rajesh.patil@saral.gov.in',
+          'sunil.kambale@saral.gov.in',
+          'mahesh.deshmukh@saral.gov.in',
+          'vithal.jadhav@saral.gov.in',
+          'ramrao.pawar@saral.gov.in'
+        ]
+      }
     });
 
     if (existingUsers.length > 0) {
@@ -44,7 +46,7 @@ async function seedDemoUsers() {
       process.exit(0);
     }
 
-    // Create demo users (passwords will be hashed by User model pre-save hook)
+    // Create demo users (passwords will be hashed by User model beforeSave hook)
     const demoUsers = [
       {
         name: 'Admin User',
@@ -121,12 +123,8 @@ async function seedDemoUsers() {
       }
     ];
 
-    // Create users one by one to trigger pre-save hooks for password hashing
-    const createdUsers = [];
-    for (const userData of demoUsers) {
-      const user = await User.create(userData);
-      createdUsers.push(user);
-    }
+    // Create users using bulkCreate
+    const createdUsers = await User.bulkCreate(demoUsers);
 
     console.log('Demo users created successfully!');
     console.log(`Created ${createdUsers.length} users:`);

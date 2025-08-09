@@ -1,82 +1,95 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const noticeAssignmentSchema = new mongoose.Schema({
-  landownerId: {
-    type: String, // Use String for frontend IDs
-    required: true
+const NoticeAssignment = sequelize.define('NoticeAssignment', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
   },
-  surveyNumber: {
-    type: String,
-    required: true
+  landowner_id: {
+    type: DataTypes.STRING, // Use String for frontend IDs
+    allowNull: false
   },
-  noticeNumber: {
-    type: String,
-    required: true
+  survey_number: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  noticeDate: {
-    type: Date,
-    required: true
+  notice_number: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  noticeContent: {
-    type: String,
-    required: true
+  notice_date: {
+    type: DataTypes.DATE,
+    allowNull: false
   },
-  noticePdfUrl: {
-    type: String,
-    required: true
+  notice_content: {
+    type: DataTypes.TEXT,
+    allowNull: false
   },
-  assignedAgent: {
-    type: String, // Use String for frontend IDs
-    required: true
+  notice_pdf_url: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  assignedAt: {
-    type: Date,
-    default: Date.now
+  assigned_agent: {
+    type: DataTypes.STRING, // Use String for frontend IDs
+    allowNull: false
   },
-  kycStatus: {
-    type: String,
-    enum: ['pending', 'in_progress', 'completed', 'approved', 'rejected'],
-    default: 'pending'
+  assigned_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
-  documentsUploaded: {
-    type: Boolean,
-    default: false
+  kyc_status: {
+    type: DataTypes.ENUM('pending', 'in_progress', 'completed', 'approved', 'rejected'),
+    defaultValue: 'pending'
   },
-  projectId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
-    required: true
+  documents_uploaded: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   },
-  landownerName: {
-    type: String,
-    required: true
+  project_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'projects',
+      key: 'id'
+    }
+  },
+  landowner_name: {
+    type: DataTypes.STRING,
+    allowNull: false
   },
   village: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   taluka: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   district: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
   area: {
-    type: String,
-    required: true
+    type: DataTypes.STRING,
+    allowNull: false
   },
-  compensationAmount: {
-    type: String,
-    required: true
+  compensation_amount: {
+    type: DataTypes.STRING,
+    allowNull: false
   }
 }, {
-  timestamps: true
+  tableName: 'notice_assignments',
+  timestamps: true,
+  indexes: [
+    {
+      fields: ['assigned_agent', 'kyc_status']
+    },
+    {
+      fields: ['landowner_id']
+    }
+  ]
 });
 
-// Index for efficient queries
-noticeAssignmentSchema.index({ assignedAgent: 1, kycStatus: 1 });
-noticeAssignmentSchema.index({ landownerId: 1 });
-
-export default mongoose.model('NoticeAssignment', noticeAssignmentSchema); 
+export default NoticeAssignment; 

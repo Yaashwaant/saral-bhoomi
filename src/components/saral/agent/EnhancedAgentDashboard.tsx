@@ -75,16 +75,16 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
 
   const loadAssignedRecords = async () => {
     try {
-      const currentAgentId = agentId || user?.id;
-      if (!currentAgentId) {
+      const currentAgentEmail = user?.email;
+      if (!currentAgentEmail) {
         console.log('❌ No agent ID available');
         return;
       }
 
-      console.log('🔄 Loading assigned records for agent:', currentAgentId);
+      console.log('🔄 Loading assigned records for agent (by email):', currentAgentEmail);
       
-      // Call the API directly with agent ID parameter
-      const response = await fetch(`/api/agents/assigned-with-notices?agentId=${currentAgentId}`, {
+      // Call the API with agent email parameter for stable matching
+      const response = await fetch(`/api/agents/assigned-with-notices?agentEmail=${encodeURIComponent(currentAgentEmail)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -100,14 +100,14 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
         return;
       }
 
-      const records = result.data || [];
+      const records = result.data || result.records || [];
       console.log('✅ Loaded records:', records.length, 'records');
       
       // Transform regular records to NoticeBasedKycRecord format
       const enhancedRecords: NoticeBasedKycRecord[] = records.map(record => {
-        console.log('📋 Processing record:', record._id, record.खातेदाराचे_नांव);
+        console.log('📋 Processing record:', record._id || record.id, record.खातेदाराचे_नांव);
         
-        return {
+          return {
           id: record._id || record.id,
           noticeId: record.noticeNumber || `notice-${record._id}`,
           noticeNumber: record.noticeNumber || `NOTICE-${Date.now()}-${record._id}`,
@@ -124,7 +124,7 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
           finalAmount: parseFloat(record.अंतिम_रक्कम || record.finalAmount || '0'),
           
           assignedAgent: {
-            id: record.assignedAgent?._id || currentAgentId,
+            id: record.assignedAgent?._id || record.assignedAgent || (user?.id as any),
             name: record.assignedAgent?.name || user?.name || 'Agent',
             phone: record.assignedAgent?.phone || user?.phone || '',
             area: record.assignedAgent?.area || user?.area || '',
@@ -192,19 +192,22 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
         fileSize: file.size
       });
 
-      // Create form data for file upload
-      const formData = new FormData();
-      formData.append('document', file);
-      formData.append('documentType', selectedDocumentType);
-      formData.append('notes', `Uploaded by agent: ${user?.name || 'Agent'}`);
-
-      // Upload to backend API
+      // Send JSON metadata to backend (MVP, not storing binary)
+      const objectUrl = URL.createObjectURL(file);
       const response = await fetch(`/api/agents/upload-document/${selectedRecord.id}`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
-        body: formData
+        body: JSON.stringify({
+          documentType: selectedDocumentType,
+          fileName: file.name,
+          fileUrl: objectUrl,
+          fileSize: file.size,
+          mimeType: file.type,
+          notes: `Uploaded by agent: ${user?.name || 'Agent'}`
+        })
       });
 
       const result = await response.json();

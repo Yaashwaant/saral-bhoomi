@@ -92,7 +92,7 @@ const NoticeGenerator: React.FC = () => {
     });
 
     if (selectedProject) {
-      const projectRecords = landownerRecords.filter(r => r.projectId === selectedProject);
+      const projectRecords = landownerRecords.filter(r => String((r as any).projectId ?? (r as any).project_id) === String(selectedProject));
       console.log('Project records found:', {
         projectId: selectedProject,
         totalRecords: projectRecords.length,
@@ -436,6 +436,54 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
     }
   };
 
+  const proceedToKycFromRecord = async (record: any) => {
+    try {
+      // Demo: always assign to agent@saral.gov.in
+      const listRes = await fetch('/api/agents/list');
+      const list = await listRes.json();
+      const demoAgent = (list.agents || []).find((a: any) => a.email === 'agent@saral.gov.in');
+      const agentId = demoAgent?.id || demoAgent?._id;
+      if (!agentId) {
+        toast.error('Demo agent not found (agent@saral.gov.in)');
+        return;
+      }
+
+      const noticeNumber = record.noticeNumber || `NOTICE-${record.id}`;
+      const noticeDate = record.noticeDate ? new Date(record.noticeDate) : new Date();
+      const noticeContent = record.noticeContent || generateNoticeContent(record);
+      const surveyNumber = record['सर्वे_नं'] || record['स.नं./हि.नं./ग.नं.'] || safeField(record, 'स.नं./हि.नं./ग.नं.');
+      const projectId = String((record as any).projectId ?? (record as any).project_id ?? selectedProject);
+
+      const success = await assignAgentWithNotice(String(record.id), String(agentId), {
+        noticeNumber,
+        noticeDate,
+        noticeContent
+      }, { surveyNumber, projectId });
+
+      if (success) {
+        toast.success('Assigned for KYC');
+      } else {
+        toast.error('Failed to assign for KYC');
+      }
+    } catch (e) {
+      console.error('Auto-assign KYC failed', e);
+      toast.error('Failed to assign for KYC');
+    }
+  };
+
+  const downloadNoticeFromRecord = (record: any) => {
+    const content = record.noticeContent || generateNoticeContent(record);
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `notice-${record.noticeNumber || record.id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const previewNotice = (recordId: string) => {
     const record = landownerRecords.find(r => r.id === recordId);
     if (!record) {
@@ -555,15 +603,15 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Notice Generator
-          </CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              KYC Assignment
+            </CardTitle>
           <CardDescription>
-            Generate land acquisition notices automatically using CSV data
+              Assign generated notices to agents for KYC collection
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+          <CardContent className="space-y-4">
           {/* Project Selection */}
           <div className="space-y-2">
             <Label htmlFor="project">Select Project</Label>
@@ -591,25 +639,16 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button 
-              onClick={generateNotices} 
-              disabled={selectedRecords.length === 0}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Generate Notices ({selectedRecords.length})
-            </Button>
-          </div>
+          {/* No notice generation here; notices are already generated during CSV ingest */}
         </CardContent>
       </Card>
 
       {/* Survey Numbers Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Survey Numbers ({filteredRecords.length})</CardTitle>
+          <CardTitle>KYC Assignment ({filteredRecords.length})</CardTitle>
           <CardDescription>
-            Select survey numbers to generate notices
+            View/download notice and assign directly for KYC
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -631,7 +670,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+              <TableBody>
               {filteredRecords.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell>
@@ -640,13 +679,13 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                       onCheckedChange={(checked) => handleSelectRecord(record.id, checked as boolean)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{record['स.नं./हि.नं./ग.नं.']}</TableCell>
-                  <TableCell>{record['खातेदाराचे_नांव']}</TableCell>
-                  <TableCell>{record['गांव']}</TableCell>
-                  <TableCell>{record['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र']}</TableCell>
+                  <TableCell className="font-medium">{safeField(record, 'स.नं./हि.नं./ग.नं.')}</TableCell>
+                  <TableCell>{safeField(record, 'खातेदाराचे_नांव')}</TableCell>
+                  <TableCell>{safeField(record, 'गांव')}</TableCell>
+                  <TableCell>{safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र')}</TableCell>
                   <TableCell>
                     <Badge>
-                      ₹{(parseFloat(record['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम']) / 100000).toFixed(1)}L
+                      ₹{(parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') as any || '0') / 100000).toFixed(1)}L
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -666,9 +705,29 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                         variant="outline"
                         size="sm"
                         onClick={() => previewNotice(record.id)}
+                        title="View Notice"
                       >
                         <Eye className="h-3 w-3" />
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadNoticeFromRecord(record)}
+                        title="Download Notice"
+                      >
+                        <Download className="h-3 w-3" />
+                      </Button>
+                      {record.noticeGenerated && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => proceedToKycFromRecord(record)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Proceed to KYC
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

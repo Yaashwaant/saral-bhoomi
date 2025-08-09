@@ -2,16 +2,29 @@ services:
   - type: web
     name: saral-bhoomi-backend
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: cd saral-bhoomi/backend && npm ci
+    startCommand: cd saral-bhoomi/backend && npm start
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
-      - key: MONGODB_URI
-        value: your-mongodb-connection-string
-      - key: JWT_SECRET
-        value: your-jwt-secret-key
+      # Render will inject PORT automatically; no need to hardcode
       - key: CORS_ORIGIN
-        value: https://your-vercel-app.vercel.app
+        value: https://your-frontend-domain
+      - key: DATABASE_URL
+        value: postgres://user:password@host:5432/dbname?sslmode=require
+      - key: JWT_SECRET
+        value: change-me
+      # Cloudinary (optional but recommended for files)
+      - key: CLOUDINARY_CLOUD_NAME
+        value: dmytltj0w
+      - key: CLOUDINARY_API_KEY
+        value: 269548842743513
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Firebase (optional)
+      - key: FIREBASE_SERVICE_ACCOUNT_B64
+        sync: false
+      - key: FIREBASE_STORAGE_BUCKET
+        value: ''

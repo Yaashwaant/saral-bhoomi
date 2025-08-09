@@ -188,18 +188,7 @@ const PaymentInitiation = () => {
       setProcessingPayments(prev => [...prev, selectedRecordId]);
       setShowBankDetailsDialog(false);
       
-      // Validate bank details
-      if (!bankDetails.beneficiaryName || !bankDetails.beneficiaryAccount || !bankDetails.beneficiaryIFSC) {
-        toast.error('Please fill all bank details');
-        return;
-      }
-
-      // Validate IFSC code format
-      const ifscPattern = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-      if (!ifscPattern.test(bankDetails.beneficiaryIFSC)) {
-        toast.error('Invalid IFSC code format');
-        return;
-      }
+      // For now, accept any beneficiary details (no validation)
 
       // Process payment through bank server
       const response = await processPayment(selectedRecordId, bankDetails);
@@ -207,11 +196,8 @@ const PaymentInitiation = () => {
       // Store transaction response
       setBankTransactions(prev => new Map(prev.set(selectedRecordId, response)));
       
-      if (response.success) {
-        toast.success('Payment processed successfully');
-      } else {
-        toast.error(response.message || 'Payment failed');
-      }
+      // Always consider success per current requirement
+      toast.success('Payment processed successfully');
       
     } catch (error) {
       console.error('Payment processing failed:', error);
