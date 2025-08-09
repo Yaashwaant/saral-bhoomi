@@ -128,13 +128,28 @@ const SimpleAgentDashboard: React.FC = () => {
   const t = translations[user?.language || 'marathi'];
 
   const downloadNotice = (record: LandownerRecord) => {
-    const content = (record as any).noticeContent || 'Notice content not available';
+    const rawContent = (record as any).noticeContent || 'Notice content not available';
     const noticeNumber = (record as any).noticeNumber || `notice-${record.id}`;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${noticeNumber}</title>
+    <style>
+      body { font-family: Arial, 'Noto Sans', sans-serif; line-height: 1.5; color: #111; }
+      table { border-collapse: collapse; width: 100%; }
+      table, th, td { border: 1px solid #555; }
+      th, td { padding: 6px 8px; text-align: left; }
+    </style>
+  </head>
+  <body>${rawContent}</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${noticeNumber}.txt`;
+    a.download = `${noticeNumber}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

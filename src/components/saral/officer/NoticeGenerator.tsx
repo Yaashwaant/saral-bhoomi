@@ -499,11 +499,26 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
   };
 
   const downloadNotice = (notice: GeneratedNotice) => {
-    const blob = new Blob([notice.content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    const noticeNumber = notice.noticeNumber || `notice-${notice.id}`;
+    const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${noticeNumber}</title>
+    <style>
+      body { font-family: Arial, 'Noto Sans', sans-serif; line-height: 1.5; color: #111; }
+      table { border-collapse: collapse; width: 100%; }
+      table, th, td { border: 1px solid #555; }
+      th, td { padding: 6px 8px; text-align: left; }
+    </style>
+  </head>
+  <body>${notice.content}</body>
+</html>`;
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `notice-${notice.noticeNumber}.txt`;
+    a.download = `notice-${noticeNumber}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
