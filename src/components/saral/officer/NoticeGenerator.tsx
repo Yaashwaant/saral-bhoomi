@@ -900,7 +900,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
 
       {/* Preview Dialog */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Notice Preview</DialogTitle>
             <DialogDescription>
@@ -909,17 +909,19 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg">
-              <pre className="whitespace-pre-wrap font-mono text-sm">
-                {previewContent}
-              </pre>
+              <div
+                className="prose max-w-none text-sm"
+                dangerouslySetInnerHTML={{ __html: previewContent }}
+              />
             </div>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const blob = new Blob([previewContent], { type: 'text/plain;charset=utf-8' });
+                const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
+                const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'notice-preview.txt';
+                a.download = 'notice-preview.html';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
