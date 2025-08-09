@@ -10,7 +10,7 @@ import sequelize from '../config/database.js';
 import { Op } from 'sequelize';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
-import twilio from 'twilio';
+// SMS support is optional; only load Twilio when explicitly enabled
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -436,6 +436,11 @@ router.post('/save-custom', async (req, res) => {
 // @access  Public (temporarily)
 router.post('/send-sms', async (req, res) => {
   try {
+    const ENABLE_SMS = String(process.env.ENABLE_SMS || '').toLowerCase() === 'true';
+    if (!ENABLE_SMS) {
+      return res.status(501).json({ success: false, message: 'SMS disabled. Set ENABLE_SMS=true and install twilio to enable.' });
+    }
+
     const { toNumbers = [], body, link } = req.body || {};
     if (!Array.isArray(toNumbers) || toNumbers.length === 0) {
       return res.status(400).json({ success: false, message: 'toNumbers array is required' });
@@ -451,7 +456,14 @@ router.post('/send-sms', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Twilio env vars missing' });
     }
 
-    const client = twilio(apiKey, apiSecret, { accountSid });
+    // Lazy import Twilio to avoid hard dependency when SMS is disabled
+    let client;
+    try {
+      const twilio = (await import('twilio')).default;
+      client = twilio(apiKey, apiSecret, { accountSid });
+    } catch (e) {
+      return res.status(501).json({ success: false, message: "Twilio SDK not installed. Run 'npm i twilio' in backend and restart." });
+    }
     const results = [];
     for (const raw of toNumbers) {
       const to = String(raw).trim();
