@@ -158,6 +158,31 @@ const NoticeGenerator: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const saveHearingNoticeToServer = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/notices/save-custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: selectedProject,
+          landownerId: selectedRecords[0] || undefined,
+          noticeNumber: `HEARING-${Date.now()}`,
+          noticeDate: hearingForm.noticeDate,
+          noticeContent: buildHearingNoticeHTML()
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || 'Failed to save');
+
+      // Put link into SMS link field and copy SMS text to clipboard for convenience
+      setHearingForm(prev => ({ ...prev, linkForSMS: data.data?.url || prev.linkForSMS }));
+      await navigator.clipboard.writeText(data.data?.url || '');
+      toast.success('Notice saved. Link copied to clipboard');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save notice');
+    }
+  };
+
   const copySmsText = async () => {
     const numbers = (hearingPhones || '')
       .split(/\n|,/)
@@ -904,6 +929,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                 <Button onClick={previewHearingNotice}><Eye className="h-4 w-4 mr-1" /> Preview</Button>
                 <Button variant="outline" onClick={downloadHearingNotice}><Download className="h-4 w-4 mr-1" /> Download HTML</Button>
                 <Button variant="outline" onClick={copySmsText}><Copy className="h-4 w-4 mr-1" /> Copy SMS Text</Button>
+                <Button variant="default" onClick={saveHearingNoticeToServer}><Send className="h-4 w-4 mr-1" /> Save to Server</Button>
               </div>
             </div>
           )}

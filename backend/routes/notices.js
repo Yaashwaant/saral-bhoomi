@@ -373,6 +373,63 @@ router.get('/stats/:projectId', async (req, res) => {
   }
 });
 
+// @desc    Save a custom notice (HTML) and optionally update a landowner record
+// @route   POST /api/notices/save-custom
+// @access  Public (temporarily)
+router.post('/save-custom', async (req, res) => {
+  try {
+    const { projectId, landownerId, noticeNumber, noticeDate, noticeContent } = req.body || {};
+
+    if (!projectId || !noticeContent) {
+      return res.status(400).json({ success: false, message: 'projectId and noticeContent are required' });
+    }
+
+    // Ensure uploads directory exists
+    const uploadDir = path.join(__dirname, '../uploads/notices');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Wrap content in minimal HTML if it does not look like a full HTML document
+    const isFullHtml = /<html[\s\S]*<\/html>/i.test(noticeContent);
+    const html = isFullHtml
+      ? noticeContent
+      : `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>\n<title>${(noticeNumber || 'notice')}</title>\n<style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n</head>\n<body>${noticeContent}</body>\n</html>`;
+
+    const fileSafeNotice = (noticeNumber || `notice-${Date.now()}`).toString().replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `${fileSafeNotice}.html`;
+    const absPath = path.join(uploadDir, fileName);
+    fs.writeFileSync(absPath, html, 'utf8');
+
+    const publicPath = `/uploads/notices/${encodeURIComponent(fileName)}`;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const finalUrl = `${baseUrl}${publicPath}`;
+
+    // Optionally update an existing landowner record
+    if (landownerId) {
+      try {
+        const record = await LandownerRecord.findByPk(landownerId);
+        if (record) {
+          await record.update({
+            noticeGenerated: true,
+            noticeNumber: noticeNumber || record.noticeNumber || `NOTICE-${Date.now()}`,
+            noticeDate: noticeDate ? new Date(noticeDate) : new Date(),
+            noticeContent: html
+          });
+        }
+      } catch (e) {
+        // Log but do not fail the request
+        console.warn('Failed to update landowner record for custom notice:', e && (e.message || e));
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Notice saved', data: { url: finalUrl, fileName } });
+  } catch (error) {
+    console.error('Save custom notice error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while saving notice' });
+  }
+});
+
 // Helper function to generate standard notice content
 function generateStandardNoticeContent(record, project, headerContent = '') {
   const currentDate = new Date().toLocaleDateString('hi-IN');
