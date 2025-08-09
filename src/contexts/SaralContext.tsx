@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 // Removed demo-data dependency; use live API and safe fallbacks
 
 // API Base URL
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Interfaces
 export interface Project {
@@ -172,9 +172,9 @@ const getAuthToken = () => {
   return localStorage.getItem('authToken');
 };
 
-// Helper function for API calls (use Vite proxy via relative /api)
+// Helper function for API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const response = await fetch(`/api${endpoint}`, {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     credentials: 'include',
     ...options,
     headers: {
@@ -313,7 +313,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       setError(null);
       // Read file text and send to ingest endpoint (no multipart upload)
       const csvText = await file.text();
-      const res = await fetch(`/api/csv/ingest/${projectId}`, {
+      const res = await fetch(`${API_BASE_URL}/csv/ingest/${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

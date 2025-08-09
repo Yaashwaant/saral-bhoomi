@@ -103,9 +103,11 @@ const CSVUploadManager = () => {
   // Safe translation access with fallback
   const t = translations?.[user?.language || 'marathi'] || translations.english;
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
   const loadAgents = async () => {
     try {
-      const response = await fetch('/api/agents/list');
+      const response = await fetch(`${API_BASE_URL}/agents/list`);
       const data = await response.json();
       if (data.success) {
         setAgents(data.agents || []);
@@ -190,7 +192,7 @@ const CSVUploadManager = () => {
     setIsProcessing(true);
     
     try {
-      const response = await fetch(`/api/csv/ingest/${selectedProject}`, {
+      const response = await fetch(`${API_BASE_URL}/csv/ingest/${selectedProject}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

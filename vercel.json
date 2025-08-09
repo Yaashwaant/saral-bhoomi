@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://saral-bhoomi.onrender.com/api/$1" },
+    { "source": "/uploads/(.*)", "destination": "https://saral-bhoomi.onrender.com/uploads/$1" },
+    { "source": "/(assets/.*)", "destination": "/$1" },
+    { "source": "/favicon.ico", "destination": "/favicon.ico" },
+    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+
+

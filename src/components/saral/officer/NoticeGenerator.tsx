@@ -47,12 +47,14 @@ const NoticeGenerator: React.FC = () => {
     { id: '8', name: 'रामराव पवार', phone: '+91 9876543214', area: 'उंबरपाडा तालुका' }
   ]);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
   // Load existing generated notices on component mount
   useEffect(() => {
     const loadExistingNotices = async () => {
       if (selectedProject) {
         try {
-          const response = await fetch(`/api/notices/project/${selectedProject}`);
+          const response = await fetch(`${API_BASE_URL}/notices/project/${selectedProject}`);
           const data = await response.json();
           
           if (data.success && data.data) {
@@ -439,7 +441,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
   const proceedToKycFromRecord = async (record: any) => {
     try {
       // Demo: always assign to agent@saral.gov.in
-      const listRes = await fetch('/api/agents/list');
+      const listRes = await fetch(`${API_BASE_URL}/agents/list`);
       const list = await listRes.json();
       const demoAgent = (list.agents || []).find((a: any) => a.email === 'agent@saral.gov.in');
       const agentId = demoAgent?.id || demoAgent?._id;
@@ -755,7 +757,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                   if (selectedProject) {
                     const loadExistingNotices = async () => {
                       try {
-                        const response = await fetch(`/api/notices/project/${selectedProject}`);
+        const response = await fetch(`${API_BASE_URL}/notices/project/${selectedProject}`);
                         const data = await response.json();
                         
                         if (data.success && data.data) {
