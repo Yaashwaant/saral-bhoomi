@@ -33,7 +33,7 @@ import SimpleAgentAssignment from './SimpleAgentAssignment';
 const OfficerDashboard = () => {
   const { user } = useAuth();
   const { getProjectStats, projects, landownerRecords } = useSaral();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('projects');
   
   const stats = getProjectStats();
 
