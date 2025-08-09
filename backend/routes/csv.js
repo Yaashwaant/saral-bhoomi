@@ -37,10 +37,21 @@ const normalizeRow = (row = {}) => {
   r['village'] = r['village'] || r['गांव'] || r['गाव'] || '';
   r['taluka'] = r['taluka'] || r['तालुका'] || r['तहसील'] || r['Tehsil'] || '';
   r['district'] = r['district'] || r['जिल्हा'] || r['District'] || '';
+  // Contact fields (Marathi ↔ English)
+  r['phone'] = r['phone'] || r['मोबाईल'] || r['फोन'] || '';
+  r['email'] = r['email'] || r['ईमेल'] || '';
+  r['address'] = r['address'] || r['पत्ता'] || '';
+  // Bank fields (Marathi ↔ English)
+  r['accountNumber'] = r['accountNumber'] || r['खाते_क्रमांक'] || '';
+  r['ifscCode'] = r['ifscCode'] || r['IFSC'] || r['आयएफएससी'] || '';
+  r['bankName'] = r['bankName'] || r['बँक_नाव'] || '';
+  r['branchName'] = r['branchName'] || r['शाखा'] || '';
+  r['accountHolderName'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
   // Trim canonical fields if present
   [
     'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम',
-    'एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम','village','taluka','district'
+    'एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम','village','taluka','district',
+    'phone','email','address','accountNumber','ifscCode','bankName','branchName','accountHolderName'
   ].forEach((k) => { if (r[k] !== undefined && r[k] !== null) r[k] = String(r[k]).trim(); });
   return r;
 };

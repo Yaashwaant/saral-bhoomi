@@ -65,6 +65,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Normalize Marathi/English keys to model fields
+const normalizeUpdate = (body = {}) => {
+  const b = { ...body };
+  // Tribal and contact/bank fields accept Marathi aliases
+  b.isTribal = b.isTribal ?? b['आदिवासी'] ?? b['tribal'];
+  b.tribalCertificateNo = b.tribalCertificateNo || b['आदिवासी_प्रमाणपत्र_क्रमांक'] || b['tribalCertNo'];
+  b.tribalLag = b.tribalLag || b['आदिवासी_लॅग'] || b['tribalLag'];
+  b.contactPhone = b.contactPhone || b['मोबाईल'] || b['फोन'];
+  b.contactEmail = b.contactEmail || b['ईमेल'];
+  b.contactAddress = b.contactAddress || b['पत्ता'];
+  b.bankAccountNumber = b.bankAccountNumber || b['खाते_क्रमांक'];
+  b.bankIfscCode = b.bankIfscCode || b['IFSC'] || b['आयएफएससी'];
+  b.bankName = b.bankName || b['बँक_नाव'];
+  b.bankBranchName = b.bankBranchName || b['शाखा'];
+  b.bankAccountHolderName = b.bankAccountHolderName || b['खातेधारक_नाव'] || b['खातेदाराचे_नांव'];
+  return b;
+};
+
 // @desc    Update landowner record (partial)
 // @route   PUT /api/landowners/:id
 // @access  Public (temporarily)
@@ -82,8 +100,9 @@ router.put('/:id', async (req, res) => {
       // tribal-specific
       'isTribal', 'tribalCertificateNo', 'tribalLag'
     ];
+    const body = normalizeUpdate(req.body);
     const updates = {};
-    updatable.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    updatable.forEach(k => { if (body[k] !== undefined) updates[k] = body[k]; });
 
     await record.update(updates);
     res.status(200).json({ success: true, record });
