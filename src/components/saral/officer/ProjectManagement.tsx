@@ -151,6 +151,15 @@ const ProjectManagement = () => {
 
   const t = translations[user?.language || 'marathi'];
 
+  // Safely handle projects without a status object
+  const getProjectStatus = (project: any) => {
+    const status = project?.status || {};
+    return {
+      stage3A: status.stage3A || 'pending',
+      stage3D: status.stage3D || 'pending',
+    } as { stage3A: string; stage3D: string };
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
@@ -397,11 +406,11 @@ const ProjectManagement = () => {
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
                           <span className="text-xs">{t.stage3A}:</span>
-                          {getStatusBadge(project.status.stage3A)}
+                          {getStatusBadge(getProjectStatus(project).stage3A)}
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-xs">{t.stage3D}:</span>
-                          {getStatusBadge(project.status.stage3D)}
+                          {getStatusBadge(getProjectStatus(project).stage3D)}
                         </div>
                       </div>
                     </TableCell>
