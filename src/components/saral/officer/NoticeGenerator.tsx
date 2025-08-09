@@ -49,6 +49,7 @@ const NoticeGenerator: React.FC = () => {
   ]);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+  const ENABLE_SMS = (import.meta.env.VITE_ENABLE_SMS === 'true');
   
   // Hearing Notice builder state
   type Recipient = { name: string; relation?: string; address?: string };
@@ -930,6 +931,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                 <Button variant="outline" onClick={downloadHearingNotice}><Download className="h-4 w-4 mr-1" /> Download HTML</Button>
                 <Button variant="outline" onClick={copySmsText}><Copy className="h-4 w-4 mr-1" /> Copy SMS Text</Button>
                 <Button variant="default" onClick={saveHearingNoticeToServer}><Send className="h-4 w-4 mr-1" /> Save to Server</Button>
+                {ENABLE_SMS && (
                 <Button variant="default" onClick={async () => {
                   try {
                     const numbers = (hearingPhones || '').split(/\n|,/).map(s => s.trim()).filter(Boolean);
@@ -951,6 +953,7 @@ ${project?.projectName || 'Railway Flyover Project'} प्रकल्प, त�
                     toast.error(e?.message || 'Failed to send SMS');
                   }
                 }}>Send via SMS</Button>
+                )}
               </div>
             </div>
           )}
