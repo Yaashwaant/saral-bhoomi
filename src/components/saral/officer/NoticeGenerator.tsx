@@ -53,7 +53,7 @@ const NoticeGenerator: React.FC = () => {
   
   // Hearing Notice builder state
   type Recipient = { name: string; relation?: string; address?: string };
-  const [noticeType, setNoticeType] = useState<'existing' | 'hearing'>('existing');
+  const [noticeType, setNoticeType] = useState<'existing' | 'hearing' | 'payment'>('existing');
   const [hearingRecipients, setHearingRecipients] = useState<Recipient[]>([{ name: '' }]);
   const [hearingPhones, setHearingPhones] = useState<string>('');
   const [hearingForm, setHearingForm] = useState({
@@ -79,6 +79,17 @@ const NoticeGenerator: React.FC = () => {
     requiredId: true,
     requiredPassbook: true,
     linkForSMS: ''
+  });
+
+  // Payment Notice state
+  const [paymentForm, setPaymentForm] = useState({
+    dueDate: new Date().toISOString().slice(0, 10),
+    notes: '',
+    bankAccountNumber: '',
+    bankIfsc: '',
+    bankName: '',
+    bankBranch: '',
+    accountHolder: ''
   });
 
   const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
@@ -448,7 +459,7 @@ const NoticeGenerator: React.FC = () => {
       </div>
 
       <h4 style="margin:12px 0 6px;">जमिनीचा तपशील</h4>
-      <table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:12px;">
+<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:12px;">
   <thead>
     <tr>
       <th style="width:8%;">स.नं/हि.नं/ग.नं</th>
@@ -499,7 +510,7 @@ const NoticeGenerator: React.FC = () => {
       <td>${safeNumericField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम')}</td>
     </tr>
   </tbody>
-      </table>
+</table>
 
       <div style="margin:12px 0;">
         <div>संमतीपत्र सादर केल्यास खालील आवश्यक कागदपत्रे (मूळ व Attested):</div>
@@ -957,6 +968,74 @@ const NoticeGenerator: React.FC = () => {
                   }
                 }}>Send via SMS</Button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {noticeType === 'payment' && (
+            <div className="space-y-4 border rounded-md p-4">
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="grid gap-2">
+                  <Label>Due Date</Label>
+                  <Input type="date" value={paymentForm.dueDate} onChange={e => setPaymentForm({ ...paymentForm, dueDate: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Account Holder</Label>
+                  <Input value={paymentForm.accountHolder} onChange={e => setPaymentForm({ ...paymentForm, accountHolder: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Account Number</Label>
+                  <Input value={paymentForm.bankAccountNumber} onChange={e => setPaymentForm({ ...paymentForm, bankAccountNumber: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="grid gap-2">
+                  <Label>IFSC</Label>
+                  <Input value={paymentForm.bankIfsc} onChange={e => setPaymentForm({ ...paymentForm, bankIfsc: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Bank</Label>
+                  <Input value={paymentForm.bankName} onChange={e => setPaymentForm({ ...paymentForm, bankName: e.target.value })} />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Branch</Label>
+                  <Input value={paymentForm.bankBranch} onChange={e => setPaymentForm({ ...paymentForm, bankBranch: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Notes</Label>
+                <Textarea rows={3} value={paymentForm.notes} onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })} />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={async () => {
+                  try {
+                    if (!selectedProject || selectedRecords.length === 0) { toast.error('Select project and at least one record'); return; }
+                    const resp = await fetch(`${API_BASE_URL}/notices/generate-payment`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        projectId: selectedProject,
+                        landownerId: selectedRecords[0],
+                        dueDate: paymentForm.dueDate,
+                        bankDetails: {
+                          accountNumber: paymentForm.bankAccountNumber,
+                          ifsc: paymentForm.bankIfsc,
+                          bankName: paymentForm.bankName,
+                          branch: paymentForm.bankBranch,
+                          accountHolder: paymentForm.accountHolder
+                        },
+                        extraNotes: paymentForm.notes
+                      })
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success) throw new Error(data.message || 'Failed');
+                    setPreviewContent(data.data.html);
+                    setIsPreviewOpen(true);
+                  } catch (e: any) {
+                    toast.error(e?.message || 'Failed to build payment notice');
+                  }
+                }}>
+                  <Eye className="h-4 w-4 mr-1" /> Preview Payment Notice
+                </Button>
               </div>
             </div>
           )}

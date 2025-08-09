@@ -431,6 +431,50 @@ router.post('/save-custom', async (req, res) => {
   }
 });
 
+// @desc    Generate Payment Notice HTML (server-side template)
+// @route   POST /api/notices/generate-payment
+// @access  Public (temporarily)
+router.post('/generate-payment', async (req, res) => {
+  try {
+    const { projectId, landownerId, dueDate, bankDetails = {}, extraNotes = '' } = req.body || {};
+    if (!projectId || !landownerId) {
+      return res.status(400).json({ success: false, message: 'projectId and landownerId are required' });
+    }
+
+    const record = await LandownerRecord.findByPk(landownerId);
+    const project = await Project.findByPk(projectId);
+    if (!record || !project) {
+      return res.status(404).json({ success: false, message: 'Record or project not found' });
+    }
+
+    const html = `
+      <div style="text-align:center; font-weight:700;">महाराष्ट्र शासन</div>
+      <div style="text-align:center; margin-top:4px;">उपजिल्हाधिकारी (भूसंपादन) ${project.projectName} प्रकल्प</div>
+      <hr/>
+      <h3 style="text-align:center;">भरणा सूचना (Payment Notice)</h3>
+      <div style="margin:8px 0;">प्रति: <b>${record['खातेदाराचे_नांव']}</b>, गाव: ${record.village}, तालुका: ${record.taluka}, जिल्हा: ${record.district}</div>
+      <div style="margin:8px 0;">सर्वे/गट क्र.: <b>${record['सर्वे_नं']}</b> | देय रक्कम: <b>₹${record['अंतिम_रक्कम']}</b></div>
+      <div style="margin:8px 0;">देय तारीख: ${dueDate || ''}</div>
+      <div style="margin:12px 0;">कृपया पुढील खात्यावर रक्कम स्वीकार / भुगतान प्रक्रिया पूर्ण करावी:</div>
+      <ul>
+        <li>खातेदाराचे नाव: ${bankDetails.accountHolder || record.bankAccountHolderName || ''}</li>
+        <li>खाते क्रमांक: ${bankDetails.accountNumber || record.bankAccountNumber || ''}</li>
+        <li>बँक/शाखा: ${bankDetails.bankName || record.bankName || ''} / ${bankDetails.branch || record.bankBranchName || ''}</li>
+        <li>IFSC: ${bankDetails.ifsc || record.bankIfscCode || ''}</li>
+      </ul>
+      ${extraNotes ? `<div style="margin:12px 0;">${extraNotes}</div>` : ''}
+      <div style="margin-top:24px; text-align:right;">
+        <div>(सक्षम प्राधिकारी)</div>
+      </div>
+    `;
+
+    return res.status(200).json({ success: true, data: { html } });
+  } catch (error) {
+    console.error('Generate payment notice error:', error);
+    return res.status(500).json({ success: false, message: 'Server error while generating payment notice' });
+  }
+});
+
 // @desc    Send notice link via SMS (Twilio)
 // @route   POST /api/notices/send-sms
 // @access  Public (temporarily)
