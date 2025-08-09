@@ -29,6 +29,9 @@ interface LandownerRecord {
   transactionId?: string;
   utrNumber?: string;
   paymentDate?: Date;
+  isTribal?: boolean;
+  tribalCertificateNo?: string;
+  tribalLag?: string;
 }
 
 export const demoLandownerRecords: LandownerRecord[] = [
@@ -54,7 +57,10 @@ export const demoLandownerRecords: LandownerRecord[] = [
     paymentStatus: 'pending',
     assignedAgent: 'agent1@example.com',
     documentsUploaded: false,
-    paymentInitiated: false
+    paymentInitiated: false,
+    isTribal: true,
+    tribalCertificateNo: 'TCN-DEMO-001',
+    tribalLag: 'Lag-X'
   },
   {
     id: '2',
@@ -78,7 +84,8 @@ export const demoLandownerRecords: LandownerRecord[] = [
     paymentStatus: 'pending',
     assignedAgent: 'agent2@example.com',
     documentsUploaded: true,
-    paymentInitiated: false
+    paymentInitiated: false,
+    isTribal: false
   },
   {
     id: '3',
@@ -100,7 +107,8 @@ export const demoLandownerRecords: LandownerRecord[] = [
     paymentStatus: 'pending',
     assignedAgent: 'agent1@example.com',
     documentsUploaded: false,
-    paymentInitiated: false
+    paymentInitiated: false,
+    isTribal: false
   },
   {
     id: '4',
@@ -124,7 +132,10 @@ export const demoLandownerRecords: LandownerRecord[] = [
     paymentStatus: 'initiated',
     assignedAgent: 'agent2@example.com',
     documentsUploaded: true,
-    paymentInitiated: true
+    paymentInitiated: true,
+    isTribal: true,
+    tribalCertificateNo: 'TCN-DEMO-004',
+    tribalLag: 'Lag-Y'
   },
   {
     id: '5',
@@ -151,7 +162,8 @@ export const demoLandownerRecords: LandownerRecord[] = [
     paymentInitiated: true,
     transactionId: 'TXN-2024-001',
     utrNumber: 'UTR-2024-001',
-    paymentDate: new Date('2024-01-20')
+    paymentDate: new Date('2024-01-20'),
+    isTribal: false
   }
 ];
 
