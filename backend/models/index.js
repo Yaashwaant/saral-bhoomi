@@ -3,6 +3,8 @@ import Project from './Project.js';
 import LandownerRecord from './LandownerRecord.js';
 import NoticeAssignment from './NoticeAssignment.js';
 import PaymentRecord from './PaymentRecord.js';
+import JMRRecord from './JMRRecord.js';
+import Award from './Award.js';
 
 // Define associations
 Project.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
@@ -29,10 +31,18 @@ LandownerRecord.hasMany(PaymentRecord, { foreignKey: 'landownerRecordId' });
 PaymentRecord.belongsTo(User, { as: 'initiatedBy', foreignKey: 'createdBy' });
 User.hasMany(PaymentRecord, { as: 'initiatedPayments', foreignKey: 'createdBy' });
 
+// JMR & Award associations
+JMRRecord.belongsTo(Project, { foreignKey: 'project_id' });
+Project.hasMany(JMRRecord, { foreignKey: 'project_id' });
+Award.belongsTo(Project, { foreignKey: 'project_id' });
+Project.hasMany(Award, { foreignKey: 'project_id' });
+
 export {
   User,
   Project,
   LandownerRecord,
   NoticeAssignment,
-  PaymentRecord
+  PaymentRecord,
+  JMRRecord,
+  Award
 };

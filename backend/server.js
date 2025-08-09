@@ -22,6 +22,8 @@ import paymentRoutes from './routes/payments.js';
 import villageRoutes from './routes/villages.js';
 import agentRoutes from './routes/agents.js';
 import landownerRoutes from './routes/landowners.js';
+import jmrRoutes from './routes/jmr.js';
+import awardRoutes from './routes/awards.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -256,6 +258,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/villages', villageRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/landowners', landownerRoutes);
+app.use('/api/jmr', jmrRoutes);
+app.use('/api/awards', awardRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');
