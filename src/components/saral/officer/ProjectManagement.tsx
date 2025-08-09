@@ -431,9 +431,6 @@ const ProjectManagement = () => {
                           <span className="text-xs">{t.stage3D}:</span>
                           {getStatusBadge(getProjectStatus(project).stage3D)}
                         </div>
-                        {project.description && (
-                          <div className="text-xs text-gray-600 line-clamp-2">{project.description}</div>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>
