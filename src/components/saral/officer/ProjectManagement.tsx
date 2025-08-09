@@ -39,6 +39,8 @@ const ProjectManagement = () => {
   const { user } = useAuth();
   const { projects, createProject, updateProject, deleteProject } = useSaral();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingProject, setViewingProject] = useState<any>(null);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [formData, setFormData] = useState<ProjectFormData>({
     projectName: '',
@@ -439,6 +441,14 @@ const ProjectManagement = () => {
                         <Button
                           size="sm"
                           variant="outline"
+                          title={t.view}
+                          onClick={() => { setViewingProject(project); setIsViewOpen(true); }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleEdit(project)}
                         >
                           <Edit className="h-4 w-4" />
@@ -459,6 +469,34 @@ const ProjectManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* View Project Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Eye className="h-5 w-5 text-orange-600" />
+              <span>{t.view}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {viewingProject && (
+            <div className="space-y-3">
+              <div className="grid md:grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-600">{t.projectName}:</span> <span className="font-medium">{viewingProject.projectName}</span></div>
+                <div><span className="text-gray-600">{t.pmisCode}:</span> <span className="font-medium">{viewingProject.pmisCode}</span></div>
+                <div><span className="text-gray-600">{t.schemeName}:</span> <span className="font-medium">{viewingProject.schemeName}</span></div>
+                <div><span className="text-gray-600">{t.type}:</span> <span className="font-medium">{viewingProject.type}</span></div>
+              </div>
+              <div className="space-y-1">
+                <Label>{t.description}</Label>
+                <div className="p-3 rounded border bg-gray-50 whitespace-pre-wrap text-sm">
+                  {viewingProject.description || '—'}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
