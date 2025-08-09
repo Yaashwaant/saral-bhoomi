@@ -26,7 +26,7 @@ import CSVUploadManager from './CSVUploadManager';
 import VillageWiseReports from './VillageWiseReports';
 import KYCApprovalQueue from './KYCApprovalQueue';
 import PaymentInitiation from './PaymentInitiation';
-import SurveyNumberManager from './SurveyNumberManager';
+import JmrAwardManager from './JmrAwardManager';
 import NoticeGenerator from './NoticeGenerator';
 import SimpleAgentAssignment from './SimpleAgentAssignment';
 
@@ -44,7 +44,7 @@ const OfficerDashboard = () => {
       overview: 'सारांश',
       projects: 'प्रकल्प व्यवस्थापन',
       csvUpload: 'CSV अपलोड',
-      surveys: 'सर्वे नंबर व्यवस्थापन',
+      surveys: 'JMR / Award',
       notices: 'नोटीस जनरेटर',
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
@@ -73,7 +73,7 @@ const OfficerDashboard = () => {
       overview: 'Overview',
       projects: 'Project Management',
       csvUpload: 'CSV Upload',
-      surveys: 'Survey Management',
+      surveys: 'JMR / Award',
       notices: 'Notice Generator',
       villages: 'Village Reports',
       kycApproval: 'KYC Approval',
@@ -102,7 +102,7 @@ const OfficerDashboard = () => {
       overview: 'सारांश',
       projects: 'परियोजना प्रबंधन',
       csvUpload: 'CSV अपलोड',
-      surveys: 'सर्वे प्रबंधन',
+      surveys: 'JMR / Award',
       notices: 'नोटिस जनरेटर',
       villages: 'गांव रिपोर्ट',
       kycApproval: 'KYC अनुमोदन',
@@ -394,7 +394,7 @@ const OfficerDashboard = () => {
             </TabsContent>
 
             <TabsContent value="surveys" className="mt-6">
-              <SurveyNumberManager />
+              <JmrAwardManager />
             </TabsContent>
 
             <TabsContent value="notices" className="mt-6">
