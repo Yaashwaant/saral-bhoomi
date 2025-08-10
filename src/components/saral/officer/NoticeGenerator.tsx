@@ -1206,9 +1206,8 @@ const NoticeGenerator: React.FC = () => {
                       <Input
                         placeholder="Tribal Lag/Cert No"
                         value={(record as any).tribalLag || (record as any).tribalCertificateNo || ''}
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          (record as any).tribalLag = val;
+                        onChange={(e) => {
+                          (record as any).tribalLag = e.target.value;
                           setFilteredRecords([...filteredRecords]);
                         }}
                         className="h-8 w-40"

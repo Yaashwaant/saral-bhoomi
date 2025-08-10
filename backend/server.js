@@ -344,9 +344,10 @@ const connectDB = async () => {
     const isConnected = await testConnection();
     
     if (isConnected) {
-      // Sync database models without alter to avoid unsafe auto-migrations
-      console.log('🔄 Syncing database models (no alter)...');
-      await sequelize.sync();
+      // Conditional sync: allow one-time auto-alter via env flag
+      const alterOnBoot = String(process.env.DB_ALTER_ON_BOOT || '').toLowerCase() === 'true';
+      console.log(`🔄 Syncing database models${alterOnBoot ? ' with alter:true (one-time)' : ' (no alter)'}...`);
+      await sequelize.sync(alterOnBoot ? { alter: true } : undefined);
       console.log('✅ Database models synced successfully!');
       return true;
     } else {

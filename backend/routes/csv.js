@@ -47,11 +47,28 @@ const normalizeRow = (row = {}) => {
   r['bankName'] = r['bankName'] || r['बँक_नाव'] || '';
   r['branchName'] = r['branchName'] || r['शाखा'] || '';
   r['accountHolderName'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
+  // Tribal fields (Marathi ↔ English)
+  const rawTribal = r['आदिवासी'] ?? r['आदिवासी_का'] ?? r['जमीन_आदिवासी'] ?? r['tribal'] ?? r['isTribal'];
+  const truthyVals = ['होय','true','1','yes','y','हं','haan','ha'];
+  const falsyVals = ['नाही','false','0','no','n'];
+  let isTribal = undefined;
+  if (typeof rawTribal === 'string') {
+    const v = rawTribal.trim().toLowerCase();
+    isTribal = truthyVals.includes(v) ? true : (falsyVals.includes(v) ? false : undefined);
+  } else if (typeof rawTribal === 'boolean') {
+    isTribal = rawTribal;
+  } else if (typeof rawTribal === 'number') {
+    isTribal = rawTribal === 1;
+  }
+  r['isTribal'] = (isTribal !== undefined) ? isTribal : false;
+  r['tribalCertificateNo'] = r['tribalCertificateNo'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['त्रायबल_प्रमाणपत्र_क्रमांक'] || '';
+  r['tribalLag'] = r['tribalLag'] || r['आदिवासी_लाग'] || r['लागू'] || '';
   // Trim canonical fields if present
   [
     'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम',
     'एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम','village','taluka','district',
-    'phone','email','address','accountNumber','ifscCode','bankName','branchName','accountHolderName'
+    'phone','email','address','accountNumber','ifscCode','bankName','branchName','accountHolderName',
+    'tribalCertificateNo','tribalLag'
   ].forEach((k) => { if (r[k] !== undefined && r[k] !== null) r[k] = String(r[k]).trim(); });
   return r;
 };
@@ -486,37 +503,15 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
 // @access  Public (temporarily)
 router.get('/template', async (req, res) => {
   try {
-    const templateData = [
-      {
-        खातेदाराचे_नांव: 'Sample Landowner Name',
-        सर्वे_नं: '123',
-        क्षेत्र: '0.5000',
-        संपादित_क्षेत्र: '0.1000',
-        दर: '5000000',
-        संरचना_झाडे_विहिरी_रक्कम: '50000',
-        एकूण_मोबदला: '2500000',
-        सोलेशियम_100: '2500000',
-        अंतिम_रक्कम: '5000000',
-        village: 'Sample Village',
-        taluka: 'Sample Taluka',
-        district: 'Sample District',
-        phone: '9876543210',
-        email: 'landowner@example.com',
-        address: 'Sample Address',
-        accountNumber: '1234567890',
-        ifscCode: 'SBIN0001234',
-        bankName: 'State Bank of India',
-        branchName: 'Sample Branch',
-        accountHolderName: 'Sample Landowner Name'
-      }
+    // New template with Marathi headers and tribal columns
+    const headers = [
+      'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम','एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम',
+      'village','taluka','district','मोबाईल','ईमेल','पत्ता','खाते_क्रमांक','IFSC','बँक_नाव','शाखा','खातेधारक_नाव','आदिवासी','आदिवासी_प्रमाणपत्र_क्रमांक','आदिवासी_लाग'
     ];
-    
-    // Convert to CSV format
-    const headers = Object.keys(templateData[0]);
-    const csvContent = [
-      headers.join(','),
-      ...templateData.map(row => headers.map(header => `"${row[header]}"`).join(','))
-    ].join('\n');
+    const example = [
+      'कमळी कमळाकर मंडळ','40','0.1850','0.0504','53100000','0','4010513','4010513','8021026','उंबरपाडा नंदाडे','पालघर','पालघर','9876543210','landowner@example.com','उंबरपाडा नंदाडे, पालघर','1234567890','SBIN0001234','State Bank of India','Palghar','कमळी कमळाकर मंडळ','नाही','',''
+    ];
+    const csvContent = headers.join(',') + '\n' + example.map(v => `"${v}"`).join(',');
     
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="parishisht-k-template.csv"');
@@ -780,6 +775,27 @@ router.post('/ingest/:projectId', async (req, res) => {
       }
     }
 
+    // Resolve a valid creator user id to satisfy FK constraints
+    let createdById = null;
+    try {
+      if (req.user?.id) {
+        const u = await User.findByPk(req.user.id);
+        if (u) createdById = u.id;
+      }
+      if (!createdById) {
+        const anyOfficer = await User.findOne({ where: { role: 'officer', isActive: true }, order: [['id','ASC']] });
+        if (anyOfficer) createdById = anyOfficer.id;
+      }
+      if (!createdById) {
+        // As a last resort, create a demo officer
+        const demo = await User.create({ name: 'CSV Importer', email: `csv_importer_${Date.now()}@saral.gov.in`, password: 'password123', role: 'officer', department: 'Land Acquisition', phone: '0000000000', isActive: true });
+        createdById = demo.id;
+      }
+    } catch (e) {
+      // If even this fails, fallback to 1 (may still fail but we tried)
+      createdById = 1;
+    }
+
     const records = [];
     const errors = [];
     let rowNumber = 1;
@@ -814,8 +830,9 @@ router.post('/ingest/:projectId', async (req, res) => {
         सोलेशियम_100: row.सोलेशियम_100,
         अंतिम_रक्कम: row.अंतिम_रक्कम,
         village: row.village,
-        taluka: row.taluka || '',
-        district: row.district || '',
+        // Keep optional in CSV but model requires non-empty; use NA fallback
+        taluka: row.taluka || 'NA',
+        district: row.district || 'NA',
         contactPhone: row.phone || '',
         contactEmail: row.email || '',
         contactAddress: row.address || '',
@@ -824,7 +841,10 @@ router.post('/ingest/:projectId', async (req, res) => {
         bankName: row.bankName || '',
         bankBranchName: row.branchName || '',
         bankAccountHolderName: row.accountHolderName || row.खातेदाराचे_नांव,
-        createdBy: 1,
+        isTribal: !!row.isTribal,
+        tribalCertificateNo: row.tribalCertificateNo || '',
+        tribalLag: row.tribalLag || '',
+        createdBy: createdById,
         ...(assignToAgentBool && hasValidAgent && {
           assignedAgent: agentIdInt,
           assignedAt: new Date(),
@@ -865,30 +885,46 @@ router.post('/ingest/:projectId', async (req, res) => {
       return res.status(400).json({ success: false, message: 'CSV data contains errors', errors });
     }
 
-    // Duplicate survey check
-    const existingRecords = await LandownerRecord.findAll({
+    // Duplicate check should allow multiple owners per same survey number.
+    // Consider duplicate only if same (surveyNumber + ownerName) pair already exists.
+    const uniquePairs = new Set(records.map(r => `${r.सर्वे_नं}__${r.खातेदाराचे_नांव}`));
+    const surveys = Array.from(new Set(records.map(r => r.सर्वे_नं)));
+    const existingForSurveys = await LandownerRecord.findAll({
       where: {
         project_id: parseInt(projectId, 10),
-        सर्वे_नं: { [Op.in]: records.map(r => r.सर्वे_नं) }
+        सर्वे_नं: { [Op.in]: surveys }
       }
     });
-    if (existingRecords.length > 0) {
+    const existingPairs = new Set(existingForSurveys.map(r => `${r.सर्वे_नं}__${r.खातेदाराचे_नांव}`));
+    const duplicatePairs = Array.from(uniquePairs).filter(p => existingPairs.has(p));
+    if (duplicatePairs.length > 0) {
       if (!overwrite) {
         return res.status(400).json({
           success: false,
-          message: 'Duplicate survey numbers found',
-          duplicates: existingRecords.map(r => r.सर्वे_नं)
+          message: 'Duplicate owner+survey pairs found',
+          duplicates: duplicatePairs
         });
       }
-      await LandownerRecord.destroy({
-        where: {
-          project_id: parseInt(projectId, 10),
-          सर्वे_नं: { [Op.in]: existingRecords.map(r => r.सर्वे_नं) }
-        }
-      });
+      // Overwrite requested: delete existing matching pairs
+      for (const pair of duplicatePairs) {
+        const [survey, owner] = pair.split('__');
+        await LandownerRecord.destroy({
+          where: {
+            project_id: parseInt(projectId, 10),
+            सर्वे_नं: survey,
+            खातेदाराचे_नांव: owner
+          }
+        });
+      }
     }
 
-    const insertedRecords = await LandownerRecord.bulkCreate(records);
+    let insertedRecords;
+    try {
+      insertedRecords = await LandownerRecord.bulkCreate(records);
+    } catch (e) {
+      console.error('Bulk create failed:', e?.message || e);
+      return res.status(500).json({ success: false, message: 'Failed to insert records', details: e?.message || String(e) });
+    }
 
     if (generateNoticeBool) {
       for (const record of insertedRecords) {

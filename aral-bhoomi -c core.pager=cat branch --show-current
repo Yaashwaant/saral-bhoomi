@@ -1,0 +1,25 @@
+[33m2f7b188[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/jmr-award-clean[m[33m, [m[1;31morigin/feature/jmr-award-clean[m[33m)[m fix(csv+agents): robust CSV string cleaning (BOM/CR), accept rows or csvContent; agents/list always returns JSON; better frontend error surfacing
+[33m45eaef2[m fix(csv ingest): relax required fields (taluka/district optional), robust JSON body parsing for csvContent; keep frontend payload clean
+[33m17f92fd[m chore(csv): update in-app template to Marathi headers + contact/bank columns; expand final_test.csv with more rows and multi-owner same survey cases
+[33mec1e941[m feat(csv+landowners): accept Marathi header/field names for contact/bank/tribal; normalize to model fields
+[33mf245a39[m chore(csv): add final_test.csv sample in accepted Parishisht-K format (with contact/bank cols)
+[33m89b36b9[m chore(demo): update init-db and demo-data with tribal flags (isTribal, certificate/lag)
+[33mf6fea40[m feat(tribal): add isTribal/tribalCertificateNo/tribalLag to LandownerRecord; API to update landowners; UI controls in NoticeGenerator; types wired
+[33m35e987d[m feat(notices): add Payment Notice UI (preview/download/save-to-server) behind noticeType switch
+[33m3e90ebf[m ui(projects): remove description snippet from status column (use View button instead)
+[33m2f1fc81[m feat(projects): add small View button to show full Project Description in dialog
+[33ma000235[m feat(projects): add Project Description field to UI and types; show snippet in table; send to backend on create/update
+[33m94f8741[m fix(projects): guard against missing project.status when rendering badges in ProjectManagement
+[33md2d9854[m Revert "ux(officer): default OfficerDashboard to Project Management tab so its immediately visible"
+[33m5165a23[m ux(officer): default OfficerDashboard to Project Management tab so its immediately visible
+[33m79852e7[m chore(nav): remove legacy SurveyNumberManager and use JMR/Award tab
+[33m4cf324c[m[33m ([m[1;31morigin/feature/jmr-award[m[33m)[m feat(jmr-award): add JMR/Award Manager tab and replace Survey Number Management in OfficerDashboard
+[33m15ee7e5[m feature(jmr-award): add lightweight JMR/Award entry sections in NoticeGenerator; do not block notice generation
+[33m97ca5b2[m feature(jmr-award): add JMRRecord and Award models, routes (/api/jmr, /api/awards), and server wiring; no credentials required
+[33m5d27ca6[m[33m ([m[1;31morigin/local-testing-phase-plan[m[33m, [m[1;31morigin/local-testing-fix-notice-format[m[33m, [m[1;31morigin/feature/tribal-flag[m[33m, [m[1;31morigin/feature/project-act[m[33m, [m[1;31morigin/feature/messaging[m[33m, [m[1;32mlocal-testing-phase-plan[m[33m, [m[1;32mlocal-testing-fix-notice-format[m[33m, [m[1;32mfeature/tribal-flag[m[33m, [m[1;32mfeature/project-act[m[33m, [m[1;32mfeature/messaging[m[33m)[m fix: avoid hard Twilio import; gate SMS endpoint behind ENABLE_SMS and lazy-load SDK to prevent crash when not installed
+[33m7062e74[m ux: reformat default notice HTML with proper header, paragraphs, spacing, and table styling to match hearing notice quality
+[33m2a877fa[m feature: gate SMS button behind VITE_ENABLE_SMS flag (default hidden)
+[33ma84f625[m sms: add Twilio sending endpoint and UI 'Send via SMS' action (uses Messaging Service); requires TWILIO_* envs
+[33m3ad3078[m notices: add /api/notices/save-custom to persist HTML and return public link; UI: Save to Server and auto-fill SMS link
+[33mf3d12ff[m feature: Hearing Notice type with dynamic form (recipients, survey nos, hearing details, CC) + SMS phone numbers field and copy-to-clipboard; HTML preview/download
+[33md6687ce[m chore: update render config (kept in sync while working on local notice formatting)

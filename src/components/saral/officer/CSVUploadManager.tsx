@@ -49,7 +49,7 @@ interface CSVData {
 
 const CSVUploadManager = () => {
   const { user } = useAuth();
-  const { projects = [], uploadCSV, landownerRecords = [] } = useSaral();
+  const { projects = [], uploadCSV, landownerRecords = [], reloadLandowners } = useSaral();
   const [selectedProject, setSelectedProject] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -224,6 +224,8 @@ const CSVUploadManager = () => {
       
       if (response.ok && data.success) {
         toast.success(t.uploadSuccess);
+        // Immediately refresh landowner list so KYC/Notice screens reflect new rows
+        try { await reloadLandowners(); } catch {}
         setCsvData([]);
         setCsvRawText('');
         setUploadedFile(null);
@@ -258,10 +260,10 @@ const CSVUploadManager = () => {
   const downloadTemplate = () => {
     const headers = [
       'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम','एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम',
-      'village','taluka','district','phone','email','address','accountNumber','ifscCode','bankName','branchName','accountHolderName'
+      'village','taluka','district','मोबाईल','ईमेल','पत्ता','खाते_क्रमांक','IFSC','बँक_नाव','शाखा','खातेधारक_नाव','आदिवासी','आदिवासी_प्रमाणपत्र_क्रमांक','आदिवासी_लाग'
     ];
     const example = [
-      'कमळी कमळाकर मंडळ','40','0.1850','0.0504','53100000','0','4010513','4010513','8021026','उंबरपाडा नंदाडे','पालघर','पालघर','9876543210','landowner@example.com','उंबरपाडा नंदाडे, पालघर','1234567890','SBIN0001234','State Bank of India','Palghar','कमळी कमळाकर मंडळ'
+      'कमळी कमळाकर मंडळ','40','0.1850','0.0504','53100000','0','4010513','4010513','8021026','उंबरपाडा नंदाडे','पालघर','पालघर','9876543210','landowner@example.com','उंबरपाडा नंदाडे, पालघर','1234567890','SBIN0001234','State Bank of India','Palghar','कमळी कमळाकर मंडळ','नाही','',''
     ];
     const csvContent = headers.join(',') + '\n' + example.map(v => `"${v}"`).join(',');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

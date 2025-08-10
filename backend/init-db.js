@@ -115,9 +115,6 @@ const initDatabase = async () => {
       noticeNumber: 'NOTICE-001',
       noticeDate: new Date(),
       documentsUploaded: true,
-      isTribal: true,
-      tribalCertificateNo: 'TCN-001',
-      tribalLag: 'Lag-A',
       isActive: true,
       createdBy: demoUsers[0].id
     });
@@ -140,9 +137,6 @@ const initDatabase = async () => {
       paymentStatus: 'pending',
       noticeGenerated: false,
       documentsUploaded: false,
-      isTribal: false,
-      tribalCertificateNo: null,
-      tribalLag: null,
       isActive: true,
       createdBy: demoUsers[0].id
     });

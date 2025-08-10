@@ -156,6 +156,8 @@ interface SaralContextType {
     pendingPayments: number;
     totalCompensation: number;
   };
+  // Utilities
+  reloadLandowners: () => Promise<void>;
   
   // Loading states
   loading: boolean;
@@ -249,6 +251,11 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Public wrapper to reload landowner records on demand
+  const reloadLandowners = async (): Promise<void> => {
+    await loadLandownerRecords();
   };
 
   const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
@@ -805,6 +812,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     getAssignedRecords,
     getAssignedRecordsWithNotices,
     getProjectStats,
+    reloadLandowners,
     loading,
     error
   };

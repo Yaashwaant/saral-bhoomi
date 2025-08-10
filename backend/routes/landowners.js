@@ -68,10 +68,10 @@ router.get('/:id', async (req, res) => {
 // Normalize Marathi/English keys to model fields
 const normalizeUpdate = (body = {}) => {
   const b = { ...body };
-  // Tribal and contact/bank fields accept Marathi aliases
+  // Tribal and Contact/bank fields accept Marathi aliases
   b.isTribal = b.isTribal ?? b['आदिवासी'] ?? b['tribal'];
   b.tribalCertificateNo = b.tribalCertificateNo || b['आदिवासी_प्रमाणपत्र_क्रमांक'] || b['tribalCertNo'];
-  b.tribalLag = b.tribalLag || b['आदिवासी_लॅग'] || b['tribalLag'];
+  b.tribalLag = b.tribalLag || b['আदिवासी_लॅग'] || b['आदिवासी_लाग'] || b['tribalLag'];
   b.contactPhone = b.contactPhone || b['मोबाईल'] || b['फोन'];
   b.contactEmail = b.contactEmail || b['ईमेल'];
   b.contactAddress = b.contactAddress || b['पत्ता'];
@@ -97,7 +97,6 @@ router.put('/:id', async (req, res) => {
       'kycStatus', 'paymentStatus', 'assignedAgent', 'assignedAt', 'contactPhone', 'contactEmail',
       'contactAddress', 'bankAccountNumber', 'bankIfscCode', 'bankName', 'bankBranchName',
       'bankAccountHolderName', 'documents', 'notes', 'isActive',
-      // tribal-specific
       'isTribal', 'tribalCertificateNo', 'tribalLag'
     ];
     const body = normalizeUpdate(req.body);
