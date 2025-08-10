@@ -69,9 +69,10 @@ router.get('/:id', async (req, res) => {
 const normalizeUpdate = (body = {}) => {
   const b = { ...body };
   // Tribal and Contact/bank fields accept Marathi aliases
+  // Correct mapping: isTribal <- 'आदिवासी'; tribalCertificateNo <- 'आदिवासी_प्रमाणपत्र_क्रमांक'; tribalLag <- 'आदिवासी_लाग' | 'लागू'
   b.isTribal = b.isTribal ?? b['आदिवासी'] ?? b['tribal'];
   b.tribalCertificateNo = b.tribalCertificateNo || b['आदिवासी_प्रमाणपत्र_क्रमांक'] || b['tribalCertNo'];
-  b.tribalLag = b.tribalLag || b['আदिवासी_लॅग'] || b['आदिवासी_लाग'] || b['tribalLag'];
+  b.tribalLag = b.tribalLag || b['आदिवासी_लाग'] || b['लागू'] || b['tribalLag'];
   b.contactPhone = b.contactPhone || b['मोबाईल'] || b['फोन'];
   b.contactEmail = b.contactEmail || b['ईमेल'];
   b.contactAddress = b.contactAddress || b['पत्ता'];

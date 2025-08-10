@@ -45,6 +45,10 @@ interface CSVData {
   bankName?: string;
   branchName?: string;
   accountHolderName?: string;
+  // Tribal fields in CSV
+  आदिवासी?: string;
+  आदिवासी_प्रमाणपत्र_क्रमांक?: string;
+  आदिवासी_लाग?: string;
 }
 
 const CSVUploadManager = () => {

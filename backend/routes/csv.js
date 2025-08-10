@@ -47,21 +47,22 @@ const normalizeRow = (row = {}) => {
   r['bankName'] = r['bankName'] || r['बँक_नाव'] || '';
   r['branchName'] = r['branchName'] || r['शाखा'] || '';
   r['accountHolderName'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
-  // Tribal fields (Marathi ↔ English)
-  const rawTribal = r['आदिवासी'] ?? r['आदिवासी_का'] ?? r['जमीन_आदिवासी'] ?? r['tribal'] ?? r['isTribal'];
-  const truthyVals = ['होय','true','1','yes','y','हं','haan','ha'];
+  // Tribal fields: STRICTLY decide from Marathi column 'आदिवासी'
+  const rawTribal = r['आदिवासी'];
+  const truthyVals = ['होय','true','1','yes','y'];
   const falsyVals = ['नाही','false','0','no','n'];
-  let isTribal = undefined;
+  let isTribal = false;
   if (typeof rawTribal === 'string') {
     const v = rawTribal.trim().toLowerCase();
-    isTribal = truthyVals.includes(v) ? true : (falsyVals.includes(v) ? false : undefined);
+    isTribal = truthyVals.includes(v) ? true : (falsyVals.includes(v) ? false : false);
   } else if (typeof rawTribal === 'boolean') {
     isTribal = rawTribal;
   } else if (typeof rawTribal === 'number') {
     isTribal = rawTribal === 1;
   }
-  r['isTribal'] = (isTribal !== undefined) ? isTribal : false;
-  r['tribalCertificateNo'] = r['tribalCertificateNo'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['त्रायबल_प्रमाणपत्र_क्रमांक'] || '';
+  r['isTribal'] = isTribal;
+  // Correct mapping: certificate from 'आदिवासी_प्रमाणपत्र_क्रमांक'; lag from 'आदिवासी_लाग'/'लागू'
+  r['tribalCertificateNo'] = r['tribalCertificateNo'] || r['आदिवासी_прमाणपत्र_क्रमांक'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['tribalCertNo'] || '';
   r['tribalLag'] = r['tribalLag'] || r['आदिवासी_लाग'] || r['लागू'] || '';
   // Trim canonical fields if present
   [
@@ -166,8 +167,8 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
           सोलेशियम_100: row.सोलेशियम_100,
           अंतिम_रक्कम: row.अंतिम_रक्कम,
           village: row.village,
-          taluka: row.taluka,
-          district: row.district,
+          taluka: row.taluka || 'NA',
+          district: row.district || 'NA',
           // Flattened contact and bank fields to match model
           contactPhone: row.phone || '',
           contactEmail: row.email || '',
@@ -177,6 +178,10 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
           bankName: row.bankName || '',
           bankBranchName: row.branchName || '',
           bankAccountHolderName: row.accountHolderName || row.खातेदाराचे_नांव,
+          // Tribal fields
+          isTribal: !!row.isTribal,
+          tribalCertificateNo: row.tribalCertificateNo || '',
+          tribalLag: row.tribalLag || '',
           // Use demo officer user id seeded during init
           createdBy: 1
         };

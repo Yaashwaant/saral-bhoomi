@@ -239,11 +239,48 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       
       const response = await apiCall('/landowners/list');
       const rows: any[] = Array.isArray(response.records) ? response.records : [];
-      const normalized = rows.map((r: any) => ({
-        ...r,
-        id: r.id,
-        projectId: r.project_id ?? r.projectId,
-      }));
+      const parseIsTribal = (rec: any): boolean => {
+        // Strictly use Marathi column when present
+        const raw = rec?.['आदिवासी'] ?? rec?.isTribal ?? rec?.is_tribal;
+        if (typeof raw === 'boolean') return raw;
+        if (typeof raw === 'number') return raw === 1;
+        if (typeof raw === 'string') {
+          const v = raw.trim().toLowerCase();
+          return ['होय','yes','true','1','y'].includes(v);
+        }
+        return false;
+      };
+      const pickCert = (rec: any): string => {
+        const candidates = [
+          rec?.tribalCertificateNo,
+          rec?.tribal_certificate_no,
+          rec?.['आदिवासी_प्रमाणपत्र_क्रमांक'],
+          rec?.tribalCertNo,
+          rec?.certificateNo,
+          rec?.tribalLag,
+          rec?.tribal_lag,
+          rec?.['আदिवासी_लॅग'],
+          rec?.['आदिवासी_लाग']
+        ];
+        const rawVal = candidates.find((c) => c !== undefined && c !== null && String(c).trim() !== '');
+        const clean = String(rawVal ?? '').trim();
+        const lower = clean.toLowerCase();
+        if (!clean || lower === 'na' || lower === 'n/a' || clean === 'नाही' || clean === '-') return '';
+        return clean;
+      };
+      const normalized = rows.map((r: any) => {
+        const isTribal = parseIsTribal(r);
+        const tribalCertificateNo = pickCert(r);
+        const tribalLag = r?.tribalLag ?? r?.tribal_lag ?? r?.['आदिवासी_लाग'] ?? '';
+        return {
+          ...r,
+          id: r.id,
+          projectId: r.project_id ?? r.projectId,
+          isTribal,
+          tribalCertificateNo,
+          tribalLag
+        };
+      });
       setLandownerRecords(normalized);
     } catch (err) {
       console.warn('Landowners API failed; falling back to empty list');

@@ -257,6 +257,26 @@ const NoticeGenerator: React.FC = () => {
     loadExistingNotices();
   }, [selectedProject]);
 
+  // Fallback: derive generated notices directly from landowner records (updated by CSV ingest)
+  useEffect(() => {
+    if (!selectedProject) { return; }
+    const derived = landownerRecords
+      .filter(r => String((r as any).projectId ?? (r as any).project_id) === String(selectedProject))
+      .filter(r => (r as any).noticeGenerated)
+      .map((r): GeneratedNotice => ({
+        id: `GEN-${r.id}`,
+        landownerId: r.id,
+        noticeNumber: (r as any).noticeNumber || `NOTICE-${r.id}`,
+        noticeDate: new Date((r as any).noticeDate || Date.now()),
+        content: (r as any).noticeContent || 'Notice content not available',
+        status: 'generated'
+      }));
+    // Only update if we actually have derived notices
+    if (derived.length > 0) {
+      setGeneratedNotices(derived);
+    }
+  }, [selectedProject, landownerRecords]);
+
   useEffect(() => {
     console.log('NoticeGenerator useEffect triggered:', {
       selectedProject,
@@ -1188,46 +1208,20 @@ const NoticeGenerator: React.FC = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={Boolean((record as any).isTribal)}
-                        onCheckedChange={async (v) => {
-                          const val = !!v;
-                          try {
-                            await updateLandownerRecord(record.id, { isTribal: val });
-                            (record as any).isTribal = val;
-                            setFilteredRecords([...filteredRecords]);
-                            toast.success(val ? 'Marked Tribal' : 'Unmarked Tribal');
-                          } catch {
-                            toast.error('Failed to update tribal flag');
-                          }
-                        }}
-                      />
-                      <Input
-                        placeholder="Tribal Lag/Cert No"
-                        value={(record as any).tribalLag || (record as any).tribalCertificateNo || ''}
-                        onChange={(e) => {
-                          (record as any).tribalLag = e.target.value;
-                          setFilteredRecords([...filteredRecords]);
-                        }}
-                        className="h-8 w-40"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            await updateLandownerRecord(record.id, {
-                              tribalLag: (record as any).tribalLag,
-                              tribalCertificateNo: (record as any).tribalLag
-                            });
-                            toast.success('Saved tribal details');
-                          } catch {
-                            toast.error('Failed to save');
-                          }
-                        }}
-                      >Save</Button>
-                    </div>
+                    {record.isTribal ? (
+                      <div className="flex flex-col items-start">
+                        <Badge variant="outline" className="text-orange-600">Tribal</Badge>
+                        <span className="text-xs text-gray-600 mt-1">
+                          Cert: {(() => {
+                            const cert = (record as any).tribalCertificateNo || (record as any).tribalLag || '';
+                            const clean = String(cert).trim();
+                            return clean && clean !== 'नाही' ? clean : 'NA';
+                          })()}
+                        </span>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="text-gray-600">Non-Tribal</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {record.noticeGenerated ? (
