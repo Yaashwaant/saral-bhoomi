@@ -24,6 +24,8 @@ import agentRoutes from './routes/agents.js';
 import landownerRoutes from './routes/landowners.js';
 import jmrRoutes from './routes/jmr.js';
 import awardRoutes from './routes/awards.js';
+import blockchainRoutes from './routes/blockchain.js';
+import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -260,6 +262,8 @@ app.use('/api/agents', agentRoutes);
 app.use('/api/landowners', landownerRoutes);
 app.use('/api/jmr', jmrRoutes);
 app.use('/api/awards', awardRoutes);
+app.use('/api/blockchain', blockchainRoutes);
+app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');
