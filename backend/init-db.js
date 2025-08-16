@@ -1,5 +1,5 @@
 import sequelize from './config/database.js';
-import { User, Project, LandownerRecord } from './models/index.js';
+import { User, Project, LandownerRecord, PaymentRecord, NoticeAssignment, JMRRecord, Award } from './models/index.js';
 
 const initDatabase = async () => {
   try {
