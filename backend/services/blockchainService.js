@@ -62,8 +62,8 @@ class BlockchainService {
   }
 
   // Calculate hash for blockchain integrity
-  calculateHash(surveyNumber, eventType, officerId, timestamp, previousHash, nonce) {
-    const data = `${surveyNumber}${eventType}${officerId}${timestamp}${previousHash}${nonce}`;
+  calculateHash(surveyNumber, eventType, officerId, timestamp, previousHash, nonce, documentHash = '') {
+    const data = `${surveyNumber}${eventType}${officerId}${timestamp}${previousHash}${nonce}${documentHash}`;
     return crypto.createHash('sha256').update(data).digest('hex');
   }
 
@@ -93,13 +93,15 @@ class BlockchainService {
       // Calculate current hash
       const timestamp = new Date();
       const nonce = Math.floor(Math.random() * 1000000);
+      const documentHash = metadata?.document_hash || '';
       const currentHash = this.calculateHash(
         surveyNumber,
         eventType,
         officerId,
         timestamp,
         previousHash,
-        nonce
+        nonce,
+        documentHash
       );
 
       // If blockchain integration is available, submit to smart contract

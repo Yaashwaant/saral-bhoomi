@@ -97,6 +97,11 @@ const Notice = sequelize.define('Notice', {
     allowNull: true,
     comment: 'Associated documents and files'
   },
+  document_hash: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Hash of uploaded documents for blockchain verification'
+  },
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
