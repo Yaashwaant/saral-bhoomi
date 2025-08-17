@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaral } from '@/contexts/SaralContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -390,7 +390,26 @@ const OfficerDashboard = () => {
             </TabsContent>
 
             <TabsContent value="kyc" className="mt-6">
-              <KYCAssignmentManager />
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Field Officer Portal Access</CardTitle>
+                    <CardDescription>
+                      Field officers can access their dedicated portal to upload KYC documents and manage verification tasks.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => window.open('/field-officer', '_blank')}
+                      className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                    >
+                      Open Field Officer Portal
+                    </Button>
+                  </CardContent>
+                </Card>
+                <KYCAssignmentManager />
+              </div>
             </TabsContent>
 
             <TabsContent value="payments" className="mt-6">

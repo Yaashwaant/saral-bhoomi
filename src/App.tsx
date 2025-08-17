@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
 import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
+import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
 
@@ -33,6 +34,11 @@ const App = () => {
                 <Route path="/saral/dashboard" element={
                   <ProtectedRoute>
                     <DashboardPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/field-officer" element={
+                  <ProtectedRoute allowedRoles={['field_officer', 'officer', 'admin']}>
+                    <FieldOfficerPage />
                   </ProtectedRoute>
                 } />
 

@@ -253,6 +253,56 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
   }
 });
 
+// @desc    Get agent assignments
+// @route   GET /api/agents/assignments/:agentId
+// @access  Private
+router.get('/assignments/:agentId', authorize(['field_officer', 'officer', 'admin']), async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { project_id } = req.query;
+
+    // Find assignments for this agent
+    const assignments = await MongoLandownerRecord.find({
+      assigned_agent: agentId,
+      is_active: true,
+      ...(project_id && { project_id })
+    })
+      .populate('created_by', 'name email')
+      .sort({ assigned_at: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: assignments.length,
+      data: assignments.map(assignment => ({
+        id: assignment._id,
+        survey_number: assignment.survey_number,
+        landowner_name: assignment.landowner_name,
+        area: assignment.area,
+        village: assignment.village,
+        taluka: assignment.taluka,
+        district: assignment.district,
+        total_compensation: assignment.total_compensation,
+        is_tribal: assignment.is_tribal,
+        tribal_certificate_no: assignment.tribal_certificate_no,
+        tribal_lag: assignment.tribal_lag,
+        kyc_status: assignment.kyc_status,
+        assigned_at: assignment.assigned_at,
+        assignment_notes: assignment.assignment_notes,
+        documents_uploaded: assignment.documents && assignment.documents.length > 0,
+        project_id: assignment.project_id,
+        created_at: assignment.createdAt,
+        updated_at: assignment.updatedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching agent assignments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching agent assignments'
+    });
+  }
+});
+
 export default router; 
  
 // --- Extended endpoints for agent portal compatibility ---

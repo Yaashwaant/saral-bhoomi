@@ -58,7 +58,7 @@ const KYCAssignmentManager: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState<KYCRecord | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isAssignmentOpen, setIsAssignmentOpen] = useState(false);
-  const [isDocumentUploadOpen, setIsDocumentUploadOpen] = useState(false);
+
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isBlockchainOpen, setIsBlockchainOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -371,9 +371,8 @@ const KYCAssignmentManager: React.FC = () => {
 
       {selectedProject && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="kyc">KYC Assignment</TabsTrigger>
-            <TabsTrigger value="documents">Document Upload</TabsTrigger>
             <TabsTrigger value="payments">Payment Management</TabsTrigger>
             <TabsTrigger value="blockchain">Blockchain Ledger</TabsTrigger>
           </TabsList>
@@ -481,64 +480,7 @@ const KYCAssignmentManager: React.FC = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="documents" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Document Upload Portal</CardTitle>
-                <CardDescription>
-                  Field officers can upload KYC documents here
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Survey No</TableHead>
-                      <TableHead>Owner Name</TableHead>
-                      <TableHead>KYC Status</TableHead>
-                      <TableHead>Documents</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {kycRecords.filter(r => r.kyc_status === 'assigned' || r.kyc_status === 'in_progress').map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium">{record.survey_number}</TableCell>
-                        <TableCell>{record.landowner_name}</TableCell>
-                        <TableCell>{getStatusBadge(record.kyc_status, 'kyc')}</TableCell>
-                        <TableCell>
-                          {record.documents_uploaded ? (
-                            <Badge className="bg-green-100 text-green-800">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Uploaded
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-800">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Pending
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedRecord(record);
-                              setIsDocumentUploadOpen(true);
-                            }}
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            Upload Documents
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+
 
           <TabsContent value="payments" className="space-y-4">
             <Card>
@@ -714,50 +656,7 @@ const KYCAssignmentManager: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Document Upload Dialog */}
-      <Dialog open={isDocumentUploadOpen} onOpenChange={setIsDocumentUploadOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Upload KYC Documents</DialogTitle>
-            <DialogDescription>
-              Upload required documents for {selectedRecord?.landowner_name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Document Type</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select document type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="aadhaar">Aadhaar Card</SelectItem>
-                    <SelectItem value="pan">PAN Card</SelectItem>
-                    <SelectItem value="voter_id">Voter ID</SelectItem>
-                    <SelectItem value="7_12_extract">7/12 Extract</SelectItem>
-                    <SelectItem value="bank_passbook">Bank Passbook</SelectItem>
-                    <SelectItem value="photo">Photo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>File Upload</Label>
-                <Input type="file" accept=".pdf,.jpg,.jpeg,.png" />
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsDocumentUploadOpen(false)}>
-                Cancel
-              </Button>
-              <Button>
-                <Upload className="h-3 w-3 mr-1" />
-                Upload Document
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Payment Dialog */}
       <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
