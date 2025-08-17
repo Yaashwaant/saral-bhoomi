@@ -651,7 +651,7 @@ const DocumentUploadPortal: React.FC = () => {
                                   <AlertCircle className="h-3 w-3" />
                                   Pending
                                 </Badge>
-                                )}
+                              )}
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-1">
