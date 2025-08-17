@@ -132,11 +132,19 @@ const FieldOfficerDashboard: React.FC = () => {
       formData.append('project_id', selectedAssignment.project_id);
       formData.append('notes', uploadNotes);
 
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'field_officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/documents/field-upload`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
-        },
+        headers,
         body: formData
       });
 
@@ -169,12 +177,20 @@ const FieldOfficerDashboard: React.FC = () => {
 
     setLoading(true);
     try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'field_officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/landowners/${selectedAssignment.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
-        },
+        headers,
         body: JSON.stringify({
           kyc_status: kycStatus,
           kyc_notes: kycNotes,
@@ -209,12 +225,20 @@ const FieldOfficerDashboard: React.FC = () => {
 
   const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
     try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'field_officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/blockchain`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
-        },
+        headers,
         body: JSON.stringify({
           survey_number: surveyNumber,
           event_type: eventType,

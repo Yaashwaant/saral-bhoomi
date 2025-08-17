@@ -95,12 +95,20 @@ const LandRecordsManager: React.FC = () => {
 
     setLoading(true);
     try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/landowners`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
+        headers,
         body: JSON.stringify({
           ...landRecordForm,
           project_id: selectedProject,
@@ -156,11 +164,19 @@ const LandRecordsManager: React.FC = () => {
     formData.append('project_id', selectedProject);
 
     try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/landowners/upload-csv`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
+        headers,
         body: formData
       });
 

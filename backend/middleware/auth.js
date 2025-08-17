@@ -27,13 +27,17 @@ export const authMiddleware = async (req, res, next) => {
 
     // Accept demo token for development/demo use
     if (token === 'demo-jwt-token') {
+      // For demo token, we need to determine the user role from the request
+      // This is a simplified approach - in production, you'd want a more secure method
+      const userRole = req.headers['x-demo-role'] || 'officer'; // Default fallback
+      
       req.user = {
         id: 'demo-user-id',
         _id: 'demo-user-id',
-        name: 'Demo Officer',
-        email: 'officer@saral.gov.in',
-        role: 'officer',
-        department: 'Land Acquisition',
+        name: `Demo ${userRole.charAt(0).toUpperCase() + userRole.slice(1)}`,
+        email: `${userRole}@saral.gov.in`,
+        role: userRole,
+        department: 'Demo Department',
         isActive: true
       };
       return next();
