@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Eye, Download, UserCheck, Upload, FileText, CheckCircle, Clock, AlertCircle, ArrowRight, Blockchain } from 'lucide-react';
+import { Eye, Download, UserCheck, Upload, FileText, CheckCircle, Clock, AlertCircle, ArrowRight, Hash } from 'lucide-react';
 import { config } from '../../../config';
 
 interface KYCRecord {
@@ -628,17 +628,17 @@ const KYCAssignmentManager: React.FC = () => {
                           {entry.block_hash.substring(0, 8)}...
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setBlockchainEntries([entry]);
-                              setIsBlockchainOpen(true);
-                            }}
-                          >
-                            <Blockchain className="h-3 w-3 mr-1" />
-                            View Details
-                          </Button>
+                                                       <Button
+                               variant="outline"
+                               size="sm"
+                               onClick={() => {
+                                 setBlockchainEntries([entry]);
+                                 setIsBlockchainOpen(true);
+                               }}
+                             >
+                               <Hash className="h-3 w-3 mr-1" />
+                               View Details
+                             </Button>
                         </TableCell>
                       </TableRow>
                     ))}
