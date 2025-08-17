@@ -31,6 +31,10 @@ export const authMiddleware = async (req, res, next) => {
       // This is a simplified approach - in production, you'd want a more secure method
       const userRole = req.headers['x-demo-role'] || 'officer'; // Default fallback
       
+      console.log('🎭 Demo token detected');
+      console.log('📋 x-demo-role header:', req.headers['x-demo-role']);
+      console.log('🎯 Final user role:', userRole);
+      
       req.user = {
         id: 'demo-user-id',
         _id: 'demo-user-id',
@@ -40,6 +44,8 @@ export const authMiddleware = async (req, res, next) => {
         department: 'Demo Department',
         isActive: true
       };
+      
+      console.log('👤 Created demo user:', req.user);
       return next();
     }
 
@@ -139,7 +145,10 @@ export const authorize = (...roles) => {
       });
     }
 
-    console.log(`Authorizing user ${req.user.role} with required roles:`, roles);
+    console.log(`🔐 Authorizing user ${req.user.role} with required roles:`, roles);
+    console.log(`👤 Full user object:`, req.user);
+    console.log(`📋 Required roles:`, roles);
+    console.log(`✅ User role in required roles:`, roles.includes(req.user.role));
     
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({

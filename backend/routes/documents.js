@@ -39,7 +39,7 @@ const upload = multer({
 // @desc    Get documents for a project
 // @route   GET /api/documents/:projectId
 // @access  Private
-router.get('/:projectId', authorize(['officer', 'admin']), async (req, res) => {
+router.get('/:projectId', authorize('officer', 'admin'), async (req, res) => {
   try {
     const { projectId } = req.params;
     
@@ -94,7 +94,7 @@ router.get('/:projectId', authorize(['officer', 'admin']), async (req, res) => {
 // @desc    Upload document (Officer/Admin)
 // @route   POST /api/documents/upload
 // @access  Private
-router.post('/upload', authorize(['officer', 'admin']), upload.single('file'), async (req, res) => {
+router.post('/upload', authorize('officer', 'admin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -206,7 +206,11 @@ router.post('/upload', authorize(['officer', 'admin']), upload.single('file'), a
 // @desc    Upload document (Field Officer)
 // @route   POST /api/documents/field-upload
 // @access  Private
-router.post('/field-upload', authorize(['field_officer', 'officer', 'admin']), upload.single('file'), async (req, res) => {
+router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upload.single('file'), async (req, res) => {
+  console.log('🔍 Field upload endpoint accessed');
+  console.log('👤 User:', req.user);
+  console.log('📁 File:', req.file);
+  console.log('📝 Body:', req.body);
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -318,7 +322,7 @@ router.post('/field-upload', authorize(['field_officer', 'officer', 'admin']), u
 // @desc    Delete document
 // @route   DELETE /api/documents/:documentId
 // @access  Private
-router.delete('/:documentId', authorize(['officer', 'admin']), async (req, res) => {
+router.delete('/:documentId', authorize('officer', 'admin'), async (req, res) => {
   try {
     const { documentId } = req.params;
     const { record_id } = req.body;
@@ -385,7 +389,7 @@ router.delete('/:documentId', authorize(['officer', 'admin']), async (req, res) 
 // @desc    Get document by ID
 // @route   GET /api/documents/file/:filename
 // @access  Private
-router.get('/file/:filename', authorize(['officer', 'admin']), (req, res) => {
+router.get('/file/:filename', authorize('officer', 'admin'), (req, res) => {
   try {
     const { filename } = req.params;
     const filePath = path.join(process.cwd(), 'uploads/documents', filename);
