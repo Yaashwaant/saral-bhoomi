@@ -1,7 +1,9 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import multer from 'multer';
-import { JMRRecord, Project, BlockchainLedger } from '../models/index.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import blockchainService from '../services/blockchainService.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -46,14 +48,13 @@ const upload = multer({
 // Validation middleware
 const validateJMR = [
   body('survey_number').notEmpty().withMessage('Survey number is required'),
-  body('project_id').isInt().withMessage('Valid project ID is required'),
-  body('landowner_id').notEmpty().withMessage('Landowner ID is required'),
+  body('project_id').isMongoId().withMessage('Valid project ID is required'),
+  body('officer_id').isMongoId().withMessage('Valid officer ID is required'),
   body('measured_area').isFloat({ min: 0 }).withMessage('Measured area must be a positive number'),
-  body('land_type').isIn(['Agricultural', 'Non-Agricultural']).withMessage('Invalid land type'),
+  body('land_type').isIn(['agricultural', 'residential', 'commercial', 'industrial', 'forest', 'other']).withMessage('Invalid land type'),
   body('village').notEmpty().withMessage('Village is required'),
   body('taluka').notEmpty().withMessage('Taluka is required'),
-  body('district').notEmpty().withMessage('District is required'),
-  body('officer_id').isInt().withMessage('Valid officer ID is required')
+  body('district').notEmpty().withMessage('District is required')
 ];
 
 // Create JMR record with blockchain integration
@@ -71,21 +72,21 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
     const {
       survey_number,
       project_id,
-      landowner_id,
+      officer_id,
       measured_area,
       land_type,
       village,
       taluka,
       district,
-      officer_id,
       category,
       notes,
-      tribal_classification = false
+      tribal_classification = 'non-tribal'
     } = req.body;
 
     // Check if JMR already exists for this survey number and project
-    const existingJMR = await JMRRecord.findOne({
-      where: { survey_number, project_id }
+    const existingJMR = await MongoJMRRecord.findOne({
+      survey_number,
+      project_id
     });
 
     if (existingJMR) {
@@ -105,10 +106,10 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
     })) : [];
 
     // Create JMR record
-    const jmrRecord = await JMRRecord.create({
+    const jmrRecord = await MongoJMRRecord.create({
       survey_number,
       project_id,
-      landowner_id,
+      officer_id,
       measured_area,
       land_type,
       tribal_classification: tribal_classification === 'true',
@@ -119,7 +120,6 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
       village,
       taluka,
       district,
-      officer_id,
       status: 'pending'
     });
 
@@ -143,7 +143,7 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
     };
 
     const blockchainBlock = await blockchainService.createBlock(blockData);
-    await BlockchainLedger.create(blockchainBlock);
+    await MongoBlockchainLedger.create(blockchainBlock);
 
     res.status(201).json({
       success: true,
@@ -210,11 +210,9 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
               }
 
               // Check if JMR already exists
-              const existingJMR = await JMRRecord.findOne({
-                where: { 
-                  survey_number: row.survey_number, 
-                  project_id: parseInt(row.project_id) 
-                }
+              const existingJMR = await MongoJMRRecord.findOne({
+                survey_number: row.survey_number, 
+                project_id: row.project_id
               });
 
               if (existingJMR) {
@@ -227,9 +225,9 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
               }
 
               // Create JMR record
-              const jmrRecord = await JMRRecord.create({
+              const jmrRecord = await MongoJMRRecord.create({
                 survey_number: row.survey_number,
-                project_id: parseInt(row.project_id),
+                project_id: row.project_id,
                 landowner_id: row.landowner_id,
                 measured_area: parseFloat(row.measured_area),
                 land_type: row.land_type || 'Agricultural',
@@ -240,7 +238,7 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
                 village: row.village,
                 taluka: row.taluka,
                 district: row.district,
-                officer_id: parseInt(row.officer_id),
+                officer_id: row.officer_id,
                 status: 'pending'
               });
 
@@ -248,8 +246,8 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
               const blockData = {
                 surveyNumber: row.survey_number,
                 eventType: 'JMR_Measurement_Uploaded',
-                officerId: parseInt(row.officer_id),
-                projectId: parseInt(row.project_id),
+                officerId: row.officer_id,
+                projectId: row.project_id,
                 metadata: {
                   measured_area: parseFloat(row.measured_area),
                   land_type: row.land_type || 'Agricultural',
@@ -263,7 +261,7 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
               };
 
               const blockchainBlock = await blockchainService.createBlock(blockData);
-              await BlockchainLedger.create(blockchainBlock);
+              await MongoBlockchainLedger.create(blockchainBlock);
 
               createdRecords.push({
                 jmr_id: jmrRecord.id,
@@ -342,11 +340,11 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const { count, rows: jmrRecords } = await JMRRecord.findAndCountAll({
+    const { count, rows: jmrRecords } = await MongoJMRRecord.findAndCountAll({
       where: whereClause,
       include: [
         {
-          model: Project,
+          model: MongoProject,
           attributes: ['name', 'description']
         }
       ],
@@ -358,7 +356,7 @@ router.get('/', async (req, res) => {
     // Get blockchain verification status for each record
     const recordsWithBlockchain = await Promise.all(
       jmrRecords.map(async (record) => {
-        const blockchainEntries = await BlockchainLedger.findAll({
+        const blockchainEntries = await MongoBlockchainLedger.findAll({
           where: { 
             survey_number: record.survey_number,
             event_type: 'JMR_Measurement_Uploaded'
@@ -403,10 +401,10 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const jmrRecord = await JMRRecord.findByPk(id, {
+    const jmrRecord = await MongoJMRRecord.findByPk(id, {
       include: [
         {
-          model: Project,
+          model: MongoProject,
           attributes: ['name', 'description']
         }
       ]
@@ -420,7 +418,7 @@ router.get('/:id', async (req, res) => {
     }
 
     // Get blockchain history for this survey number
-    const blockchainHistory = await BlockchainLedger.findAll({
+    const blockchainHistory = await MongoBlockchainLedger.findAll({
       where: { survey_number: jmrRecord.survey_number },
       order: [['timestamp', 'ASC']]
     });
@@ -449,7 +447,7 @@ router.put('/:id', validateJMR, async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const jmrRecord = await JMRRecord.findByPk(id);
+    const jmrRecord = await MongoJMRRecord.findByPk(id);
     if (!jmrRecord) {
       return res.status(404).json({
         success: false,
@@ -479,7 +477,7 @@ router.put('/:id', validateJMR, async (req, res) => {
     };
 
     const blockchainBlock = await blockchainService.createBlock(blockData);
-    await BlockchainLedger.create(blockchainBlock);
+    await MongoBlockchainLedger.create(blockchainBlock);
 
     res.json({
       success: true,
@@ -507,7 +505,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    const jmrRecord = await JMRRecord.findByPk(id);
+    const jmrRecord = await MongoJMRRecord.findByPk(id);
     if (!jmrRecord) {
       return res.status(404).json({
         success: false,
@@ -530,7 +528,7 @@ router.delete('/:id', async (req, res) => {
     };
 
     const blockchainBlock = await blockchainService.createBlock(blockData);
-    await BlockchainLedger.create(blockchainBlock);
+    await MongoBlockchainLedger.create(blockchainBlock);
 
     // Soft delete the record
     await jmrRecord.update({ 

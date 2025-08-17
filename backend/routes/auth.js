@@ -1,7 +1,8 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import User from '../models/User.js';
+import bcrypt from 'bcryptjs';
+import MongoUser from '../models/mongo/User.js';
 import { authMiddleware, authorize, refreshTokenMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -25,10 +26,7 @@ router.post('/login', async (req, res) => {
     console.log(`\t DEBUG: Login attempt for ${email}`);
 
     // Check for user
-    const user = await User.findOne({ 
-      where: { email },
-      attributes: { include: ['password', 'loginAttempts', 'lockUntil'] }
-    });
+    const user = await MongoUser.findOne({ email }).select('+password');
 
     if (!user) {
       return res.status(401).json({
@@ -38,18 +36,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check if account is locked
-    if (user.isLocked()) {
-      return res.status(423).json({
-        success: false,
-        message: 'Account is temporarily locked due to multiple failed login attempts',
-        code: 'ACCOUNT_LOCKED',
-        lockUntil: user.lockUntil
-      });
-    }
-
     // Check if user is active
-    if (!user.isActive) {
+    if (!user.is_active) {
       return res.status(401).json({
         success: false,
         message: 'Account is deactivated',
@@ -58,29 +46,32 @@ router.post('/login', async (req, res) => {
     }
 
     // Check if password matches
-    const isMatch = await user.matchPassword(password);
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      // Increment login attempts
-      await user.incrementLoginAttempts();
-      
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
-        code: 'INVALID_CREDENTIALS',
-        remainingAttempts: Math.max(0, 5 - (user.loginAttempts + 1))
+        code: 'INVALID_CREDENTIALS'
       });
     }
-
-    // Reset login attempts on successful login
-    await user.resetLoginAttempts();
     
     // Update last login
-    await user.updateLastLogin();
+    user.last_login = new Date();
+    await user.save();
 
     // Generate tokens
-    const accessToken = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: rememberMe ? '7d' : '1d' }
+    );
+    
+    const refreshToken = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     // Set token expiration based on remember me
     const tokenExpiry = rememberMe ? '7d' : '1d';
@@ -93,13 +84,13 @@ router.post('/login', async (req, res) => {
       refreshToken,
       expiresIn: tokenExpiry,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         department: user.department,
         language: user.language,
-        lastLogin: user.lastLogin
+        lastLogin: user.last_login
       }
     };
 
@@ -173,8 +164,8 @@ router.post('/refresh', refreshTokenMiddleware, async (req, res) => {
 // @access  Private
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password', 'refreshToken'] }
+    const user = await MongoUser.findById(req.user.id, {
+      select: '-password -refreshToken'
     });
 
     res.status(200).json({
@@ -260,7 +251,7 @@ router.post('/forgot-password', async (req, res) => {
       });
     }
 
-    const user = await User.findByEmail(email);
+    const user = await MongoUser.findOne({ email });
 
     if (!user) {
       return res.status(404).json({
@@ -281,10 +272,9 @@ router.post('/forgot-password', async (req, res) => {
     const resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     // Save to database
-    await user.update({
-      resetPasswordToken: resetPasswordToken,
-      resetPasswordExpire: new Date(resetPasswordExpire)
-    });
+    user.resetPasswordToken = resetPasswordToken;
+    user.resetPasswordExpire = new Date(resetPasswordExpire);
+    await user.save();
 
     // TODO: Send email with reset token
     // For now, return the token (in production, send via email)
@@ -325,11 +315,9 @@ router.put('/reset-password/:resetToken', async (req, res) => {
       .update(resetToken)
       .digest('hex');
 
-    const user = await User.findOne({
-      where: {
-        resetPasswordToken,
-        resetPasswordExpire: { [sequelize.Op.gt]: new Date() }
-      }
+    const user = await MongoUser.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: new Date() }
     });
 
     if (!user) {
@@ -341,11 +329,10 @@ router.put('/reset-password/:resetToken', async (req, res) => {
     }
 
     // Set new password
-    await user.update({
-      password: password,
-      resetPasswordToken: null,
-      resetPasswordExpire: null
-    });
+    user.password = password;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+    await user.save();
 
     res.status(200).json({
       success: true,
@@ -376,12 +363,12 @@ router.put('/change-password', authMiddleware, async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(req.user.id, {
-      attributes: { include: ['password'] }
+    const user = await MongoUser.findById(req.user.id, {
+      select: '+password'
     });
 
     // Check current password
-    const isMatch = await user.matchPassword(currentPassword);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -391,7 +378,8 @@ router.put('/change-password', authMiddleware, async (req, res) => {
     }
 
     // Update password
-    await user.update({ password: newPassword });
+    user.password = newPassword;
+    await user.save();
 
     res.status(200).json({
       success: true,
@@ -413,19 +401,17 @@ router.put('/change-password', authMiddleware, async (req, res) => {
 router.post('/seed', async (req, res) => {
   try {
     // Check if demo users already exist
-    const existingUsers = await User.findAll({
-      where: {
-        email: [
-          'admin@saral.gov.in', 
-          'officer@saral.gov.in', 
-          'agent@saral.gov.in',
-          'rajesh.patil@saral.gov.in',
-          'sunil.kambale@saral.gov.in',
-          'mahesh.deshmukh@saral.gov.in',
-          'vithal.jadhav@saral.gov.in',
-          'ramrao.pawar@saral.gov.in'
-        ]
-      }
+    const existingUsers = await MongoUser.find({
+      email: [
+        'admin@saral.gov.in', 
+        'officer@saral.gov.in', 
+        'agent@saral.gov.in',
+        'rajesh.patil@saral.gov.in',
+        'sunil.kambale@saral.gov.in',
+        'mahesh.deshmukh@saral.gov.in',
+        'vithal.jadhav@saral.gov.in',
+        'ramrao.pawar@saral.gov.in'
+      ]
     });
 
     if (existingUsers.length > 0) {
@@ -513,14 +499,14 @@ router.post('/seed', async (req, res) => {
       }
     ];
 
-    const createdUsers = await User.bulkCreate(demoUsers);
+    const createdUsers = await MongoUser.insertMany(demoUsers);
 
     res.status(201).json({
       success: true,
       message: 'Demo users created successfully',
       count: createdUsers.length,
       users: createdUsers.map(user => ({
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,

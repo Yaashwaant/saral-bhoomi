@@ -28,7 +28,8 @@ interface Agent {
   department: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { config } from '../../../config';
+const API_BASE_URL = config.API_BASE_URL;
 
 const SimpleAgentAssignment: React.FC = () => {
   const [records, setRecords] = useState<LandownerRecord[]>([]);

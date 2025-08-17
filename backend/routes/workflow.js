@@ -61,8 +61,8 @@ const validateAmount = (value) => {
  */
 router.post('/jmr-to-award', [
   body('survey_number').custom(validateSurveyNumber),
-  body('project_id').isInt({ min: 1 }).withMessage('Valid project ID is required'),
-  body('landowner_id').notEmpty().withMessage('Landowner ID is required'),
+  body('project_id').isMongoId().withMessage('Valid project ID is required'),
+  body('officer_id').isMongoId().withMessage('Valid officer ID is required'),
   body('landowner_name').optional().isString(),
   body('award_number').optional().isString(),
   body('award_date').optional().isISO8601().toDate(),
@@ -72,9 +72,9 @@ router.post('/jmr-to-award', [
   body('village').notEmpty().withMessage('Village is required'),
   body('taluka').notEmpty().withMessage('Taluka is required'),
   body('district').notEmpty().withMessage('District is required'),
-  body('land_type').isIn(['Agricultural', 'Non-Agricultural']).withMessage('Valid land type is required'),
-  body('tribal_classification').isBoolean().withMessage('Tribal classification must be boolean'),
-  body('category').optional().isString(),
+  body('land_type').isIn(['agricultural', 'residential', 'commercial', 'industrial', 'forest', 'other']).withMessage('Valid land type is required'),
+  body('tribal_classification').isIn(['tribal', 'non-tribal']).withMessage('Valid tribal classification is required'),
+  body('category').optional().isIn(['general', 'sc', 'st', 'obc', 'other']),
   body('measured_area').custom(validateAmount),
   body('unit').optional().isString(),
   body('notes').optional().isString()
@@ -159,15 +159,15 @@ router.post('/jmr-to-award/bulk', upload.single('csv_file'), async (req, res) =>
  */
 router.post('/award-to-notice', [
   body('survey_number').custom(validateSurveyNumber),
-  body('project_id').optional().isInt({ min: 1 }),
+  body('project_id').optional().isMongoId(),
   body('landowner_name').optional().isString(),
   body('amount').custom(validateAmount),
   body('notice_date').optional().isISO8601().toDate(),
   body('village').optional().isString(),
   body('taluka').optional().isString(),
   body('district').optional().isString(),
-  body('land_type').optional().isIn(['Agricultural', 'Non-Agricultural']),
-  body('tribal_classification').optional().isBoolean(),
+  body('land_type').optional().isIn(['agricultural', 'residential', 'commercial', 'industrial', 'forest', 'other']),
+  body('tribal_classification').optional().isIn(['tribal', 'non-tribal']),
   body('objection_deadline').optional().isISO8601().toDate(),
   body('notice_type').optional().isString(),
   body('description').optional().isString(),
@@ -372,7 +372,7 @@ router.post('/notice-to-documents/bulk', upload.single('csv_file'), async (req, 
  */
 router.post('/notice-to-payment', [
   body('survey_number').custom(validateSurveyNumber),
-  body('project_id').optional().isInt({ min: 1 }),
+  body('project_id').optional().isMongoId(),
   body('amount').custom(validateAmount),
   body('reason_if_pending').optional().isString(),
   body('payment_date').optional().isISO8601().toDate(),

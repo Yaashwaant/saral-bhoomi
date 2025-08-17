@@ -1,39 +1,47 @@
 import express from 'express';
 import cors from 'cors';
-import sequelize from './config/database.js';
-import './models/index.js';
+import { connectMongoDBAtlas, getMongoAtlasConnectionStatus } from './config/mongodb-atlas.js';
+import MongoUser from './models/mongo/User.js';
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Test database connection
-app.get('/health', async (req, res) => {
+// Test endpoint
+app.get('/test', (req, res) => {
+  res.json({ message: 'Test endpoint working!' });
+});
+
+// MongoDB test endpoint
+app.get('/mongo-test', async (req, res) => {
   try {
-    await sequelize.authenticate();
-    res.status(200).json({
-      status: 'OK',
-      database: 'Connected to PostgreSQL (Neon Tech)',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime()
+    const userCount = await MongoUser.countDocuments();
+    const users = await MongoUser.find({}).limit(3).select('name email role');
+    
+    res.json({
+      success: true,
+      message: 'MongoDB test successful',
+      userCount,
+      sampleUsers: users
     });
   } catch (error) {
     res.status(500).json({
-      status: 'ERROR',
-      database: 'Failed to connect to PostgreSQL',
+      success: false,
+      message: 'MongoDB test failed',
       error: error.message
     });
   }
 });
 
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Test endpoint working! PostgreSQL migration successful.',
+// Health check
+app.get('/health', (req, res) => {
+  const status = getMongoAtlasConnectionStatus();
+  res.json({
+    status: 'OK',
+    mongodb: status,
     timestamp: new Date().toISOString()
   });
 });
@@ -41,14 +49,22 @@ app.get('/api/test', (req, res) => {
 // Start server
 const startServer = async () => {
   try {
-    await sequelize.authenticate();
-    console.log('✅ PostgreSQL connected successfully!');
+    console.log('🚀 Starting test server...');
+    
+    // Connect to MongoDB
+    const connected = await connectMongoDBAtlas();
+    if (!connected) {
+      console.log('⚠️ MongoDB connection failed, but starting server anyway...');
+    }
     
     app.listen(PORT, () => {
-      console.log(`🚀 Test server running on http://localhost:${PORT}`);
-      console.log('📊 Health check: http://localhost:5000/health');
-      console.log('🧪 Test endpoint: http://localhost:5000/api/test');
+      console.log(`✅ Test server running on http://localhost:${PORT}`);
+      console.log('🧪 Test endpoints:');
+      console.log(`   GET /test - Basic test`);
+      console.log(`   GET /mongo-test - MongoDB test`);
+      console.log(`   GET /health - Health check`);
     });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
   }

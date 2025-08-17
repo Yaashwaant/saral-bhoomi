@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 // Removed demo-data dependency; use live API and safe fallbacks
 
 // API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { config } from '../config';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Interfaces
 export interface Project {

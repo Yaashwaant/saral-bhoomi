@@ -1,5 +1,7 @@
 import express from 'express';
-import { LandownerRecord, Project, PaymentRecord } from '../models/index.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoPayment from '../models/mongo/Payment.js';
 import { authorize } from '../middleware/auth.js';
 import rtgsService from '../services/rtgsService.js';
 import receiptService from '../services/receiptService.js';
@@ -13,38 +15,54 @@ const router = express.Router();
 router.get('/eligible', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const { page = 1, limit = 10, projectId, status = 'pending' } = req.query;
-    const where = { 
-      kycStatus: 'approved',
-      isActive: true
+    const filter = { 
+      kyc_status: 'approved',
+      is_active: true
     };
     
-    if (projectId) where.projectId = projectId;
-    if (status) where.paymentStatus = status;
+    if (projectId) filter.project_id = projectId;
+    if (status) filter.payment_status = status;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const records = await LandownerRecord.findAll({
-      where,
-      include: [
-        { model: Project, attributes: ['projectName', 'pmisCode', 'status'] },
-        { 
-          model: PaymentRecord, 
-          attributes: ['id', 'transactionId', 'paymentStatus', 'amount', 'createdAt'],
-          where: { isActive: true },
-          required: false
-        }
-      ],
-      offset,
-      limit: parseInt(limit),
-      order: [['createdAt', 'DESC']]
-    });
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const records = await MongoLandownerRecord.find(filter)
+      .populate('project_id', 'projectName status')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
 
-    const total = await LandownerRecord.count({ where });
+    const total = await MongoLandownerRecord.countDocuments(filter);
 
     res.status(200).json({
       success: true,
       count: records.length,
       total,
-      data: records
+      data: records.map(record => ({
+        id: record._id,
+        survey_number: record.survey_number,
+        landowner_name: record.landowner_name,
+        area: record.area,
+        acquired_area: record.acquired_area,
+        total_compensation: record.total_compensation,
+        solatium: record.solatium,
+        final_amount: record.final_amount,
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district,
+        kyc_status: record.kyc_status,
+        payment_status: record.payment_status,
+        bank_account_number: record.bank_account_number,
+        bank_ifsc_code: record.bank_ifsc_code,
+        bank_name: record.bank_name,
+        bank_branch_name: record.bank_branch_name,
+        bank_account_holder_name: record.bank_account_holder_name,
+        project: record.project_id ? {
+          id: record.project_id._id,
+          projectName: record.project_id.projectName,
+          status: record.project_id.status
+        } : null,
+        created_at: record.createdAt,
+        updated_at: record.updatedAt
+      }))
     });
   } catch (error) {
     console.error('Error fetching eligible records:', error);
@@ -72,9 +90,8 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
     } = req.body;
 
     // Get landowner record with project details
-    const record = await LandownerRecord.findByPk(recordId, {
-      include: [{ model: Project, attributes: ['projectName', 'pmisCode'] }]
-    });
+    const record = await MongoLandownerRecord.findById(recordId)
+      .populate('project_id', 'projectName');
 
     if (!record) {
       return res.status(404).json({
@@ -86,7 +103,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
     // Prepare payment data
     const paymentData = {
       landownerRecordId: recordId,
-      amount: record.अंतिम_रक्कम,
+      amount: record.final_amount,
       bankAccountNumber,
       ifscCode,
       accountHolderName,
@@ -106,7 +123,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
     }
 
     // Create payment record
-    const paymentRecord = await PaymentRecord.create({
+    const paymentRecord = await MongoPayment.create({
       ...paymentData,
       paymentStatus: 'pending',
       notes: paymentNotes
@@ -123,7 +140,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
 
     if (rtgsResult.success) {
       // Update payment record with RTGS response
-      await paymentRecord.update({
+      await paymentRecord.updateOne({
         paymentStatus: 'initiated',
         paymentInitiatedAt: new Date(),
         rtgsRequestData: rtgsResult.requestData,
@@ -131,7 +148,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
       });
 
       // Update landowner record
-      await record.update({
+      await record.updateOne({
         paymentStatus: 'initiated',
         paymentInitiatedAt: new Date(),
         notes: paymentNotes ? (record.notes || '') + `\n[Payment Initiated] ${paymentNotes}` : record.notes
@@ -147,9 +164,9 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
           bankAccountNumber: paymentRecord.bankAccountNumber,
           ifscCode: paymentRecord.ifscCode,
           paymentDate: new Date(),
-          projectName: record.Project?.projectName || 'Unknown Project',
-          landownerName: record.खातेदाराचे_नांव,
-          surveyNumber: record.सर्वे_नं
+          projectName: record.project_id?.projectName || 'Unknown Project',
+          landownerName: record.landowner_name,
+          surveyNumber: record.survey_number
         };
 
         receiptResult = await receiptService.generateAndSendReceipt(receiptData, {
@@ -161,7 +178,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
 
         // Update payment record with receipt info
         if (receiptResult.success) {
-          await paymentRecord.update({
+          await paymentRecord.updateOne({
             receiptPath: receiptResult.data.receiptGenerated.filePath,
             receiptSentAt: new Date(),
             receiptSentVia: emailData && smsData ? 'both' : (emailData ? 'email' : 'sms')
@@ -173,7 +190,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
         success: true,
         message: 'Payment initiated successfully',
         data: {
-          paymentId: paymentRecord.id,
+          paymentId: paymentRecord._id,
           transactionId: paymentRecord.transactionId,
           amount: paymentRecord.amount,
           status: paymentRecord.paymentStatus,
@@ -185,7 +202,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
 
     } else {
       // RTGS initiation failed
-      await paymentRecord.update({
+      await paymentRecord.updateOne({
         paymentStatus: 'failed',
         failureReason: rtgsResult.error.message,
         rtgsRequestData: rtgsResult.requestData,
@@ -216,7 +233,7 @@ router.put('/update-status/:transactionId', authorize(['officer', 'admin']), asy
     const { transactionId } = req.params;
     const { status, utrNumber, failureReason, paymentDate } = req.body;
 
-    const paymentRecord = await PaymentRecord.findByTransactionId(transactionId);
+    const paymentRecord = await MongoPayment.findOne({ transactionId });
     if (!paymentRecord) {
       return res.status(404).json({
         success: false,
@@ -244,9 +261,9 @@ router.put('/update-status/:transactionId', authorize(['officer', 'admin']), asy
     }
 
     // Update landowner record
-    const landownerRecord = await LandownerRecord.findByPk(paymentRecord.landownerRecordId);
+    const landownerRecord = await MongoLandownerRecord.findById(paymentRecord.landownerRecordId);
     if (landownerRecord) {
-      await landownerRecord.update({
+      await landownerRecord.updateOne({
         paymentStatus: status,
         ...(status === 'success' && { paymentCompletedAt: new Date() }),
         ...(status === 'success' && utrNumber && { utrNumber }),
@@ -258,10 +275,10 @@ router.put('/update-status/:transactionId', authorize(['officer', 'admin']), asy
       success: true,
       message: 'Payment status updated successfully',
       data: {
-        paymentId: paymentRecord.id,
+        paymentId: paymentRecord._id,
         transactionId: paymentRecord.transactionId,
         status: paymentRecord.paymentStatus,
-        landownerName: landownerRecord?.खातेदाराचे_नांव,
+        landownerName: landownerRecord?.landowner_name,
         amount: paymentRecord.amount
       }
     });
@@ -281,20 +298,18 @@ router.get('/stats/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await LandownerRecord.findAll({
-      where: { projectId }
-    });
+    const records = await MongoLandownerRecord.find({ project_id: projectId });
 
     const stats = {
       totalRecords: records.length,
-      paymentsPending: records.filter(r => r.paymentStatus === 'pending').length,
-      paymentsInitiated: records.filter(r => r.paymentStatus === 'initiated').length,
-      paymentsSuccess: records.filter(r => r.paymentStatus === 'success').length,
-      paymentsFailed: records.filter(r => r.paymentStatus === 'failed').length,
-      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.अंतिम_रक्कम) || 0), 0),
+      paymentsPending: records.filter(r => r.payment_status === 'pending').length,
+      paymentsInitiated: records.filter(r => r.payment_status === 'initiated').length,
+      paymentsSuccess: records.filter(r => r.payment_status === 'success').length,
+      paymentsFailed: records.filter(r => r.payment_status === 'failed').length,
+      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0),
       totalPaid: records
-        .filter(r => r.paymentStatus === 'success')
-        .reduce((sum, r) => sum + (parseFloat(r.अंतिम_रक्कम) || 0), 0)
+        .filter(r => r.payment_status === 'success')
+        .reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0)
     };
 
     res.status(200).json({
@@ -324,20 +339,9 @@ router.get('/:paymentId', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const { paymentId } = req.params;
 
-    const paymentRecord = await PaymentRecord.findByPk(paymentId, {
-      include: [
-        { 
-          model: LandownerRecord, 
-          attributes: ['id', 'खातेदाराचे_नांव', 'सर्वे_नं', 'kycStatus', 'paymentStatus'],
-          include: [{ model: Project, attributes: ['projectName', 'pmisCode'] }]
-        },
-        { 
-          model: User, 
-          as: 'initiatedBy',
-          attributes: ['id', 'name', 'email', 'role']
-        }
-      ]
-    });
+    const paymentRecord = await MongoPayment.findById(paymentId)
+      .populate('landownerRecordId', 'landowner_name survey_number')
+      .populate('createdBy', 'name email role');
 
     if (!paymentRecord) {
       return res.status(404).json({
@@ -389,7 +393,7 @@ router.post('/:paymentId/retry', authorize(['officer', 'admin']), async (req, re
 
     if (rtgsResult.success) {
       // Update payment record
-      await paymentRecord.update({
+      await paymentRecord.updateOne({
         paymentStatus: 'initiated',
         paymentInitiatedAt: new Date(),
         rtgsRequestData: rtgsResult.requestData,
@@ -400,7 +404,7 @@ router.post('/:paymentId/retry', authorize(['officer', 'admin']), async (req, re
         success: true,
         message: 'Payment retry initiated successfully',
         data: {
-          paymentId: paymentRecord.id,
+          paymentId: paymentRecord._id,
           transactionId: paymentRecord.transactionId,
           status: paymentRecord.paymentStatus,
           rtgsReferenceId: rtgsResult.data.rtgsReferenceId
@@ -434,7 +438,7 @@ router.post('/:paymentId/cancel', authorize(['officer', 'admin']), async (req, r
     const { paymentId } = req.params;
     const { reason = 'Cancelled by officer' } = req.body;
 
-    const paymentRecord = await PaymentRecord.findByPk(paymentId);
+    const paymentRecord = await MongoPayment.findById(paymentId);
     if (!paymentRecord) {
       return res.status(404).json({
         success: false,
@@ -456,16 +460,16 @@ router.post('/:paymentId/cancel', authorize(['officer', 'admin']), async (req, r
     }
 
     // Update payment record
-    await paymentRecord.update({
+    await paymentRecord.updateOne({
       paymentStatus: 'cancelled',
       notes: (paymentRecord.notes || '') + `\n[Payment Cancelled] ${reason}`,
       rtgsResponseData: rtgsResult ? { ...paymentRecord.rtgsResponseData, cancelResponse: rtgsResult } : paymentRecord.rtgsResponseData
     });
 
     // Update landowner record
-    const landownerRecord = await LandownerRecord.findByPk(paymentRecord.landownerRecordId);
+    const landownerRecord = await MongoLandownerRecord.findById(paymentRecord.landownerRecordId);
     if (landownerRecord) {
-      await landownerRecord.update({
+      await landownerRecord.updateOne({
         paymentStatus: 'cancelled',
         notes: (landownerRecord.notes || '') + `\n[Payment Cancelled] ${reason}`
       });
@@ -475,7 +479,7 @@ router.post('/:paymentId/cancel', authorize(['officer', 'admin']), async (req, r
       success: true,
       message: 'Payment cancelled successfully',
       data: {
-        paymentId: paymentRecord.id,
+        paymentId: paymentRecord._id,
         transactionId: paymentRecord.transactionId,
         status: paymentRecord.paymentStatus,
         rtgsCancelled: rtgsResult?.success || false
@@ -498,14 +502,8 @@ router.get('/:paymentId/receipt', authorize(['officer', 'admin']), async (req, r
   try {
     const { paymentId } = req.params;
 
-    const paymentRecord = await PaymentRecord.findByPk(paymentId, {
-      include: [
-        { 
-          model: LandownerRecord, 
-          include: [{ model: Project, attributes: ['projectName'] }]
-        }
-      ]
-    });
+    const paymentRecord = await MongoPayment.findById(paymentId)
+      .populate('landownerRecordId', 'landowner_name survey_number');
 
     if (!paymentRecord) {
       return res.status(404).json({
@@ -576,7 +574,7 @@ router.post('/bulk', authorize(['officer', 'admin']), async (req, res) => {
     for (const paymentData of payments) {
       try {
         // Create payment record
-        const paymentRecord = await PaymentRecord.create({
+        const paymentRecord = await MongoPayment.create({
           ...paymentData,
           transactionId: `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           paymentStatus: 'pending',
@@ -593,7 +591,7 @@ router.post('/bulk', authorize(['officer', 'admin']), async (req, res) => {
         });
 
         if (rtgsResult.success) {
-          await paymentRecord.update({
+          await paymentRecord.updateOne({
             paymentStatus: 'initiated',
             paymentInitiatedAt: new Date(),
             rtgsRequestData: rtgsResult.requestData,
@@ -601,14 +599,14 @@ router.post('/bulk', authorize(['officer', 'admin']), async (req, res) => {
           });
 
           successful.push({
-            paymentId: paymentRecord.id,
+            paymentId: paymentRecord._id,
             transactionId: paymentRecord.transactionId,
             status: 'initiated'
           });
         } else {
           await paymentRecord.markAsFailed(rtgsResult.error.message);
           failed.push({
-            paymentId: paymentRecord.id,
+            paymentId: paymentRecord._id,
             transactionId: paymentRecord.transactionId,
             error: rtgsResult.error.message
           });
@@ -617,7 +615,7 @@ router.post('/bulk', authorize(['officer', 'admin']), async (req, res) => {
         results.push({
           paymentData,
           success: rtgsResult.success,
-          paymentId: paymentRecord.id,
+          paymentId: paymentRecord._id,
           transactionId: paymentRecord.transactionId
         });
 

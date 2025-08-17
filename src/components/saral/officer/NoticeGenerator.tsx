@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useSaral } from '@/contexts/SaralContext';
 import { toast } from 'sonner';
 import { FileText, Download, Eye, Printer, UserCheck, ArrowRight, Copy, Send } from 'lucide-react';
+import { config } from '../../../config';
 
 interface GeneratedNotice {
   id: string;
@@ -48,8 +49,8 @@ const NoticeGenerator: React.FC = () => {
     { id: '8', name: 'रामराव पवार', phone: '+91 9876543214', area: 'उंबरपाडा तालुका' }
   ]);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-  const ENABLE_SMS = (import.meta.env.VITE_ENABLE_SMS === 'true');
+  const API_BASE_URL = config.API_BASE_URL;
+  const ENABLE_SMS = config.ENABLE_SMS;
   
   // Hearing Notice builder state
   type Recipient = { name: string; relation?: string; address?: string };
@@ -143,7 +144,7 @@ const NoticeGenerator: React.FC = () => {
         <div style="font-weight:600;">प्रति,</div>
         ${recipientsHtml || '<div>—</div>'}
       </div>
-      ${ccHtml ? `<div style=\"margin:8px 0;\"><div style=\"font-weight:600;\">प्रतिलिपी सादरांसाठी:</div>${ccHtml}</div>` : ''}
+      ${ccHtml ? `<div style="margin:8px 0;"><div style="font-weight:600;">प्रतिलिपी सादरांसाठी:</div>${ccHtml}</div>` : ''}
       <div style="margin:12px 0;">
         विषय: गाव – ${hearingForm.village || '—'}, तालुका – ${hearingForm.taluka || '—'}, जिल्हा – ${hearingForm.district || '—'} येथील स.नं./गट क्र. ${surveyList || '—'} वरील ${hearingForm.projectName} संदर्भात.
       </div>
@@ -153,7 +154,7 @@ const NoticeGenerator: React.FC = () => {
       <div style="margin:12px 0; font-weight:600;">
         त्यानुसार, आपण/आपले प्रतिनिधी यांनी दि. ${hearingForm.hearingDate} रोजी वेळ ${hearingForm.hearingTime} वाजता, ${hearingForm.venue} येथे होणाऱ्या सुनावणीस उपस्थित राहावे. अनुपस्थित राहिल्यास, उपलब्ध दाखल्यांच्या आधारे निर्णय घेण्यात येईल व तीच अंतिम मानली जाईल.
       </div>
-      ${docsHtml ? `<div style=\"margin:12px 0;\">कृपया खालील कागदपत्रे सोबत आणावीत:<ul>${docsHtml}</ul></div>` : ''}
+      ${docsHtml ? `<div style="margin:12px 0;">कृपया खालील कागदपत्रे सोबत आणावीत:<ul>${docsHtml}</ul></div>` : ''}
       <div style="margin-top:24px; text-align:right;">
         <div>(${hearingForm.signatoryName})</div>
         <div>${hearingForm.designation}</div>
@@ -168,7 +169,7 @@ const NoticeGenerator: React.FC = () => {
   };
 
   const downloadHearingNotice = () => {
-    const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
+    const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -1434,7 +1435,7 @@ const NoticeGenerator: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
+                const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
                 const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

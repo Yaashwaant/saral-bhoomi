@@ -151,8 +151,7 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
           
           bankDetailsCollected: record.bankDetails?.accountNumber ? true : false,
           currentStep: 'document_collection',
-        
-        createdAt: record.createdAt || new Date(),
+          createdAt: record.createdAt || new Date(),
         updatedAt: record.updatedAt || new Date(),
         createdBy: record.createdBy || 'system',
         updatedBy: record.updatedBy || 'system'

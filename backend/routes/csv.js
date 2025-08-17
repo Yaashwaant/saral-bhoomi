@@ -4,12 +4,10 @@ import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Op } from 'sequelize';
-import LandownerRecord from '../models/LandownerRecord.js';
-import Project from '../models/Project.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
 import { authorize } from '../middleware/auth.js';
-import User from '../models/User.js'; // Added import for User
-import NoticeAssignment from '../models/NoticeAssignment.js'; // Added import for NoticeAssignment
+import MongoUser from '../models/mongo/User.js'; // Added import for User
 import { Readable } from 'stream';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,32 +19,32 @@ const router = express.Router();
 const normalizeRow = (row = {}) => {
   const r = { ...row };
   // Owner name
-  r['खातेदाराचे_नांव'] = r['खातेदाराचे_नांव'] || r['ownerName'] || r['landownerName'] || r['name'] || '';
+  r['landowner_name'] = r['खातेदाराचे_नांव'] || r['ownerName'] || r['landownerName'] || r['name'] || '';
   // Survey number
-  r['सर्वे_नं'] = r['सर्वे_नं'] || r['स.नं./हि.नं./ग.नं.'] || r['Survey'] || r['surveyNumber'] || r['survey_no'] || r['survey'] || '';
+  r['survey_number'] = r['सर्वे_नं'] || r['स.नं./हि.नं./ग.नं.'] || r['Survey'] || r['surveyNumber'] || r['survey_no'] || r['survey'] || '';
   // Area fields
-  r['क्षेत्र'] = r['क्षेत्र'] || r['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'] || r['Area'] || r['area'] || '';
-  r['संपादित_क्षेत्र'] = r['संपादित_क्षेत्र'] || r['संपादित_जमिनीचे_क्षेत्र'] || r['AcquiredArea'] || r['acquiredArea'] || r['acquired_area'] || '';
+  r['area'] = r['क्षेत्र'] || r['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'] || r['Area'] || r['area'] || '';
+  r['acquired_area'] = r['संपादित_क्षेत्र'] || r['संपादित_जमिनीचे_क्षेत्र'] || r['AcquiredArea'] || r['acquiredArea'] || r['acquired_area'] || '';
   // Financial fields
-  r['दर'] = r['दर'] || r['मंजुर_केलेला_दर'] || r['Rate'] || r['rate'] || '';
-  r['संरचना_झाडे_विहिरी_रक्कम'] = r['संरचना_झाडे_विहिरी_रक्कम'] || r['structuresAmount'] || r['structures_amount'] || '0';
-  r['एकूण_मोबदला'] = r['एकूण_मोबदला'] || r['एकुण_मोबदला'] || r['TotalAmount'] || r['totalCompensation'] || r['total_compensation'] || '';
-  r['सोलेशियम_100'] = r['सोलेशियम_100'] || r['Solatium'] || r['solatium'] || '';
-  r['अंतिम_रक्कम'] = r['अंतिम_रक्कम'] || r['FinalAmount'] || r['finalCompensation'] || '';
+  r['rate'] = r['दर'] || r['मंजुर_केलेला_दर'] || r['Rate'] || r['rate'] || '';
+  r['structure_trees_wells_amount'] = r['संरचना_झाडे_विहिरी_रक्कम'] || r['structuresAmount'] || r['structures_amount'] || '0';
+  r['total_compensation'] = r['एकूण_मोबदला'] || r['एकुण_मोबदला'] || r['TotalAmount'] || r['totalCompensation'] || r['total_compensation'] || '';
+  r['solatium'] = r['सोलेशियम_100'] || r['Solatium'] || r['solatium'] || '';
+  r['final_amount'] = r['अंतिम_रक्कम'] || r['FinalAmount'] || r['finalCompensation'] || '';
   // Location fields
   r['village'] = r['village'] || r['गांव'] || r['गाव'] || '';
   r['taluka'] = r['taluka'] || r['तालुका'] || r['तहसील'] || r['Tehsil'] || '';
   r['district'] = r['district'] || r['जिल्हा'] || r['District'] || '';
   // Contact fields (Marathi ↔ English)
-  r['phone'] = r['phone'] || r['मोबाईल'] || r['फोन'] || '';
-  r['email'] = r['email'] || r['ईमेल'] || '';
-  r['address'] = r['address'] || r['पत्ता'] || '';
+  r['contact_phone'] = r['phone'] || r['मोबाईल'] || r['फोन'] || '';
+  r['contact_email'] = r['email'] || r['ईमेल'] || '';
+  r['contact_address'] = r['address'] || r['पत्ता'] || '';
   // Bank fields (Marathi ↔ English)
-  r['accountNumber'] = r['accountNumber'] || r['खाते_क्रमांक'] || '';
-  r['ifscCode'] = r['ifscCode'] || r['IFSC'] || r['आयएफएससी'] || '';
-  r['bankName'] = r['bankName'] || r['बँक_नाव'] || '';
-  r['branchName'] = r['branchName'] || r['शाखा'] || '';
-  r['accountHolderName'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
+  r['bank_account_number'] = r['accountNumber'] || r['खाते_क्रमांक'] || '';
+  r['bank_ifsc_code'] = r['ifscCode'] || r['IFSC'] || r['आयएफएससी'] || '';
+  r['bank_name'] = r['bankName'] || r['बँक_नाव'] || '';
+  r['bank_branch_name'] = r['branchName'] || r['शाखा'] || '';
+  r['bank_account_holder_name'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
   // Tribal fields: STRICTLY decide from Marathi column 'आदिवासी'
   const rawTribal = r['आदिवासी'];
   const truthyVals = ['होय','true','1','yes','y'];
@@ -60,16 +58,16 @@ const normalizeRow = (row = {}) => {
   } else if (typeof rawTribal === 'number') {
     isTribal = rawTribal === 1;
   }
-  r['isTribal'] = isTribal;
+  r['is_tribal'] = isTribal;
   // Correct mapping: certificate from 'आदिवासी_प्रमाणपत्र_क्रमांक'; lag from 'आदिवासी_लाग'/'लागू'
-  r['tribalCertificateNo'] = r['tribalCertificateNo'] || r['आदिवासी_прमाणपत्र_क्रमांक'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['tribalCertNo'] || '';
-  r['tribalLag'] = r['tribalLag'] || r['आदिवासी_लाग'] || r['लागू'] || '';
+  r['tribal_certificate_no'] = r['tribalCertificateNo'] || r['आदिवासी_прमाणपत्र_क्रमांक'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['tribalCertNo'] || '';
+  r['tribal_lag'] = r['tribalLag'] || r['आदिवासी_लाग'] || r['लागू'] || '';
   // Trim canonical fields if present
   [
-    'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम',
-    'एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम','village','taluka','district',
-    'phone','email','address','accountNumber','ifscCode','bankName','branchName','accountHolderName',
-    'tribalCertificateNo','tribalLag'
+    'landowner_name','survey_number','area','acquired_area','rate','structure_trees_wells_amount',
+    'total_compensation','solatium','final_amount','village','taluka','district',
+    'contact_phone','contact_email','contact_address','bank_account_number','bank_ifsc_code','bank_name','bank_branch_name','bank_account_holder_name',
+    'tribal_certificate_no','tribal_lag'
   ].forEach((k) => { if (r[k] !== undefined && r[k] !== null) r[k] = String(r[k]).trim(); });
   return r;
 };
@@ -112,7 +110,7 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
     const { overwrite = false } = req.body;
     
     // Check if project exists
-    const project = await Project.findByPk(projectId);
+    const project = await MongoProject.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -140,8 +138,8 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
 
         // Validate required fields (taluka/district optional in extended sheet)
         const requiredFields = [
-          'खातेदाराचे_नांव', 'सर्वे_नं', 'क्षेत्र', 'संपादित_क्षेत्र',
-          'दर', 'एकूण_मोबदला', 'सोलेशियम_100', 'अंतिम_रक्कम',
+          'landowner_name', 'survey_number', 'area', 'acquired_area',
+          'rate', 'total_compensation', 'solatium', 'final_amount',
           'village'
         ];
 
@@ -156,32 +154,32 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
         
         // Create record object
         const record = {
-          project_id: parseInt(projectId, 10),
-          खातेदाराचे_नांव: row.खातेदाराचे_नांव,
-          सर्वे_नं: row.सर्वे_नं,
-          क्षेत्र: row.क्षेत्र,
-          संपादित_क्षेत्र: row.संपादित_क्षेत्र,
-          दर: row.दर,
-          संरचना_झाडे_विहिरी_रक्कम: row.संरचना_झाडे_विहिरी_रक्कम || '0',
-          एकूण_मोबदला: row.एकूण_मोबदला,
-          सोलेशियम_100: row.सोलेशियम_100,
-          अंतिम_रक्कम: row.अंतिम_रक्कम,
+          project_id: projectId,
+          landowner_name: row.landowner_name,
+          survey_number: row.survey_number,
+          area: row.area,
+          acquired_area: row.acquired_area,
+          rate: row.rate,
+          structure_trees_wells_amount: row.structure_trees_wells_amount || '0',
+          total_compensation: row.total_compensation,
+          solatium: row.solatium,
+          final_amount: row.final_amount,
           village: row.village,
           taluka: row.taluka || 'NA',
           district: row.district || 'NA',
           // Flattened contact and bank fields to match model
-          contactPhone: row.phone || '',
-          contactEmail: row.email || '',
-          contactAddress: row.address || '',
-          bankAccountNumber: row.accountNumber || '',
-          bankIfscCode: row.ifscCode || '',
-          bankName: row.bankName || '',
-          bankBranchName: row.branchName || '',
-          bankAccountHolderName: row.accountHolderName || row.खातेदाराचे_नांव,
+          contact_phone: row.contact_phone || '',
+          contact_email: row.contact_email || '',
+          contact_address: row.contact_address || '',
+          bank_account_number: row.bank_account_number || '',
+          bank_ifsc_code: row.bank_ifsc_code || '',
+          bank_name: row.bank_name || '',
+          bank_branch_name: row.bank_branch_name || '',
+          bank_account_holder_name: row.bank_account_holder_name || row.landowner_name,
           // Tribal fields
-          isTribal: !!row.isTribal,
-          tribalCertificateNo: row.tribalCertificateNo || '',
-          tribalLag: row.tribalLag || '',
+          is_tribal: !!row.is_tribal,
+          tribal_certificate_no: row.tribal_certificate_no || '',
+          tribal_lag: row.tribal_lag || '',
           // Use demo officer user id seeded during init
           createdBy: 1
         };
@@ -202,11 +200,9 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
           }
           
           // Check for duplicate survey numbers
-          const existingRecords = await LandownerRecord.findAll({ 
-            where: {
-              project_id: parseInt(projectId, 10),
-              सर्वे_नं: { [Op.in]: records.map(r => r.सर्वे_नं) }
-            }
+          const existingRecords = await MongoLandownerRecord.find({ 
+            project_id: projectId,
+            survey_number: { $in: records.map(r => r.survey_number) }
           });
           
           if (existingRecords.length > 0 && !overwrite) {
@@ -216,22 +212,20 @@ router.post('/upload/:projectId', upload.single('csvFile'), async (req, res) => 
             return res.status(400).json({
               success: false,
               message: 'Duplicate survey numbers found',
-              duplicates: existingRecords.map(r => r.सर्वे_नं)
+              duplicates: existingRecords.map(r => r.survey_number)
             });
           }
           
           // Delete existing records if overwrite is true
           if (overwrite && existingRecords.length > 0) {
-            await LandownerRecord.destroy({ 
-              where: {
-                project_id: parseInt(projectId, 10),
-                सर्वे_नं: { [Op.in]: records.map(r => r.सर्वे_नं) }
-              }
+            await MongoLandownerRecord.deleteMany({ 
+              project_id: projectId,
+              survey_number: { $in: records.map(r => r.survey_number) }
             });
           }
           
           // Insert new records
-          const insertedRecords = await LandownerRecord.bulkCreate(records);
+          const insertedRecords = await MongoLandownerRecord.insertMany(records);
           
           // Clean up uploaded file
           fs.unlinkSync(req.file.path);
@@ -296,7 +290,7 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
     console.log('📝 CSV Upload with Assignment:', { projectId, assignToAgent: assignToAgentBool, agentId: hasValidAgent ? agentIdInt : undefined, generateNotice: generateNoticeBool });
     
     // Check if project exists
-    const project = await Project.findByPk(projectId);
+    const project = await MongoProject.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -327,8 +321,8 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
 
         // Validate required fields
         const requiredFields = [
-          'खातेदाराचे_नांव', 'सर्वे_नं', 'क्षेत्र', 'संपादित_क्षेत्र',
-          'दर', 'एकूण_मोबदला', 'सोलेशियम_100', 'अंतिम_रक्कम',
+          'landowner_name', 'survey_number', 'area', 'acquired_area',
+          'rate', 'total_compensation', 'solatium', 'final_amount',
           'village', 'taluka', 'district'
         ];
         // Trim required fields
@@ -345,27 +339,27 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
         
         // Create record object (flatten contact/bank fields to match model)
           const record = {
-            project_id: parseInt(projectId, 10),
-          खातेदाराचे_नांव: row.खातेदाराचे_नांव,
-          सर्वे_नं: row.सर्वे_नं,
-          क्षेत्र: row.क्षेत्र,
-          संपादित_क्षेत्र: row.संपादित_क्षेत्र,
-          दर: row.दर,
-          संरचना_झाडे_विहिरी_रक्कम: row.संरचना_झाडे_विहिरी_रक्कम || '0',
-          एकूण_मोबदला: row.एकूण_मोबदला,
-          सोलेशियम_100: row.सोलेशियम_100,
-          अंतिम_रक्कम: row.अंतिम_रक्कम,
+            project_id: projectId,
+           landowner_name: row.landowner_name,
+           survey_number: row.survey_number,
+           area: row.area,
+           acquired_area: row.acquired_area,
+           rate: row.rate,
+           structure_trees_wells_amount: row.structure_trees_wells_amount || '0',
+           total_compensation: row.total_compensation,
+           solatium: row.solatium,
+           final_amount: row.final_amount,
           village: row.village,
           taluka: row.taluka,
           district: row.district,
-          contactPhone: row.phone || '',
-          contactEmail: row.email || '',
-          contactAddress: row.address || '',
-          bankAccountNumber: row.accountNumber || '',
-          bankIfscCode: row.ifscCode || '',
-          bankName: row.bankName || '',
-          bankBranchName: row.branchName || '',
-          bankAccountHolderName: row.accountHolderName || row.खातेदाराचे_नांव,
+          contact_phone: row.contact_phone || '',
+          contact_email: row.contact_email || '',
+          contact_address: row.contact_address || '',
+          bank_account_number: row.bank_account_number || '',
+          bank_ifsc_code: row.bank_ifsc_code || '',
+          bank_name: row.bank_name || '',
+          bank_branch_name: row.bank_branch_name || '',
+          bank_account_holder_name: row.bank_account_holder_name || row.landowner_name,
             createdBy: 1,
           // No agent assignment here; KYC assignment happens via Proceed to KYC
         };
@@ -386,11 +380,9 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
           }
           
           // Check for duplicate survey numbers
-          const existingRecords = await LandownerRecord.findAll({ 
-            where: {
-              project_id: parseInt(projectId, 10),
-              सर्वे_नं: { [Op.in]: records.map(r => r.सर्वे_नं) }
-            }
+          const existingRecords = await MongoLandownerRecord.find({ 
+            project_id: projectId,
+            survey_number: { $in: records.map(r => r.survey_number) }
           });
           
           if (existingRecords.length > 0) {
@@ -400,20 +392,18 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
               return res.status(400).json({
                 success: false,
                 message: 'Duplicate survey numbers found',
-                duplicates: existingRecords.map(r => r.सर्वे_नं)
+                duplicates: existingRecords.map(r => r.survey_number)
               });
             }
             // Overwrite requested: delete existing duplicates for this project
-            await LandownerRecord.destroy({
-              where: {
-                project_id: parseInt(projectId, 10),
-                सर्वे_नं: { [Op.in]: existingRecords.map(r => r.सर्वे_नं) }
-              }
+            await MongoLandownerRecord.deleteMany({
+              project_id: projectId,
+              survey_number: { $in: existingRecords.map(r => r.survey_number) }
             });
           }
           
           // Insert new records
-          const insertedRecords = await LandownerRecord.bulkCreate(records);
+          const insertedRecords = await MongoLandownerRecord.insertMany(records);
           
           // No agent assignment here
           
@@ -422,20 +412,20 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
           if (generateNoticeBool) {
             // Update landowner records with notice info
             for (const record of insertedRecords) {
-              const noticeNumber = `NOTICE-${Date.now()}-${record.सर्वे_नं}`;
+              const noticeNumber = `NOTICE-${Date.now()}-${record.survey_number}`;
               const noticeDate = new Date();
               const noticeContent = `महाराष्ट्र शासन<br/>
 उपजिल्हाधिकारी (भूसंपादन) ${project.projectName}<br/>
 नोटीस क्रमांक: ${noticeNumber}<br/>
 दिनांक: ${noticeDate.toLocaleDateString('hi-IN')}<br/>
 <br/>
-प्रति, ${record.खातेदाराचे_नांव}<br/>
-सर्वे क्रमांक: ${record.सर्वे_नं}<br/>
+प्रति, ${record.landowner_name}<br/>
+सर्वे क्रमांक: ${record.survey_number}<br/>
 गाव: ${record.village}<br/>
 <br/>
 आपल्या जमिनीचे संपादन करण्यात येत आहे. कृपया आवश्यक कागदपत्रे सादर करा.`;
 
-              await record.update({
+              await MongoLandownerRecord.findByIdAndUpdate(record._id, {
                 noticeGenerated: true,
                 noticeNumber,
                 noticeDate,
@@ -455,9 +445,9 @@ router.post('/upload-with-assignment/:projectId', upload.single('csvFile'), asyn
             count: insertedRecords.length,
             projectId: projectId,
             records: insertedRecords.map(r => ({
-              id: r.id,
-              surveyNumber: r.सर्वे_नं,
-              landownerName: r.खातेदाराचे_नांव,
+              id: r._id,
+              surveyNumber: r.survey_number,
+              landownerName: r.landowner_name,
               village: r.village,
               assignedAgent: r.assignedAgent || null,
               kycStatus: r.kycStatus
@@ -510,8 +500,8 @@ router.get('/template', async (req, res) => {
   try {
     // New template with Marathi headers and tribal columns
     const headers = [
-      'खातेदाराचे_नांव','सर्वे_नं','क्षेत्र','संपादित_क्षेत्र','दर','संरचना_झाडे_विहिरी_रक्कम','एकूण_मोबदला','सोलेशियम_100','अंतिम_रक्कम',
-      'village','taluka','district','मोबाईल','ईमेल','पत्ता','खाते_क्रमांक','IFSC','बँक_नाव','शाखा','खातेधारक_नाव','आदिवासी','आदिवासी_प्रमाणपत्र_क्रमांक','आदिवासी_लाग'
+      'landowner_name','survey_number','area','acquired_area','rate','structure_trees_wells_amount','total_compensation','solatium','final_amount',
+      'village','taluka','district','contact_phone','contact_email','contact_address','bank_account_number','bank_ifsc_code','bank_name','bank_branch_name','bank_account_holder_name','tribal_certificate_no','tribal_lag'
     ];
     const example = [
       'कमळी कमळाकर मंडळ','40','0.1850','0.0504','53100000','0','4010513','4010513','8021026','उंबरपाडा नंदाडे','पालघर','पालघर','9876543210','landowner@example.com','उंबरपाडा नंदाडे, पालघर','1234567890','SBIN0001234','State Bank of India','Palghar','कमळी कमळाकर मंडळ','नाही','',''
@@ -549,7 +539,7 @@ router.get('/project/:projectId', async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = { projectId };
+    const filter = { project_id: projectId };
     if (village) filter.village = village;
     if (taluka) filter.taluka = taluka;
     if (district) filter.district = district;
@@ -559,17 +549,11 @@ router.get('/project/:projectId', async (req, res) => {
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const records = await LandownerRecord.findAll({
-      where: filter,
-      include: [
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email'] }
-      ],
-      order: [['createdAt', 'DESC']],
-      offset: skip,
-      limit: parseInt(limit)
-    });
+    const records = await MongoLandownerRecord.find(filter)
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 });
     
-    const total = await LandownerRecord.count({ where: filter });
+    const total = await MongoLandownerRecord.countDocuments(filter);
     
     res.status(200).json({
       success: true,
@@ -601,17 +585,15 @@ router.get('/export/:projectId', async (req, res) => {
     const { village, taluka, district, kycStatus, paymentStatus, lang } = req.query;
     
     // Build filter object
-    const filter = { projectId };
+    const filter = { project_id: projectId };
     if (village) filter.village = village;
     if (taluka) filter.taluka = taluka;
     if (district) filter.district = district;
     if (kycStatus) filter.kycStatus = kycStatus;
     if (paymentStatus) filter.paymentStatus = paymentStatus;
     
-    const records = await LandownerRecord.findAll({
-      where: filter,
-      order: [['createdAt', 'DESC']]
-    });
+    const records = await MongoLandownerRecord.find(filter)
+      .sort({ createdAt: -1 });
     
     if (records.length === 0) {
       return res.status(404).json({
@@ -626,7 +608,7 @@ router.get('/export/:projectId', async (req, res) => {
     let rows;
     if (useEnglish) {
       headers = [
-        'ownerName', 'surveyNumber', 'area', 'acquiredArea',
+        'landownerName', 'surveyNumber', 'area', 'acquiredArea',
         'rate', 'structuresAmount', 'totalCompensation', 'solatium',
         'finalCompensation', 'village', 'taluka', 'district', 'kycStatus',
         'paymentStatus', 'noticeGenerated', 'assignedAgent'
@@ -634,7 +616,7 @@ router.get('/export/:projectId', async (req, res) => {
       rows = records.map(r => {
         const j = r.toJSON();
         return [
-          j.ownerName, j.surveyNumber, j.area, j.acquiredArea,
+          j.landownerName, j.surveyNumber, j.area, j.acquiredArea,
           j.rate, j.structuresAmount, j.totalCompensation, j.solatium,
           j.finalCompensation, j.village, j.taluka, j.district,
           j.kycStatus, j.paymentStatus, j.noticeGenerated,
@@ -643,15 +625,15 @@ router.get('/export/:projectId', async (req, res) => {
       });
     } else {
       headers = [
-        'खातेदाराचे_नांव', 'सर्वे_नं', 'क्षेत्र', 'संपादित_क्षेत्र',
-        'दर', 'संरचना_झाडे_विहिरी_रक्कम', 'एकूण_मोबदला', 'सोलेशियम_100',
-        'अंतिम_रक्कम', 'village', 'taluka', 'district', 'kycStatus',
+        'landowner_name', 'survey_number', 'area', 'acquired_area',
+        'rate', 'structure_trees_wells_amount', 'total_compensation', 'solatium',
+        'final_amount', 'village', 'taluka', 'district', 'kycStatus',
         'paymentStatus', 'noticeGenerated', 'assignedAgent'
       ];
       rows = records.map(record => [
-        record.खातेदाराचे_नांव, record.सर्वे_नं, record.क्षेत्र, record.संपादित_क्षेत्र,
-        record.दर, record.संरचना_झाडे_विहिरी_रक्कम, record.एकूण_मोबदला, record.सोलेशियम_100,
-        record.अंतिम_रक्कम, record.village, record.taluka, record.district,
+        record.landowner_name, record.survey_number, record.area, record.acquired_area,
+        record.rate, record.structure_trees_wells_amount, record.total_compensation, record.solatium,
+        record.final_amount, record.village, record.taluka, record.district,
         record.kycStatus, record.paymentStatus, record.noticeGenerated,
         record.assignedAgent ? record.assignedAgent.name : ''
       ]);
@@ -683,16 +665,14 @@ router.get('/stats/:projectId', async (req, res) => {
     const { projectId } = req.params;
     
     // Get all records for the project
-    const records = await LandownerRecord.findAll({
-      where: { projectId }
-    });
+    const records = await MongoLandownerRecord.find({ project_id: projectId });
 
     // Calculate stats manually since we're using Sequelize
     const stats = {
       totalRecords: records.length,
-      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.अंतिम_रक्कम) || 0), 0),
-      totalArea: records.reduce((sum, r) => sum + (parseFloat(r.क्षेत्र) || 0), 0),
-      totalAcquiredArea: records.reduce((sum, r) => sum + (parseFloat(r.संपादित_क्षेत्र) || 0), 0),
+      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0),
+      totalArea: records.reduce((sum, r) => sum + (parseFloat(r.area) || 0), 0),
+      totalAcquiredArea: records.reduce((sum, r) => sum + (parseFloat(r.acquired_area) || 0), 0),
       noticeGenerated: records.filter(r => r.noticeGenerated).length,
       kycCompleted: records.filter(r => ['completed', 'approved'].includes(r.kycStatus)).length,
       paymentSuccess: records.filter(r => r.paymentStatus === 'success').length,
@@ -714,7 +694,7 @@ router.get('/stats/:projectId', async (req, res) => {
       }
       
       villageMap[village].count++;
-      villageMap[village].totalCompensation += parseFloat(record.अंतिम_रक्कम) || 0;
+      villageMap[village].totalCompensation += parseFloat(record.final_amount) || 0;
       if (['completed', 'approved'].includes(record.kycStatus)) {
         villageMap[village].kycCompleted++;
       }
@@ -766,7 +746,7 @@ router.post('/ingest/:projectId', async (req, res) => {
     const agentIdInt = parseInt(agentId, 10);
     const hasValidAgent = Number.isInteger(agentIdInt) && agentIdInt > 0;
 
-    const project = await Project.findByPk(projectId);
+    const project = await MongoProject.findById(projectId);
     if (!project) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }
@@ -774,7 +754,7 @@ router.post('/ingest/:projectId', async (req, res) => {
     // Optional validate agent
     let agent = null;
     if (assignToAgentBool && hasValidAgent) {
-      agent = await User.findByPk(agentIdInt);
+      agent = await MongoUser.findById(agentIdInt);
       if (!agent || agent.role !== 'agent') {
         return res.status(400).json({ success: false, message: 'Invalid agent ID or agent not found' });
       }
@@ -784,16 +764,16 @@ router.post('/ingest/:projectId', async (req, res) => {
     let createdById = null;
     try {
       if (req.user?.id) {
-        const u = await User.findByPk(req.user.id);
+        const u = await MongoUser.findById(req.user.id);
         if (u) createdById = u.id;
       }
       if (!createdById) {
-        const anyOfficer = await User.findOne({ where: { role: 'officer', isActive: true }, order: [['id','ASC']] });
+        const anyOfficer = await MongoUser.findOne({ role: 'officer', isActive: true }, null, { sort: { id: 1 } });
         if (anyOfficer) createdById = anyOfficer.id;
       }
       if (!createdById) {
         // As a last resort, create a demo officer
-        const demo = await User.create({ name: 'CSV Importer', email: `csv_importer_${Date.now()}@saral.gov.in`, password: 'password123', role: 'officer', department: 'Land Acquisition', phone: '0000000000', isActive: true });
+        const demo = await MongoUser.create({ name: 'CSV Importer', email: `csv_importer_${Date.now()}@saral.gov.in`, password: 'password123', role: 'officer', department: 'Land Acquisition', phone: '0000000000', isActive: true });
         createdById = demo.id;
       }
     } catch (e) {
@@ -812,8 +792,8 @@ router.post('/ingest/:projectId', async (req, res) => {
 
       // Keep taluka/district optional to match basic upload route
       const requiredFields = [
-        'खातेदाराचे_नांव', 'सर्वे_नं', 'क्षेत्र', 'संपादित_क्षेत्र',
-        'दर', 'एकूण_मोबदला', 'सोलेशियम_100', 'अंतिम_रक्कम',
+        'landowner_name', 'survey_number', 'area', 'acquired_area',
+        'rate', 'total_compensation', 'solatium', 'final_amount',
         'village'
       ];
       requiredFields.forEach(f => { if (row[f] !== undefined && row[f] !== null) row[f] = String(row[f]).trim(); });
@@ -824,31 +804,31 @@ router.post('/ingest/:projectId', async (req, res) => {
       }
 
       const record = {
-        project_id: parseInt(projectId, 10),
-        खातेदाराचे_नांव: row.खातेदाराचे_नांव,
-        सर्वे_नं: row.सर्वे_नं,
-        क्षेत्र: row.क्षेत्र,
-        संपादित_क्षेत्र: row.संपादित_क्षेत्र,
-        दर: row.दर,
-        संरचना_झाडे_विहिरी_रक्कम: row.संरचना_झाडे_विहिरी_रक्कम || '0',
-        एकूण_मोबदला: row.एकूण_मोबदला,
-        सोलेशियम_100: row.सोलेशियम_100,
-        अंतिम_रक्कम: row.अंतिम_रक्कम,
+        project_id: projectId,
+        landowner_name: row.landowner_name,
+        survey_number: row.survey_number,
+        area: row.area,
+        acquired_area: row.acquired_area,
+        rate: row.rate,
+        structure_trees_wells_amount: row.structure_trees_wells_amount || '0',
+        total_compensation: row.total_compensation,
+        solatium: row.solatium,
+        final_amount: row.final_amount,
         village: row.village,
         // Keep optional in CSV but model requires non-empty; use NA fallback
         taluka: row.taluka || 'NA',
         district: row.district || 'NA',
-        contactPhone: row.phone || '',
-        contactEmail: row.email || '',
-        contactAddress: row.address || '',
-        bankAccountNumber: row.accountNumber || '',
-        bankIfscCode: row.ifscCode || '',
-        bankName: row.bankName || '',
-        bankBranchName: row.branchName || '',
-        bankAccountHolderName: row.accountHolderName || row.खातेदाराचे_नांव,
-        isTribal: !!row.isTribal,
-        tribalCertificateNo: row.tribalCertificateNo || '',
-        tribalLag: row.tribalLag || '',
+        contact_phone: row.contact_phone || '',
+        contact_email: row.contact_email || '',
+        contact_address: row.contact_address || '',
+        bank_account_number: row.bank_account_number || '',
+        bank_ifsc_code: row.bank_ifsc_code || '',
+        bank_name: row.bank_name || '',
+        bank_branch_name: row.bank_branch_name || '',
+        bank_account_holder_name: row.bank_account_holder_name || row.landowner_name,
+        is_tribal: !!row.is_tribal,
+        tribal_certificate_no: row.tribal_certificate_no || '',
+        tribal_lag: row.tribal_lag || '',
         createdBy: createdById,
         ...(assignToAgentBool && hasValidAgent && {
           assignedAgent: agentIdInt,
@@ -892,15 +872,13 @@ router.post('/ingest/:projectId', async (req, res) => {
 
     // Duplicate check should allow multiple owners per same survey number.
     // Consider duplicate only if same (surveyNumber + ownerName) pair already exists.
-    const uniquePairs = new Set(records.map(r => `${r.सर्वे_नं}__${r.खातेदाराचे_नांव}`));
-    const surveys = Array.from(new Set(records.map(r => r.सर्वे_नं)));
-    const existingForSurveys = await LandownerRecord.findAll({
-      where: {
-        project_id: parseInt(projectId, 10),
-        सर्वे_नं: { [Op.in]: surveys }
-      }
+    const uniquePairs = new Set(records.map(r => `${r.survey_number}__${r.landowner_name}`));
+    const surveys = Array.from(new Set(records.map(r => r.survey_number)));
+    const existingForSurveys = await MongoLandownerRecord.find({
+      project_id: projectId,
+      survey_number: { $in: surveys }
     });
-    const existingPairs = new Set(existingForSurveys.map(r => `${r.सर्वे_नं}__${r.खातेदाराचे_नांव}`));
+    const existingPairs = new Set(existingForSurveys.map(r => `${r.survey_number}__${r.landowner_name}`));
     const duplicatePairs = Array.from(uniquePairs).filter(p => existingPairs.has(p));
     if (duplicatePairs.length > 0) {
       if (!overwrite) {
@@ -913,19 +891,17 @@ router.post('/ingest/:projectId', async (req, res) => {
       // Overwrite requested: delete existing matching pairs
       for (const pair of duplicatePairs) {
         const [survey, owner] = pair.split('__');
-        await LandownerRecord.destroy({
-          where: {
-            project_id: parseInt(projectId, 10),
-            सर्वे_नं: survey,
-            खातेदाराचे_नांव: owner
-          }
+        await MongoLandownerRecord.deleteOne({
+          project_id: projectId,
+          survey_number: survey,
+          landowner_name: owner
         });
       }
     }
 
     let insertedRecords;
     try {
-      insertedRecords = await LandownerRecord.bulkCreate(records);
+      insertedRecords = await MongoLandownerRecord.insertMany(records);
     } catch (e) {
       console.error('Bulk create failed:', e?.message || e);
       return res.status(500).json({ success: false, message: 'Failed to insert records', details: e?.message || String(e) });
@@ -933,20 +909,20 @@ router.post('/ingest/:projectId', async (req, res) => {
 
     if (generateNoticeBool) {
       for (const record of insertedRecords) {
-        const noticeNumber = `NOTICE-${Date.now()}-${record.सर्वे_नं}`;
+        const noticeNumber = `NOTICE-${Date.now()}-${record.survey_number}`;
         const noticeDate = new Date();
         const noticeContent = `महाराष्ट्र शासन<br/>
 उपजिल्हाधिकारी (भूसंपादन) ${project.projectName}<br/>
 नोटीस क्रमांक: ${noticeNumber}<br/>
 दिनांक: ${noticeDate.toLocaleDateString('hi-IN')}<br/>
 <br/>
-प्रति, ${record.खातेदाराचे_नांव}<br/>
-सर्वे क्रमांक: ${record.सर्वे_नं}<br/>
+प्रति, ${record.landowner_name}<br/>
+सर्वे क्रमांक: ${record.survey_number}<br/>
 गाव: ${record.village}<br/>
 <br/>
 आपल्या जमिनीचे संपादन करण्यात येत आहे. कृपया आवश्यक कागदपत्रे सादर करा.`;
 
-        await record.update({
+        await MongoLandownerRecord.findByIdAndUpdate(record._id, {
           noticeGenerated: true,
           noticeNumber,
           noticeDate,

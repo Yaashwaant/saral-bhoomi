@@ -3,8 +3,9 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import LandownerRecord from '../models/LandownerRecord.js';
-import User from '../models/User.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoUser from '../models/mongo/User.js';
+import MongoProject from '../models/mongo/Project.js';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
 
@@ -44,31 +45,27 @@ router.get('/pending', async (req, res) => {
       district
     } = req.query;
 
-    const where = { 
-      kycStatus: ['completed', 'in_progress'],
-      isActive: true
+    const filter = { 
+      kyc_status: { $in: ['completed', 'in_progress'] },
+      is_active: true
     };
     
-    if (projectId) where.projectId = projectId;
-    if (village) where.village = village;
-    if (taluka) where.taluka = taluka;
-    if (district) where.district = district;
+    if (projectId) filter.project_id = projectId;
+    if (village) filter.village = village;
+    if (taluka) filter.taluka = taluka;
+    if (district) filter.district = district;
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await LandownerRecord.findAll({
-      where,
-      include: [
-        { model: Project, attributes: ['projectName', 'pmisCode'] },
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email', 'phone'] },
-        { model: User, as: 'creator', attributes: ['name', 'email'] }
-      ],
-      order: [['kycCompletedAt', 'DESC'], ['updatedAt', 'DESC']],
-      offset,
-      limit: parseInt(limit)
-    });
+    const records = await MongoLandownerRecord.find(filter)
+      .populate('project_id', 'projectName')
+      .populate('assigned_agent', 'name email phone')
+      .populate('created_by', 'name email')
+      .sort({ kyc_completed_at: -1, updatedAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
 
-    const total = await LandownerRecord.count({ where });
+    const total = await MongoLandownerRecord.countDocuments(filter);
 
     res.status(200).json({
       success: true,
@@ -79,7 +76,36 @@ router.get('/pending', async (req, res) => {
         limit: parseInt(limit),
         pages: Math.ceil(total / parseInt(limit))
       },
-      data: records
+      data: records.map(record => ({
+        id: record._id,
+        survey_number: record.survey_number,
+        landowner_name: record.landowner_name,
+        area: record.area,
+        acquired_area: record.acquired_area,
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district,
+        kyc_status: record.kyc_status,
+        kyc_completed_at: record.kyc_completed_at,
+        kyc_completed_by: record.kyc_completed_by,
+        assigned_agent: record.assigned_agent ? {
+          id: record.assigned_agent._id,
+          name: record.assigned_agent.name,
+          email: record.assigned_agent.email,
+          phone: record.assigned_agent.phone
+        } : null,
+        project: record.project_id ? {
+          id: record.project_id._id,
+          projectName: record.project_id.projectName
+        } : null,
+        created_by: record.created_by ? {
+          id: record.created_by._id,
+          name: record.created_by.name,
+          email: record.created_by.email
+        } : null,
+        created_at: record.createdAt,
+        updated_at: record.updatedAt
+      }))
     });
 
   } catch (error) {
@@ -99,12 +125,7 @@ router.put('/approve/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { approvalNotes = '', verifiedDocuments = [] } = req.body;
 
-    const record = await LandownerRecord.findByPk(recordId, {
-      include: [
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email'] },
-        { model: Project, attributes: ['projectName', 'pmisCode'] }
-      ]
-    });
+    const record = await MongoLandownerRecord.findById(recordId);
 
     if (!record) {
       return res.status(404).json({
@@ -113,7 +134,7 @@ router.put('/approve/:recordId', async (req, res) => {
       });
     }
 
-    if (!['completed', 'in_progress'].includes(record.kycStatus)) {
+    if (!['completed', 'in_progress'].includes(record.kyc_status)) {
       return res.status(400).json({
         success: false,
         message: 'KYC record is not ready for approval'
@@ -121,9 +142,9 @@ router.put('/approve/:recordId', async (req, res) => {
     }
 
     const updateData = {
-      kycStatus: 'approved',
-      kycCompletedAt: new Date(),
-      kycCompletedBy: req.user.id
+      kyc_status: 'approved',
+      kyc_completed_at: new Date(),
+      kyc_completed_by: req.user.id
     };
 
     if (approvalNotes) {
@@ -136,11 +157,11 @@ router.put('/approve/:recordId', async (req, res) => {
       success: true,
       message: 'KYC record approved successfully',
       data: {
-        recordId: record.id,
-        landownerName: record.खातेदाराचे_नांव,
-        surveyNumber: record.सर्वे_नं,
-        kycStatus: record.kycStatus,
-        approvedAt: record.kycCompletedAt,
+        recordId: record._id,
+        landownerName: record.landowner_name,
+        surveyNumber: record.survey_number,
+        kycStatus: record.kyc_status,
+        approvedAt: record.kyc_completed_at,
         approvedBy: req.user.name
       }
     });
@@ -169,7 +190,7 @@ router.put('/reject/:recordId', async (req, res) => {
       });
     }
 
-    const record = await LandownerRecord.findByPk(recordId);
+    const record = await MongoLandownerRecord.findById(recordId);
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -179,9 +200,9 @@ router.put('/reject/:recordId', async (req, res) => {
 
     const rejectionNote = `[${new Date().toISOString()}] Officer Rejection: ${rejectionReason}`;
     await record.update({
-      kycStatus: 'rejected',
-      kycCompletedAt: new Date(),
-      kycCompletedBy: req.user.id,
+      kyc_status: 'rejected',
+      kyc_completed_at: new Date(),
+      kyc_completed_by: req.user.id,
       notes: (record.notes || '') + '\n' + rejectionNote
     });
 
@@ -189,9 +210,9 @@ router.put('/reject/:recordId', async (req, res) => {
       success: true,
       message: 'KYC record rejected successfully',
       data: {
-        recordId: record.id,
-        landownerName: record.खातेदाराचे_नांव,
-        kycStatus: record.kycStatus,
+        recordId: record._id,
+        landownerName: record.landowner_name,
+        kycStatus: record.kyc_status,
         rejectionReason
       }
     });
@@ -213,7 +234,7 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
     const { recordId } = req.params;
     const { documentType = 'document', notes = '' } = req.body || {};
 
-    const record = await LandownerRecord.findByPk(parseInt(recordId, 10));
+    const record = await MongoLandownerRecord.findById(parseInt(recordId, 10));
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
@@ -273,7 +294,7 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
 
     await record.update({
       documents: updatedDocuments,
-      kycStatus: record.kycStatus === 'pending' ? 'in_progress' : record.kycStatus,
+      kyc_status: record.kyc_status === 'pending' ? 'in_progress' : record.kyc_status,
       updatedAt: new Date()
     });
 

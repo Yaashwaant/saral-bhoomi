@@ -8,6 +8,7 @@ import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -34,6 +35,7 @@ const App = () => {
                     <DashboardPage />
                   </ProtectedRoute>
                 } />
+
                 <Route path="*" element={<Navigate to="/saral/login" replace />} />
               </Routes>
               <Toaster />

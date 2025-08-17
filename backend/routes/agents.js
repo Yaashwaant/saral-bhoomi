@@ -1,7 +1,7 @@
 import express from 'express';
-import LandownerRecord from '../models/LandownerRecord.js';
-import User from '../models/User.js';
-import Project from '../models/Project.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoUser from '../models/mongo/User.js';
+import MongoProject from '../models/mongo/Project.js';
 import admin from 'firebase-admin';
 import { Buffer } from 'buffer';
 import fs from 'fs';
@@ -17,16 +17,21 @@ const router = express.Router();
 // @access  Public
 router.get('/list', async (req, res) => {
   try {
-    const agents = await User.findAll({
-      where: { role: 'agent', isActive: true },
-      attributes: ['id', 'name', 'email', 'phone', 'department'],
-      order: [['name', 'ASC']]
-    });
+    const agents = await MongoUser.find({
+      role: 'agent',
+      is_active: true
+    }).select('_id name email phone department').sort({ name: 1 });
     
     res.status(200).json({
       success: true,
       count: agents.length,
-      agents: agents
+      agents: agents.map(agent => ({
+        id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone,
+        department: agent.department
+      }))
     });
   } catch (error) {
     console.error('Error fetching agents:', error);
@@ -44,34 +49,25 @@ router.put('/assign', async (req, res) => {
     console.log('Assigning agent:', { landownerId, agentId });
     
     // Validate inputs
-    const landownerIdInt = parseInt(landownerId, 10);
-    const agentIdInt = parseInt(agentId, 10);
-    if (!Number.isInteger(landownerIdInt) || !Number.isInteger(agentIdInt)) {
-      // Try to fallback to surveyNumber + projectId if provided
-      if (!surveyNumber || !projectId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Valid numeric Landowner ID and Agent ID are required (or provide surveyNumber and projectId)'
-        });
-      }
-    }
+    let landownerRecord = null;
+    let agent = null;
     
     // Find the landowner record
-    let landownerRecord = Number.isInteger(landownerIdInt) ? await LandownerRecord.findByPk(landownerIdInt) : null;
-    if (!landownerRecord && surveyNumber && projectId) {
-      landownerRecord = await LandownerRecord.findOne({
-        where: {
-          सर्वे_नं: surveyNumber,
-          project_id: parseInt(projectId, 10)
-        }
+    if (landownerId) {
+      landownerRecord = await MongoLandownerRecord.findById(landownerId);
+    } else if (surveyNumber && projectId) {
+      landownerRecord = await MongoLandownerRecord.findOne({
+        survey_number: surveyNumber,
+        project_id: projectId
       });
     }
+    
     if (!landownerRecord) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
     
     // Find the agent
-    const agent = await User.findByPk(agentIdInt);
+    agent = await MongoUser.findById(agentId);
     if (!agent || agent.role !== 'agent') {
       return res.status(404).json({
         success: false,
@@ -80,11 +76,14 @@ router.put('/assign', async (req, res) => {
     }
     
     // Update the landowner record
-    await landownerRecord.update({
-      assignedAgent: agentIdInt,
-      assignedAt: new Date(),
-      kycStatus: 'pending'
-    });
+    await MongoLandownerRecord.updateOne(
+      { _id: landownerRecord._id },
+      {
+        assigned_agent: agentId,
+        assigned_at: new Date(),
+        kyc_status: 'pending'
+      }
+    );
     
     console.log('Agent assigned successfully');
     
@@ -92,9 +91,9 @@ router.put('/assign', async (req, res) => {
       success: true,
       message: 'Agent assigned successfully',
       data: {
-        landownerId: landownerRecord.id,
-        agentId: agent.id,
-        assignedAt: landownerRecord.assignedAt
+        landownerId: landownerRecord._id,
+        agentId: agent._id,
+        assignedAt: new Date()
       }
     });
     
@@ -116,7 +115,7 @@ router.get('/assigned', async (req, res) => {
     let agentId;
     const agentEmail = (req.query.agentEmail || '').toString().trim();
     if (agentEmail) {
-      const byEmail = await User.findOne({ where: { email: agentEmail, role: 'agent', isActive: true } });
+      const byEmail = await MongoUser.findOne({ where: { email: agentEmail, role: 'agent', isActive: true } });
       if (byEmail) agentId = byEmail.id;
     }
     if (!agentId) {
@@ -133,7 +132,7 @@ router.get('/assigned', async (req, res) => {
     console.log('Fetching assigned records for agent:', agentId);
     
     // Find agent
-    const agent = await User.findByPk(agentId);
+    const agent = await MongoUser.findByPk(agentId);
     if (!agent) {
       return res.status(404).json({
         success: false,
@@ -142,7 +141,7 @@ router.get('/assigned', async (req, res) => {
     }
     
     // Get assigned records including notice fields for agent portal
-    const records = await LandownerRecord.findAll({
+    const records = await MongoLandownerRecord.findAll({
       where: {
         assignedAgent: agentId,
         isActive: true
@@ -177,7 +176,7 @@ router.get('/assigned-with-notices', async (req, res) => {
     let agentId;
     const agentEmail = (req.query.agentEmail || '').toString().trim();
     if (agentEmail) {
-      const byEmail = await User.findOne({ where: { email: agentEmail, role: 'agent', isActive: true } });
+      const byEmail = await MongoUser.findOne({ where: { email: agentEmail, role: 'agent', isActive: true } });
       if (byEmail) agentId = byEmail.id;
     }
     if (!agentId) {
@@ -193,12 +192,12 @@ router.get('/assigned-with-notices', async (req, res) => {
 
     console.log('Fetching assigned-with-notices for agent:', agentId);
 
-    const agent = await User.findByPk(agentId);
+    const agent = await MongoUser.findByPk(agentId);
     if (!agent) {
       return res.status(404).json({ success: false, message: 'Agent not found' });
     }
 
-    const records = await LandownerRecord.findAll({
+    const records = await MongoLandownerRecord.findAll({
       where: { assignedAgent: agentId, isActive: true },
       attributes: [
         'id', 'project_id', 'खातेदाराचे_नांव', 'सर्वे_नं', 'village', 'taluka', 'district',
@@ -226,7 +225,7 @@ router.put('/kyc-status', async (req, res) => {
     console.log('Updating KYC status:', { landownerId, kycStatus });
     
     // Find and update the landowner record
-    const record = await LandownerRecord.findByPk(landownerId);
+    const record = await MongoLandownerRecord.findByPk(landownerId);
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -268,7 +267,7 @@ router.put('/kyc-status/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { kycStatus, notes } = req.body || {};
 
-    const record = await LandownerRecord.findByPk(parseInt(recordId, 10));
+    const record = await MongoLandownerRecord.findByPk(parseInt(recordId, 10));
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
@@ -296,7 +295,7 @@ router.post('/upload-document/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { documentType, fileName, fileUrl, fileSize, mimeType, notes, fileBase64 } = req.body || {};
 
-    const record = await LandownerRecord.findByPk(parseInt(recordId, 10));
+    const record = await MongoLandownerRecord.findByPk(parseInt(recordId, 10));
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }

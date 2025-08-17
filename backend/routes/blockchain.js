@@ -1,8 +1,12 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import { BlockchainLedger, Notice, Payment, JMRRecord, Officer, Project } from '../models/index.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
+import MongoNotice from '../models/mongo/Notice.js';
+import MongoPayment from '../models/mongo/Payment.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoUser from '../models/mongo/User.js';
+import MongoProject from '../models/mongo/Project.js';
 import blockchainService from '../services/blockchainService.js';
-import sequelize from '../config/database.js';
 
 const router = express.Router();
 
@@ -20,8 +24,8 @@ const validateBlockchainEntry = [
     'Award_Declared',
     'Compensated'
   ]).withMessage('Invalid event type'),
-  body('officer_id').isInt().withMessage('Valid officer ID is required'),
-  body('project_id').isInt().withMessage('Valid project ID is required'),
+  body('officer_id').isMongoId().withMessage('Valid officer ID is required'),
+  body('project_id').isMongoId().withMessage('Valid project ID is required'),
   body('remarks').optional().isString().withMessage('Remarks must be a string')
 ];
 
@@ -65,7 +69,7 @@ router.post('/entry', validateBlockchainEntry, async (req, res) => {
     } = req.body;
 
     // Verify officer exists
-    const officer = await Officer.findByPk(officer_id);
+    const officer = await MongoUser.findById(officer_id);
     if (!officer) {
       return res.status(404).json({
         success: false,
@@ -74,7 +78,7 @@ router.post('/entry', validateBlockchainEntry, async (req, res) => {
     }
 
     // Verify project exists
-    const project = await Project.findByPk(project_id);
+    const project = await MongoProject.findById(project_id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -91,8 +95,8 @@ router.post('/entry', validateBlockchainEntry, async (req, res) => {
       metadata: {
         ...metadata,
         officer_name: officer.name,
-        officer_designation: officer.designation,
-        project_name: project.name
+        officer_designation: officer.role,
+        project_name: project.projectName
       },
       remarks
     };
@@ -100,7 +104,7 @@ router.post('/entry', validateBlockchainEntry, async (req, res) => {
     const blockchainBlock = await blockchainService.createBlock(blockData);
 
     // Save to database
-    const ledgerEntry = await BlockchainLedger.create(blockchainBlock);
+    const ledgerEntry = await MongoBlockchainLedger.create(blockchainBlock);
 
     // Update related records based on event type
     await updateRelatedRecords(event_type, survey_number, officer_id, project_id, metadata);
@@ -134,16 +138,16 @@ router.get('/ledger/:surveyNumber', async (req, res) => {
 
     const offset = (page - 1) * limit;
 
-    const { count, rows: entries } = await BlockchainLedger.findAndCountAll({
+    const { count, rows: entries } = await MongoBlockchainLedger.findAndCountAll({
       where: { survey_number: surveyNumber },
       include: [
         {
-          model: Officer,
+          model: MongoUser,
           as: 'officer',
           attributes: ['name', 'designation', 'district', 'taluka']
         },
         {
-          model: Project,
+          model: MongoProject,
           attributes: ['name', 'description']
         }
       ],
@@ -193,16 +197,16 @@ router.get('/stats', async (req, res) => {
       if (date_to) whereClause.timestamp.$lte = new Date(date_to);
     }
 
-    const totalEntries = await BlockchainLedger.count({ where: whereClause });
-    const validEntries = await BlockchainLedger.count({ 
+    const totalEntries = await MongoBlockchainLedger.count({ where: whereClause });
+    const validEntries = await MongoBlockchainLedger.count({ 
       where: { ...whereClause, is_valid: true } 
     });
-    const invalidEntries = await BlockchainLedger.count({ 
+    const invalidEntries = await MongoBlockchainLedger.count({ 
       where: { ...whereClause, is_valid: false } 
     });
 
     // Event type distribution
-    const eventTypeStats = await BlockchainLedger.findAll({
+    const eventTypeStats = await MongoBlockchainLedger.findAll({
       where: whereClause,
       attributes: [
         'event_type',
@@ -213,10 +217,10 @@ router.get('/stats', async (req, res) => {
     });
 
     // Officer activity
-    const officerStats = await BlockchainLedger.findAll({
+    const officerStats = await MongoBlockchainLedger.findAll({
       where: whereClause,
       include: [{
-        model: Officer,
+        model: MongoUser,
         as: 'officer',
         attributes: ['name', 'designation']
       }],
@@ -256,7 +260,7 @@ router.post('/verify/:surveyNumber', async (req, res) => {
     const { surveyNumber } = req.params;
 
     // Get all entries for the survey number
-    const entries = await BlockchainLedger.findAll({
+    const entries = await MongoBlockchainLedger.findAll({
       where: { survey_number: surveyNumber },
       order: [['timestamp', 'ASC']]
     });
@@ -385,7 +389,7 @@ async function updateRelatedRecords(eventType, surveyNumber, officerId, projectI
     switch (eventType) {
       case 'JMR_Measurement_Uploaded':
         // Update JMR record status
-        await JMRRecord.update(
+        await MongoJMRRecord.update(
           { status: 'approved' },
           { where: { survey_number: surveyNumber, project_id: projectId } }
         );
@@ -393,7 +397,7 @@ async function updateRelatedRecords(eventType, surveyNumber, officerId, projectI
 
       case 'Notice_Generated':
         // Update notice status
-        await Notice.update(
+        await MongoNotice.update(
           { status: 'sent' },
           { where: { survey_number: surveyNumber, project_id: projectId } }
         );
@@ -401,7 +405,7 @@ async function updateRelatedRecords(eventType, surveyNumber, officerId, projectI
 
       case 'Payment_Slip_Created':
         // Update payment status
-        await Payment.update(
+        await MongoPayment.update(
           { status: 'Pending' },
           { where: { survey_number: surveyNumber, project_id: projectId } }
         );
@@ -409,7 +413,7 @@ async function updateRelatedRecords(eventType, surveyNumber, officerId, projectI
 
       case 'Payment_Released':
         // Update payment status
-        await Payment.update(
+        await MongoPayment.update(
           { status: 'Success', payment_date: new Date() },
           { where: { survey_number: surveyNumber, project_id: projectId } }
         );
@@ -417,7 +421,7 @@ async function updateRelatedRecords(eventType, surveyNumber, officerId, projectI
 
       case 'Payment_Failed':
         // Update payment status with reason
-        await Payment.update(
+        await MongoPayment.update(
           { 
             status: 'Failed',
             reason_if_pending: metadata.failure_reason || 'Payment processing failed'

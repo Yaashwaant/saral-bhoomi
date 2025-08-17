@@ -16,7 +16,8 @@ import {
 } from '@/types/notice';
 
 // API Base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { config } from '../config';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Default system configuration
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
