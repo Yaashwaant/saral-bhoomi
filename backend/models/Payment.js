@@ -50,7 +50,7 @@ const Payment = sequelize.define('Payment', {
       model: 'users',
       key: 'id'
     },
-    comment: 'Officer who created the payment slip'
+    comment: 'ID of the officer who created the payment slip'
   },
   project_id: {
     type: DataTypes.INTEGER,

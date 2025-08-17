@@ -244,4 +244,12 @@ class BlockchainService {
 // Create singleton instance
 const blockchainService = new BlockchainService();
 
+// Export individual functions for use in other services
+export const createBlock = (blockData) => blockchainService.createBlock(blockData);
+export const getLatestBlock = () => blockchainService.getLatestBlock();
+export const verifyBlockchainIntegrity = (surveyNumber) => blockchainService.verifyBlockchainIntegrity(surveyNumber);
+export const getNetworkStatus = () => blockchainService.getNetworkStatus();
+export const mineBlock = (difficulty) => blockchainService.mineBlock(difficulty);
+export const estimateGas = (surveyNumber, eventType, metadata) => blockchainService.estimateGas(surveyNumber, eventType, metadata);
+
 export default blockchainService;

@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { body, validationResult } from 'express-validator';
 import workflowService from '../services/workflowService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { uploadMulterFile, generateHashFromCloudinaryUrl } from '../services/cloudinaryService.js';
 
 const router = express.Router();
@@ -28,7 +28,7 @@ const upload = multer({
 });
 
 // Middleware to ensure user is authenticated
-router.use(authenticateToken);
+router.use(authMiddleware);
 
 // Helper function to validate survey number format
 const validateSurveyNumber = (value) => {

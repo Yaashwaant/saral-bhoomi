@@ -41,6 +41,9 @@ Project.hasMany(JMRRecord, { foreignKey: 'project_id' });
 Award.belongsTo(Project, { foreignKey: 'project_id' });
 Project.hasMany(Award, { foreignKey: 'project_id' });
 
+Award.belongsTo(User, { as: 'officer', foreignKey: 'officer_id' });
+User.hasMany(Award, { as: 'awards', foreignKey: 'officer_id' });
+
 // New blockchain system associations
 JMRRecord.belongsTo(User, { as: 'officer', foreignKey: 'officer_id' });
 User.hasMany(JMRRecord, { as: 'jmrRecords', foreignKey: 'officer_id' });

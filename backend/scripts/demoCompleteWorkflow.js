@@ -1,5 +1,5 @@
 import { User, Project, JMRRecord, Award, Notice, Payment, BlockchainLedger } from '../models/index.js';
-import { sequelize } from '../config/database.js';
+import sequelize from '../config/database.js';
 import workflowService from '../services/workflowService.js';
 import { generateHashFromCloudinaryUrl } from '../services/cloudinaryService.js';
 

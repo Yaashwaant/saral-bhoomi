@@ -2,7 +2,7 @@ import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { BlockchainLedger, Notice, Payment, JMRRecord, Officer, Project } from '../models/index.js';
 import blockchainService from '../services/blockchainService.js';
-import { sequelize } from '../models/index.js';
+import sequelize from '../config/database.js';
 
 const router = express.Router();
 

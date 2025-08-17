@@ -40,7 +40,7 @@ const BlockchainLedger = sequelize.define('BlockchainLedger', {
       model: 'users',
       key: 'id'
     },
-    comment: 'Field Officer who performed the action'
+    comment: 'ID of the officer who performed the action'
   },
   timestamp: {
     type: DataTypes.DATE,
