@@ -132,7 +132,7 @@ const FieldOfficerDashboard: React.FC = () => {
       formData.append('project_id', selectedAssignment.project_id);
       formData.append('notes', uploadNotes);
 
-      const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+      const response = await fetch(`${API_BASE_URL}/documents/field-upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token') || 'demo-jwt-token'}`

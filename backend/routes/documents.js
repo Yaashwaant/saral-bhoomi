@@ -5,26 +5,13 @@ import fs from 'fs';
 import { authorize } from '../middleware/auth.js';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
+import { uploadFileBuffer } from '../services/cloudinaryService.js';
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/documents';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for file uploads (memory storage for Cloudinary)
 const upload = multer({ 
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
@@ -104,7 +91,7 @@ router.get('/:projectId', authorize(['officer', 'admin']), async (req, res) => {
   }
 });
 
-// @desc    Upload document
+// @desc    Upload document (Officer/Admin)
 // @route   POST /api/documents/upload
 // @access  Private
 router.post('/upload', authorize(['officer', 'admin']), upload.single('file'), async (req, res) => {
@@ -154,15 +141,29 @@ router.post('/upload', authorize(['officer', 'admin']), upload.single('file'), a
       });
     }
 
-    // Create document object
+    console.log('📁 Uploading file to Cloudinary:', req.file.originalname);
+
+    // Upload file to Cloudinary
+    const cloudinaryResult = await uploadFileBuffer(req.file.buffer, {
+      folder: `saral-bhoomi/${project_id}/${survey_number}`,
+      public_id: `${document_type}_${Date.now()}`,
+      resource_type: 'auto'
+    });
+
+    console.log('☁️ File uploaded to Cloudinary:', cloudinaryResult.secure_url);
+
+    // Create document object with Cloudinary URL
     const newDocument = {
       name: req.file.originalname,
-      url: `/uploads/documents/${req.file.filename}`,
+      url: cloudinaryResult.secure_url,
+      cloudinary_id: cloudinaryResult.public_id,
       type: document_type,
-      category: document_category,
+      category: document_category || 'general',
       uploaded_at: new Date(),
       notes: notes || '',
-      uploaded_by: req.user.id
+      uploaded_by: req.user.id,
+      file_size: req.file.size,
+      mime_type: req.file.mimetype
     };
 
     // Add document to landowner record
@@ -173,31 +174,143 @@ router.post('/upload', authorize(['officer', 'admin']), upload.single('file'), a
       documents: updatedDocuments
     });
 
+    console.log('💾 Document saved to MongoDB for survey:', survey_number);
+
     res.status(201).json({
       success: true,
-      message: 'Document uploaded successfully',
+      message: 'Document uploaded successfully to Cloudinary',
       data: {
         id: newDocument.name,
         name: newDocument.name,
         url: newDocument.url,
+        cloudinary_id: newDocument.cloudinary_id,
         type: newDocument.type,
         category: newDocument.category,
         uploaded_at: newDocument.uploaded_at,
         survey_number: landownerRecord.survey_number,
-        landowner_name: landownerRecord.landowner_name
+        landowner_name: landownerRecord.landowner_name,
+        file_size: newDocument.file_size,
+        mime_type: newDocument.mime_type
       }
     });
   } catch (error) {
-    console.error('Error uploading document:', error);
+    console.error('❌ Error uploading document:', error);
     
-    // Clean up uploaded file if there was an error
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
-    }
-
     res.status(500).json({
       success: false,
-      message: error.message || 'Error uploading document'
+      message: error.message || 'Error uploading document to Cloudinary'
+    });
+  }
+});
+
+// @desc    Upload document (Field Officer)
+// @route   POST /api/documents/field-upload
+// @access  Private
+router.post('/field-upload', authorize(['field_officer', 'officer', 'admin']), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const {
+      survey_number,
+      document_type,
+      project_id,
+      notes
+    } = req.body;
+
+    if (!survey_number || !document_type || !project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: survey_number, document_type, project_id'
+      });
+    }
+
+    // Validate project exists
+    const project = await MongoProject.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Find the landowner record
+    let landownerRecord = await MongoLandownerRecord.findOne({ 
+      survey_number,
+      project_id 
+    });
+
+    if (!landownerRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Landowner record not found for this survey number and project'
+      });
+    }
+
+    console.log('📁 Field Officer uploading file to Cloudinary:', req.file.originalname);
+
+    // Upload file to Cloudinary
+    const cloudinaryResult = await uploadFileBuffer(req.file.buffer, {
+      folder: `saral-bhoomi/${project_id}/${survey_number}/field-officer`,
+      public_id: `${document_type}_${Date.now()}_field`,
+      resource_type: 'auto'
+    });
+
+    console.log('☁️ File uploaded to Cloudinary by Field Officer:', cloudinaryResult.secure_url);
+
+    // Create document object with Cloudinary URL
+    const newDocument = {
+      name: req.file.originalname,
+      url: cloudinaryResult.secure_url,
+      cloudinary_id: cloudinaryResult.public_id,
+      type: document_type,
+      category: 'field_officer_upload',
+      uploaded_at: new Date(),
+      notes: notes || '',
+      uploaded_by: req.user.id,
+      file_size: req.file.size,
+      mime_type: req.file.mimetype,
+      upload_source: 'field_officer'
+    };
+
+    // Add document to landowner record
+    const currentDocuments = Array.isArray(landownerRecord.documents) ? landownerRecord.documents : [];
+    const updatedDocuments = [...currentDocuments, newDocument];
+
+    await MongoLandownerRecord.findByIdAndUpdate(landownerRecord._id, {
+      documents: updatedDocuments
+    });
+
+    console.log('💾 Field Officer document saved to MongoDB for survey:', survey_number);
+
+    res.status(201).json({
+      success: true,
+      message: 'Document uploaded successfully by Field Officer',
+      data: {
+        id: newDocument.name,
+        name: newDocument.name,
+        url: newDocument.url,
+        cloudinary_id: newDocument.cloudinary_id,
+        type: newDocument.type,
+        category: newDocument.category,
+        uploaded_at: newDocument.uploaded_at,
+        survey_number: landownerRecord.survey_number,
+        landowner_name: landownerRecord.landowner_name,
+        file_size: newDocument.file_size,
+        mime_type: newDocument.mime_type,
+        upload_source: newDocument.upload_source
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error uploading document by Field Officer:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error uploading document to Cloudinary'
     });
   }
 });
