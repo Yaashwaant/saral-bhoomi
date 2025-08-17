@@ -18,7 +18,12 @@ import {
   Download,
   Shield,
   Building2,
-  Landmark
+  Landmark,
+  Database,
+  Award,
+  Banknote,
+  Hash,
+  Workflow
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
@@ -29,6 +34,13 @@ import PaymentInitiation from './PaymentInitiation';
 import JmrAwardManager from './JmrAwardManager';
 import NoticeGenerator from './NoticeGenerator';
 import SimpleAgentAssignment from './SimpleAgentAssignment';
+// Import new enhanced components
+import EnhancedJMRManager from './EnhancedJMRManager';
+import EnhancedAwardManager from './EnhancedAwardManager';
+import EnhancedNoticeManager from './EnhancedNoticeManager';
+import EnhancedPaymentManager from './EnhancedPaymentManager';
+import EnhancedDashboard from './EnhancedDashboard';
+import DocumentUploadPortal from './DocumentUploadPortal';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -49,6 +61,12 @@ const OfficerDashboard = () => {
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
       payments: 'पेमेंट इनिशिएशन',
+      enhancedJMR: 'एन्हान्स्ड JMR',
+      enhancedAward: 'एन्हान्स्ड Award',
+      enhancedNotice: 'एन्हान्स्ड Notice',
+      enhancedPayment: 'एन्हान्स्ड Payment',
+      enhancedDashboard: 'एन्हान्स्ड Dashboard',
+      documentUpload: 'Document Upload',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -78,6 +96,12 @@ const OfficerDashboard = () => {
       villages: 'Village Reports',
       kycApproval: 'KYC Approval',
       payments: 'Payment Initiation',
+      enhancedJMR: 'Enhanced JMR',
+      enhancedAward: 'Enhanced Award',
+      enhancedNotice: 'Enhanced Notice',
+      enhancedPayment: 'Enhanced Payment',
+      enhancedDashboard: 'Enhanced Dashboard',
+      documentUpload: 'Document Upload',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -107,6 +131,12 @@ const OfficerDashboard = () => {
       villages: 'गांव रिपोर्ट',
       kycApproval: 'KYC अनुमोदन',
       payments: 'भुगतान शुरुआत',
+      enhancedJMR: 'एन्हान्स्ड JMR',
+      enhancedAward: 'एन्हान्स्ड Award',
+      enhancedNotice: 'एन्हान्स्ड Notice',
+      enhancedPayment: 'एन्हान्स्ड Payment',
+      enhancedDashboard: 'एन्हान्स्ड Dashboard',
+      documentUpload: 'Document Upload',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -257,7 +287,7 @@ const OfficerDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-8 bg-blue-50">
+            <TabsList className="grid w-full grid-cols-14 bg-blue-50">
               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
@@ -313,6 +343,54 @@ const OfficerDashboard = () => {
                 letterSpacing: '0.2px'
               }}>
                 {t.payments}
+              </TabsTrigger>
+              <TabsTrigger value="enhancedJMR" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Database className="h-4 w-4 mr-1" />
+                {t.enhancedJMR}
+              </TabsTrigger>
+              <TabsTrigger value="enhancedAward" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Award className="h-4 w-4 mr-1" />
+                {t.enhancedAward}
+              </TabsTrigger>
+              <TabsTrigger value="enhancedNotice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <FileText className="h-4 w-4 mr-1" />
+                {t.enhancedNotice}
+              </TabsTrigger>
+              <TabsTrigger value="enhancedPayment" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Banknote className="h-4 w-4 mr-1" />
+                {t.enhancedPayment}
+              </TabsTrigger>
+              <TabsTrigger value="enhancedDashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Hash className="h-4 w-4 mr-1" />
+                {t.enhancedDashboard}
+              </TabsTrigger>
+              <TabsTrigger value="documentUpload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Workflow className="h-4 w-4 mr-1" />
+                {t.documentUpload}
               </TabsTrigger>
             </TabsList>
 
@@ -411,6 +489,24 @@ const OfficerDashboard = () => {
 
             <TabsContent value="payments" className="mt-6">
               <PaymentInitiation />
+            </TabsContent>
+            <TabsContent value="enhancedJMR" className="mt-6">
+              <EnhancedJMRManager />
+            </TabsContent>
+            <TabsContent value="enhancedAward" className="mt-6">
+              <EnhancedAwardManager />
+            </TabsContent>
+            <TabsContent value="enhancedNotice" className="mt-6">
+              <EnhancedNoticeManager />
+            </TabsContent>
+            <TabsContent value="enhancedPayment" className="mt-6">
+              <EnhancedPaymentManager />
+            </TabsContent>
+            <TabsContent value="enhancedDashboard" className="mt-6">
+              <EnhancedDashboard />
+            </TabsContent>
+            <TabsContent value="documentUpload" className="mt-6">
+              <DocumentUploadPortal />
             </TabsContent>
           </Tabs>
         </CardContent>
