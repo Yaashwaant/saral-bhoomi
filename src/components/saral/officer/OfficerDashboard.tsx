@@ -274,29 +274,29 @@ const OfficerDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-13 bg-blue-50">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+            <TabsList className="flex w-full bg-blue-50 overflow-x-auto">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.projects}
               </TabsTrigger>
-              <TabsTrigger value="csv" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="csv" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.csvUpload}
               </TabsTrigger>
-              <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
@@ -304,7 +304,7 @@ const OfficerDashboard = () => {
                 <Database className="h-4 w-4 mr-1" />
                 JMR
               </TabsTrigger>
-              <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
@@ -312,35 +312,35 @@ const OfficerDashboard = () => {
                 <Award className="h-4 w-4 mr-1" />
                 Award
               </TabsTrigger>
-              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.notices}
               </TabsTrigger>
-              <TabsTrigger value="villages" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="villages" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.villages}
               </TabsTrigger>
-              <TabsTrigger value="kyc" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="kyc" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.kycApproval}
               </TabsTrigger>
-              <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
                 {t.payments}
               </TabsTrigger>
-              <TabsTrigger value="enhancedNotice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="enhancedNotice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
@@ -348,7 +348,7 @@ const OfficerDashboard = () => {
                 <FileText className="h-4 w-4 mr-1" />
                 {t.enhancedNotice}
               </TabsTrigger>
-              <TabsTrigger value="enhancedPayment" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="enhancedPayment" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
@@ -356,7 +356,7 @@ const OfficerDashboard = () => {
                 <Banknote className="h-4 w-4 mr-1" />
                 {t.enhancedPayment}
               </TabsTrigger>
-              <TabsTrigger value="documentUpload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="documentUpload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
