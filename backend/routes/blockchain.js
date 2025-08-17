@@ -29,6 +29,53 @@ const validateBlockchainEntry = [
   body('remarks').optional().isString().withMessage('Remarks must be a string')
 ];
 
+// Get blockchain entries by project
+router.get('/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    // Validate project exists
+    const project = await MongoProject.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Get all blockchain entries for the project
+    const entries = await MongoBlockchainLedger.find({ project_id: projectId })
+      .populate('officer_id', 'name role')
+      .sort({ timestamp: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: entries.length,
+      data: entries.map(entry => ({
+        id: entry._id,
+        survey_number: entry.survey_number,
+        event_type: entry.event_type,
+        officer_id: entry.officer_id,
+        officer_name: entry.officer_id?.name || 'Unknown',
+        officer_designation: entry.officer_id?.role || 'Unknown',
+        project_id: entry.project_id,
+        project_name: project.projectName,
+        timestamp: entry.timestamp,
+        remarks: entry.remarks,
+        metadata: entry.metadata,
+        block_hash: entry.block_hash,
+        created_at: entry.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching blockchain entries by project:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching blockchain entries'
+    });
+  }
+});
+
 // Get blockchain network status
 router.get('/status', async (req, res) => {
   try {

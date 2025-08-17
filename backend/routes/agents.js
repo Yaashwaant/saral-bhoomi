@@ -258,6 +258,75 @@ router.put('/kyc-status', async (req, res) => {
   }
 });
 
+// @desc    Assign agent to landowner record
+// @route   POST /api/agents/assign
+// @access  Private (Officer, Admin)
+router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
+  try {
+    const { landowner_id, agent_id, project_id, assignment_notes } = req.body;
+
+    if (!landowner_id || !agent_id || !project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: landowner_id, agent_id, project_id'
+      });
+    }
+
+    // Validate landowner record exists
+    const landownerRecord = await MongoLandownerRecord.findById(landowner_id);
+    if (!landownerRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Landowner record not found'
+      });
+    }
+
+    // Validate agent exists
+    const agent = await MongoUser.findById(agent_id);
+    if (!agent || agent.role !== 'agent') {
+      return res.status(404).json({
+        success: false,
+        message: 'Agent not found or invalid role'
+      });
+    }
+
+    // Validate project exists
+    const project = await MongoProject.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Update landowner record with agent assignment
+    await MongoLandownerRecord.findByIdAndUpdate(landowner_id, {
+      assigned_agent: agent_id,
+      assigned_at: new Date(),
+      notes: assignment_notes || `Assigned to agent: ${agent.name}`
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Agent assigned successfully',
+      data: {
+        landowner_id,
+        agent_id,
+        agent_name: agent.name,
+        assigned_at: new Date(),
+        project_id,
+        project_name: project.projectName
+      }
+    });
+  } catch (error) {
+    console.error('Error assigning agent:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error assigning agent'
+    });
+  }
+});
+
 export default router; 
  
 // --- Extended endpoints for agent portal compatibility ---

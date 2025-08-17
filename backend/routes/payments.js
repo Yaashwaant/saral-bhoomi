@@ -9,6 +9,51 @@ import paymentValidationService from '../services/paymentValidation.js';
 
 const router = express.Router();
 
+// @desc    Get payments by project
+// @route   GET /api/payments/:projectId
+// @access  Private (Officer, Admin)
+router.get('/:projectId', authorize(['officer', 'admin']), async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    // Validate project exists
+    const project = await MongoProject.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Get all payments for the project
+    const payments = await MongoPayment.find({ project_id: projectId })
+      .populate('landowner_id', 'survey_number landowner_name')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: payments.length,
+      data: payments.map(payment => ({
+        id: payment._id,
+        survey_number: payment.survey_number,
+        landowner_name: payment.landowner_name,
+        amount: payment.amount,
+        status: payment.status,
+        reason_if_pending: payment.reason_if_pending,
+        officer_id: payment.officer_id,
+        created_at: payment.createdAt,
+        updated_at: payment.updatedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching payments by project:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payments'
+    });
+  }
+});
+
 // @desc    Get records eligible for payment
 // @route   GET /api/payments/eligible
 // @access  Private (Officer, Admin)

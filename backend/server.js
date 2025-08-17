@@ -27,6 +27,7 @@ import awardRoutes from './routes/awards.js';
 import blockchainRoutes from './routes/blockchain.js';
 import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
 import workflowRoutes from './routes/workflow.js';
+import documentRoutes from './routes/documents.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -276,6 +277,7 @@ app.use('/api/awards', awardRoutes);
 app.use('/api/blockchain', blockchainRoutes);
 app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
 app.use('/api/workflow', workflowRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');

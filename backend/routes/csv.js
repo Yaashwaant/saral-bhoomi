@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoAward from '../models/mongo/Award.js';
 import { authorize } from '../middleware/auth.js';
 import MongoUser from '../models/mongo/User.js'; // Added import for User
 import { Readable } from 'stream';
@@ -942,6 +944,221 @@ router.post('/ingest/:projectId', async (req, res) => {
     console.error('CSV ingest error:', error);
     return res.status(500).json({ success: false, message: 'Server error while ingesting CSV' });
   }
+});
+
+// @desc    Upload JMR CSV
+// @route   POST /api/csv/upload-jmr
+// @access  Private
+router.post('/upload-jmr', authorize(['officer', 'admin']), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const { project_id } = req.body;
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project ID is required'
+      });
+    }
+
+    // Validate project exists
+    const project = await MongoProject.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    const results = [];
+    const errors = [];
+    let uploaded = 0;
+
+    // Read and parse CSV file
+    fs.createReadStream(req.file.path)
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', async () => {
+        try {
+          // Process each record
+          for (const record of results) {
+            try {
+              // Validate required fields
+              if (!record.survey_number || !record.measured_area) {
+                errors.push(`Row ${results.indexOf(record) + 1}: Missing required fields (survey_number, measured_area)`);
+                continue;
+              }
+
+              // Check if JMR already exists for this survey number and project
+              const existingJMR = await MongoJMRRecord.findOne({ 
+                survey_number: record.survey_number,
+                project_id 
+              });
+              
+              if (existingJMR) {
+                errors.push(`Row ${results.indexOf(record) + 1}: JMR already exists for survey number ${record.survey_number}`);
+                continue;
+              }
+
+              // Create new JMR record
+              const newJMR = new MongoJMRRecord({
+                project_id,
+                officer_id: req.user.id,
+                survey_number: record.survey_number,
+                measured_area: parseFloat(record.measured_area) || 0,
+                category: record.category || 'agricultural',
+                measurement_date: record.measurement_date ? new Date(record.measurement_date) : new Date(),
+                notes: record.notes || '',
+                status: 'completed'
+              });
+
+              await newJMR.save();
+              uploaded++;
+            } catch (error) {
+              console.error(`Error processing row ${results.indexOf(record) + 1}:`, error);
+              errors.push(`Row ${results.indexOf(record) + 1}: ${error.message}`);
+            }
+          }
+
+          // Clean up uploaded file
+          fs.unlinkSync(req.file.path);
+
+          res.status(200).json({
+            success: true,
+            message: `JMR CSV upload completed. ${uploaded} records uploaded successfully.`,
+            uploaded,
+            total: results.length,
+            errors: errors.length > 0 ? errors : undefined
+          });
+        } catch (error) {
+          console.error('Error processing JMR CSV:', error);
+          res.status(500).json({
+            success: false,
+            message: 'Error processing JMR CSV file'
+          });
+        }
+      });
+  } catch (error) {
+    console.error('Error uploading JMR CSV:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading JMR CSV file'
+    });
+  }
+});
+
+// @desc    Upload Awards CSV
+// @route   POST /api/csv/upload-awards
+// @access  Private
+router.post('/upload-awards', authorize(['officer', 'admin']), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const { project_id } = req.body;
+    if (!project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project ID is required'
+      });
+    }
+
+    // Validate project exists
+    const project = await MongoProject.findById(project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    const results = [];
+    const errors = [];
+    let uploaded = 0;
+
+    // Read and parse CSV file
+    fs.createReadStream(req.file.path)
+      .pipe(csv())
+      .on('data', (data) => results.push(data))
+      .on('end', async () => {
+        try {
+          // Process each record
+          for (const record of results) {
+            try {
+              // Validate required fields
+              if (!record.survey_number || !record.base_amount) {
+                errors.push(`Row ${results.indexOf(record) + 1}: Missing required fields (survey_number, base_amount)`);
+                continue;
+              }
+
+              // Check if Award already exists for this survey number and project
+              const existingAward = await MongoAward.findOne({ 
+                survey_number: record.survey_number,
+                project_id 
+              });
+              
+              if (existingAward) {
+                errors.push(`Row ${results.indexOf(record) + 1}: Award already exists for survey number ${record.survey_number}`);
+                continue;
+              }
+
+              // Create new Award record
+              const newAward = new MongoAward({
+                project_id,
+                officer_id: req.user.id,
+                survey_number: record.survey_number,
+                award_number: record.award_number || `AWD-${Date.now()}-${record.survey_number}`,
+                award_date: record.award_date ? new Date(record.award_date) : new Date(),
+                base_amount: parseFloat(record.base_amount) || 0,
+                solatium: parseFloat(record.solatium) || 0,
+                additional_amounts: parseFloat(record.additional_amounts) || 0,
+                total_amount: parseFloat(record.total_amount) || 0,
+                notes: record.notes || '',
+                award_status: 'pending'
+              });
+
+              await newAward.save();
+              uploaded++;
+            } catch (error) {
+              console.error(`Error processing row ${results.indexOf(record) + 1}:`, error);
+              errors.push(`Row ${results.indexOf(record) + 1}: ${error.message}`);
+            }
+          }
+
+          // Clean up uploaded file
+          fs.unlinkSync(req.file.path);
+
+          res.status(200).json({
+            success: false,
+            message: `Awards CSV upload completed. ${uploaded} records uploaded successfully.`,
+            uploaded,
+            total: results.length,
+            errors: errors.length > 0 ? errors : undefined
+          });
+        } catch (error) {
+          console.error('Error processing Awards CSV:', error);
+          res.status(500).json({
+            success: false,
+            message: 'Error processing Awards CSV file'
+          });
+        }
+      });
+  } catch (error) {
+    console.error('Error uploading Awards CSV:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading Awards CSV file'
+    });
+    }
 });
 
 export default router; 
