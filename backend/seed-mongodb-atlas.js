@@ -42,7 +42,7 @@ async function seedMongoDBAtlas() {
     console.log('👮 Creating officer user...');
     const officerPassword = await bcrypt.hash('officer123', 12);
     const officerUser = new User({
-      name: 'Land Acquisition Officer',
+      name: 'Sunil Deshmukh - Land Acquisition Officer',
       email: 'officer@saralbhoomi.gov.in',
       password: officerPassword,
       role: 'officer',
@@ -65,6 +65,32 @@ async function seedMongoDBAtlas() {
     });
     await fieldOfficerUser.save();
     console.log('✅ Field Officer user created:', fieldOfficerUser.email);
+
+    // Create Additional Field Officers
+    console.log('👷 Creating additional field officers...');
+    const fieldOfficer2Password = await bcrypt.hash('field123', 12);
+    const fieldOfficer2User = new User({
+      name: 'Mahesh Kamble - Field Officer',
+      email: 'field.officer2@saralbhoomi.gov.in',
+      password: fieldOfficer2Password,
+      role: 'field_officer',
+      department: 'Field Operations Department',
+      phone: '+91-9876543217'
+    });
+    await fieldOfficer2User.save();
+    console.log('✅ Field Officer 2 user created:', fieldOfficer2User.email);
+
+    const fieldOfficer3Password = await bcrypt.hash('field123', 12);
+    const fieldOfficer3User = new User({
+      name: 'Priya Sharma - Field Officer',
+      email: 'field.officer3@saralbhoomi.gov.in',
+      password: fieldOfficer3Password,
+      role: 'field_officer',
+      department: 'Field Operations Department',
+      phone: '+91-9876543218'
+    });
+    await fieldOfficer3User.save();
+    console.log('✅ Field Officer 3 user created:', fieldOfficer3User.email);
     
     // Create Project
     console.log('🏗️ Creating demo project...');
@@ -189,7 +215,10 @@ async function seedMongoDBAtlas() {
     console.log('\n🔑 Login Credentials:');
     console.log('Admin: admin@saralbhoomi.gov.in / admin123');
     console.log('Officer: officer@saralbhoomi.gov.in / officer123');
-    console.log('Field Officer: field.officer@saralbhoomi.gov.in / field123');
+    console.log('Field Officers:');
+    console.log('  - field.officer@saralbhoomi.gov.in / field123 (Rajesh Patil)');
+    console.log('  - field.officer2@saralbhoomi.gov.in / field123 (Mahesh Kamble)');
+    console.log('  - field.officer3@saralbhoomi.gov.in / field123 (Priya Sharma)');
     
     console.log('\n🚀 Your MongoDB Atlas database is now ready for development!');
     
