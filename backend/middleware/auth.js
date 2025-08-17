@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import User from '../models/mongo/User.js';
 
 // Enhanced JWT verification with refresh token support
 export const authMiddleware = async (req, res, next) => {
@@ -53,9 +53,7 @@ export const authMiddleware = async (req, res, next) => {
       }
       
       // Get user from token
-      const user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
+      const user = await User.findById(decoded.id).select('-password');
       
       if (!user) {
         // Temporary test user for development when database is not available
@@ -80,7 +78,7 @@ export const authMiddleware = async (req, res, next) => {
       }
 
       // Check if user is active
-      if (!user.isActive) {
+      if (!user.is_active) {
         return res.status(401).json({
           success: false,
           message: 'User account is deactivated',
@@ -175,11 +173,9 @@ export const refreshTokenMiddleware = async (req, res, next) => {
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
       
       // Get user
-      const user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
+      const user = await User.findById(decoded.id).select('-password');
 
-      if (!user || !user.isActive) {
+      if (!user || !user.is_active) {
         return res.status(401).json({
           success: false,
           message: 'Invalid refresh token',
@@ -187,16 +183,16 @@ export const refreshTokenMiddleware = async (req, res, next) => {
         });
       }
 
-      // Generate new access token
-      const newAccessToken = user.getSignedJwtToken();
+      // Generate new access token - TODO: Implement JWT generation
+      // const newAccessToken = user.getSignedJwtToken();
       
-      // Generate new refresh token
-      const newRefreshToken = user.getRefreshToken();
+      // Generate new refresh token - TODO: Implement refresh token generation
+      // const newRefreshToken = user.getRefreshToken();
 
-      req.newTokens = {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-      };
+      // req.newTokens = {
+      //   accessToken: newAccessToken,
+      //   refreshToken: newRefreshToken
+      // };
       
       req.user = user;
       next();
