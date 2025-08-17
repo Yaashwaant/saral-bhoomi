@@ -43,7 +43,7 @@ const landownerRecordSchema = new mongoose.Schema({
   bank_account_holder_name: String,
   kyc_status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected'],
+    enum: ['pending', 'assigned', 'in_progress', 'completed', 'approved', 'rejected'],
     default: 'pending'
   },
   payment_status: {
@@ -65,6 +65,8 @@ const landownerRecordSchema = new mongoose.Schema({
   bank_reference: String,
   assigned_agent: String,
   assigned_at: Date,
+  assignment_notes: String,
+  kyc_notes: String,
   documents: [{
     name: String,
     url: String,
