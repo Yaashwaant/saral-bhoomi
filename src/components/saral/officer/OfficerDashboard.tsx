@@ -27,7 +27,6 @@ import {
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
-import CSVUploadManager from './CSVUploadManager';
 import VillageWiseReports from './VillageWiseReports';
 import KYCApprovalQueue from './KYCApprovalQueue';
 import PaymentInitiation from './PaymentInitiation';
@@ -36,7 +35,7 @@ import SimpleAgentAssignment from './SimpleAgentAssignment';
 // Import new enhanced components
 import EnhancedJMRManager from './EnhancedJMRManager';
 import EnhancedAwardManager from './EnhancedAwardManager';
-import EnhancedNoticeManager from './EnhancedNoticeManager';
+import LandRecordsManager from './LandRecordsManager';
 import EnhancedPaymentManager from './EnhancedPaymentManager';
 import EnhancedDashboard from './EnhancedDashboard';
 import DocumentUploadPortal from './DocumentUploadPortal';
@@ -54,7 +53,6 @@ const OfficerDashboard = () => {
       dashboard: 'भूमि अधिकारी डॅशबोर्ड',
       overview: 'सारांश',
       projects: 'प्रकल्प व्यवस्थापन',
-      csvUpload: 'CSV अपलोड',
       notices: 'नोटीस जनरेटर',
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
@@ -85,12 +83,10 @@ const OfficerDashboard = () => {
       dashboard: 'Land Officer Dashboard',
       overview: 'Overview',
       projects: 'Project Management',
-      csvUpload: 'CSV Upload',
       notices: 'Notice Generator',
       villages: 'Village Reports',
       kycApproval: 'KYC Approval',
       payments: 'Payment Initiation',
-      enhancedNotice: 'Enhanced Notice',
       enhancedPayment: 'Enhanced Payment',
       documentUpload: 'Document Upload',
       totalProjects: 'Total Projects',
@@ -116,12 +112,10 @@ const OfficerDashboard = () => {
       dashboard: 'भूमि अधिकारी डैशबोर्ड',
       overview: 'सारांश',
       projects: 'परियोजना प्रबंधन',
-      csvUpload: 'CSV अपलोड',
       notices: 'नोटिस जनरेटर',
       villages: 'गांव रिपोर्ट',
       kycApproval: 'KYC अनुमोदन',
       payments: 'भुगतान शुरुआत',
-      enhancedNotice: 'एन्हान्स्ड Notice',
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
       totalProjects: 'कुल परियोजनाएं',
@@ -289,12 +283,13 @@ const OfficerDashboard = () => {
               }}>
                 {t.projects}
               </TabsTrigger>
-              <TabsTrigger value="csv" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+              <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
-                {t.csvUpload}
+                <FileText className="h-4 w-4 mr-1" />
+                Land Record Management
               </TabsTrigger>
               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -340,14 +335,6 @@ const OfficerDashboard = () => {
               }}>
                 {t.payments}
               </TabsTrigger>
-              <TabsTrigger value="enhancedNotice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <FileText className="h-4 w-4 mr-1" />
-                {t.enhancedNotice}
-              </TabsTrigger>
               <TabsTrigger value="enhancedPayment" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
@@ -374,8 +361,8 @@ const OfficerDashboard = () => {
               <ProjectManagement />
             </TabsContent>
 
-            <TabsContent value="csv" className="mt-6">
-              <CSVUploadManager />
+            <TabsContent value="landRecords" className="mt-6">
+              <LandRecordsManager />
             </TabsContent>
 
             <TabsContent value="jmr" className="mt-6">
@@ -400,9 +387,6 @@ const OfficerDashboard = () => {
 
             <TabsContent value="payments" className="mt-6">
               <PaymentInitiation />
-            </TabsContent>
-            <TabsContent value="enhancedNotice" className="mt-6">
-              <EnhancedNoticeManager />
             </TabsContent>
             <TabsContent value="enhancedPayment" className="mt-6">
               <EnhancedPaymentManager />
