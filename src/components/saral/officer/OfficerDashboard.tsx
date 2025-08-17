@@ -31,7 +31,6 @@ import CSVUploadManager from './CSVUploadManager';
 import VillageWiseReports from './VillageWiseReports';
 import KYCApprovalQueue from './KYCApprovalQueue';
 import PaymentInitiation from './PaymentInitiation';
-import JmrAwardManager from './JmrAwardManager';
 import NoticeGenerator from './NoticeGenerator';
 import SimpleAgentAssignment from './SimpleAgentAssignment';
 // Import new enhanced components
@@ -56,16 +55,12 @@ const OfficerDashboard = () => {
       overview: 'सारांश',
       projects: 'प्रकल्प व्यवस्थापन',
       csvUpload: 'CSV अपलोड',
-      surveys: 'JMR / Award',
       notices: 'नोटीस जनरेटर',
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
       payments: 'पेमेंट इनिशिएशन',
-      enhancedJMR: 'एन्हान्स्ड JMR',
-      enhancedAward: 'एन्हान्स्ड Award',
       enhancedNotice: 'एन्हान्स्ड Notice',
       enhancedPayment: 'एन्हान्स्ड Payment',
-      enhancedDashboard: 'एन्हान्स्ड Dashboard',
       documentUpload: 'Document Upload',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
@@ -91,16 +86,12 @@ const OfficerDashboard = () => {
       overview: 'Overview',
       projects: 'Project Management',
       csvUpload: 'CSV Upload',
-      surveys: 'JMR / Award',
       notices: 'Notice Generator',
       villages: 'Village Reports',
       kycApproval: 'KYC Approval',
       payments: 'Payment Initiation',
-      enhancedJMR: 'Enhanced JMR',
-      enhancedAward: 'Enhanced Award',
       enhancedNotice: 'Enhanced Notice',
       enhancedPayment: 'Enhanced Payment',
-      enhancedDashboard: 'Enhanced Dashboard',
       documentUpload: 'Document Upload',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
@@ -126,16 +117,12 @@ const OfficerDashboard = () => {
       overview: 'सारांश',
       projects: 'परियोजना प्रबंधन',
       csvUpload: 'CSV अपलोड',
-      surveys: 'JMR / Award',
       notices: 'नोटिस जनरेटर',
       villages: 'गांव रिपोर्ट',
       kycApproval: 'KYC अनुमोदन',
       payments: 'भुगतान शुरुआत',
-      enhancedJMR: 'एन्हान्स्ड JMR',
-      enhancedAward: 'एन्हान्स्ड Award',
       enhancedNotice: 'एन्हान्स्ड Notice',
       enhancedPayment: 'एन्हान्स्ड Payment',
-      enhancedDashboard: 'एन्हान्स्ड Dashboard',
       documentUpload: 'Document Upload',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
@@ -287,13 +274,13 @@ const OfficerDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-14 bg-blue-50">
+            <TabsList className="grid w-full grid-cols-13 bg-blue-50">
               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
-                {t.overview}
+                Dashboard
               </TabsTrigger>
               <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -309,12 +296,21 @@ const OfficerDashboard = () => {
               }}>
                 {t.csvUpload}
               </TabsTrigger>
-              <TabsTrigger value="surveys" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+              <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
               }}>
-                {t.surveys}
+                <Database className="h-4 w-4 mr-1" />
+                JMR
+              </TabsTrigger>
+              <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Award className="h-4 w-4 mr-1" />
+                Award
               </TabsTrigger>
               <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -344,22 +340,6 @@ const OfficerDashboard = () => {
               }}>
                 {t.payments}
               </TabsTrigger>
-              <TabsTrigger value="enhancedJMR" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Database className="h-4 w-4 mr-1" />
-                {t.enhancedJMR}
-              </TabsTrigger>
-              <TabsTrigger value="enhancedAward" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Award className="h-4 w-4 mr-1" />
-                {t.enhancedAward}
-              </TabsTrigger>
               <TabsTrigger value="enhancedNotice" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
@@ -376,14 +356,6 @@ const OfficerDashboard = () => {
                 <Banknote className="h-4 w-4 mr-1" />
                 {t.enhancedPayment}
               </TabsTrigger>
-              <TabsTrigger value="enhancedDashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Hash className="h-4 w-4 mr-1" />
-                {t.enhancedDashboard}
-              </TabsTrigger>
               <TabsTrigger value="documentUpload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
@@ -395,72 +367,7 @@ const OfficerDashboard = () => {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6 mt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Recent Projects */}
-                <Card className="bg-white/70 backdrop-blur-md border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="text-blue-900 flex items-center space-x-2">
-                      <Building2 className="h-5 w-5" />
-                      <span>{t.recentProjects}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {recentProjects.map((project) => (
-                        <div key={project.id} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg">
-                          <div>
-                            <p className="text-sm font-medium text-blue-900">{project.name}</p>
-                            <p className="text-xs text-blue-600">{project.village} • {project.area} {t.hectares}</p>
-                          </div>
-                          {getStatusBadge(project.status)}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Actions */}
-                <Card className="bg-white/70 backdrop-blur-md border-orange-200">
-                  <CardHeader>
-                    <CardTitle className="text-orange-900 flex items-center space-x-2">
-                      <FolderPlus className="h-5 w-5" />
-                      <span>{t.quickActions}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 gap-3">
-                      <Button 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => setActiveTab('projects')}
-                      >
-                        <FolderPlus className="h-4 w-4 mr-2" />
-                        {t.createProject}
-                      </Button>
-                      <Button 
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                        onClick={() => setActiveTab('csv')}
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        {t.uploadCSV}
-                      </Button>
-                      <Button 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => setActiveTab('villages')}
-                      >
-                        <MapPin className="h-4 w-4 mr-2" />
-                        {t.viewVillages}
-                      </Button>
-                      <Button 
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                        onClick={() => setActiveTab('kyc')}
-                      >
-                        <Shield className="h-4 w-4 mr-2" />
-                        {t.approveKYC}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <EnhancedDashboard />
             </TabsContent>
 
             <TabsContent value="projects" className="mt-6">
@@ -471,8 +378,12 @@ const OfficerDashboard = () => {
               <CSVUploadManager />
             </TabsContent>
 
-            <TabsContent value="surveys" className="mt-6">
-              <JmrAwardManager />
+            <TabsContent value="jmr" className="mt-6">
+              <EnhancedJMRManager />
+            </TabsContent>
+
+            <TabsContent value="award" className="mt-6">
+              <EnhancedAwardManager />
             </TabsContent>
 
             <TabsContent value="notices" className="mt-6">
@@ -490,20 +401,11 @@ const OfficerDashboard = () => {
             <TabsContent value="payments" className="mt-6">
               <PaymentInitiation />
             </TabsContent>
-            <TabsContent value="enhancedJMR" className="mt-6">
-              <EnhancedJMRManager />
-            </TabsContent>
-            <TabsContent value="enhancedAward" className="mt-6">
-              <EnhancedAwardManager />
-            </TabsContent>
             <TabsContent value="enhancedNotice" className="mt-6">
               <EnhancedNoticeManager />
             </TabsContent>
             <TabsContent value="enhancedPayment" className="mt-6">
               <EnhancedPaymentManager />
-            </TabsContent>
-            <TabsContent value="enhancedDashboard" className="mt-6">
-              <EnhancedDashboard />
             </TabsContent>
             <TabsContent value="documentUpload" className="mt-6">
               <DocumentUploadPortal />
