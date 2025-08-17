@@ -170,9 +170,14 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), asy
     const currentDocuments = Array.isArray(landownerRecord.documents) ? landownerRecord.documents : [];
     const updatedDocuments = [...currentDocuments, newDocument];
 
-    await MongoLandownerRecord.findByIdAndUpdate(landownerRecord._id, {
-      documents: updatedDocuments
-    });
+    console.log('🔍 Updating landowner record with ID:', landownerRecord._id);
+    console.log('🔍 Landowner record type:', typeof landownerRecord._id);
+
+    // Use updateOne instead of findByIdAndUpdate to avoid ObjectId casting issues
+    await MongoLandownerRecord.updateOne(
+      { _id: landownerRecord._id },
+      { documents: updatedDocuments }
+    );
 
     console.log('💾 Document saved to MongoDB for survey:', survey_number);
 
@@ -285,9 +290,14 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
     const currentDocuments = Array.isArray(landownerRecord.documents) ? landownerRecord.documents : [];
     const updatedDocuments = [...currentDocuments, newDocument];
 
-    await MongoLandownerRecord.findByIdAndUpdate(landownerRecord._id, {
-      documents: updatedDocuments
-    });
+    console.log('🔍 Updating landowner record with ID:', landownerRecord._id);
+    console.log('🔍 Landowner record type:', typeof landownerRecord._id);
+
+    // Use updateOne instead of findByIdAndUpdate to avoid ObjectId casting issues
+    await MongoLandownerRecord.updateOne(
+      { _id: landownerRecord._id },
+      { documents: updatedDocuments }
+    );
 
     console.log('💾 Field Officer document saved to MongoDB for survey:', survey_number);
 
