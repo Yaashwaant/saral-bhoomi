@@ -135,7 +135,7 @@ const FieldOfficerDashboard: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/documents/field-upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'demo-jwt-token'}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
         },
         body: formData
       });
@@ -173,7 +173,7 @@ const FieldOfficerDashboard: React.FC = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'demo-jwt-token'}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
         },
         body: JSON.stringify({
           kyc_status: kycStatus,
@@ -213,7 +213,7 @@ const FieldOfficerDashboard: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || 'demo-jwt-token'}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || 'demo-jwt-token'}`
         },
         body: JSON.stringify({
           survey_number: surveyNumber,

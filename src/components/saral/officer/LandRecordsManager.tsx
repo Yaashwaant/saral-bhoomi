@@ -99,7 +99,7 @@ const LandRecordsManager: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
           ...landRecordForm,
@@ -159,7 +159,7 @@ const LandRecordsManager: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/landowners/upload-csv`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: formData
       });
