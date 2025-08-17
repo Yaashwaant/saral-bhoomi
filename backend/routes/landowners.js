@@ -12,6 +12,76 @@ const router = express.Router();
 // Configure multer for CSV uploads
 const upload = multer({ dest: 'uploads/' });
 
+// @desc    Get all landowner records
+// @route   GET /api/landowners/list
+// @access  Public (for now)
+router.get('/list', async (req, res) => {
+  try {
+    const records = await MongoLandownerRecord.find({ is_active: true })
+      .populate('created_by', 'name email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: records.length,
+      records: records.map(record => ({
+        id: record._id,
+        survey_number: record.survey_number,
+        landowner_name: record.landowner_name,
+        area: record.area,
+        acquired_area: record.acquired_area,
+        rate: record.rate,
+        total_compensation: record.total_compensation,
+        solatium: record.solatium,
+        final_amount: record.final_amount,
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district,
+        contact_phone: record.contact_phone,
+        contact_email: record.contact_email,
+        contact_address: record.contact_address,
+        is_tribal: record.is_tribal,
+        tribal_certificate_no: record.tribal_certificate_no,
+        tribal_lag: record.tribal_lag,
+        bank_account_number: record.bank_account_number,
+        bank_ifsc_code: record.bank_ifsc_code,
+        bank_name: record.bank_name,
+        bank_branch_name: record.bank_branch_name,
+        bank_account_holder_name: record.bank_account_holder_name,
+        kyc_status: record.kyc_status,
+        payment_status: record.payment_status,
+        notice_generated: record.notice_generated,
+        notice_number: record.notice_number,
+        notice_date: record.notice_date,
+        notice_content: record.notice_content,
+        kyc_completed_at: record.kyc_completed_at,
+        kyc_completed_by: record.kyc_completed_by,
+        payment_initiated_at: record.payment_initiated_at,
+        payment_completed_at: record.payment_completed_at,
+        bank_reference: record.bank_reference,
+        assigned_agent: record.assigned_agent,
+        assigned_at: record.assigned_at,
+        documents: record.documents,
+        notes: record.notes,
+        is_active: record.is_active,
+        created_by: record.created_by ? {
+          id: record.created_by._id,
+          name: record.created_by.name,
+          email: record.created_by.email
+        } : null,
+        created_at: record.createdAt,
+        updated_at: record.updatedAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching landowner records:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching landowner records'
+    });
+  }
+});
+
 // @desc    Get landowner records by project
 // @route   GET /api/landowners/:projectId
 // @access  Public (for now)
@@ -344,151 +414,6 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
     res.status(500).json({
       success: false,
       message: 'Error uploading CSV file'
-    });
-  }
-});
-
-// @desc    Get all landowner records
-// @route   GET /api/landowners/list
-// @access  Public (for now)
-router.get('/list', async (req, res) => {
-  try {
-    const records = await MongoLandownerRecord.find({ is_active: true })
-      .populate('created_by', 'name email')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: records.length,
-      records: records.map(record => ({
-        id: record._id,
-        survey_number: record.survey_number,
-        landowner_name: record.landowner_name,
-        area: record.area,
-        acquired_area: record.acquired_area,
-        rate: record.rate,
-        total_compensation: record.total_compensation,
-        solatium: record.solatium,
-        final_amount: record.final_amount,
-        village: record.village,
-        taluka: record.taluka,
-        district: record.district,
-        contact_phone: record.contact_phone,
-        contact_email: record.contact_email,
-        contact_address: record.contact_address,
-        is_tribal: record.is_tribal,
-        tribal_certificate_no: record.tribal_certificate_no,
-        tribal_lag: record.tribal_lag,
-        bank_account_number: record.bank_account_number,
-        bank_ifsc_code: record.bank_ifsc_code,
-        bank_name: record.bank_name,
-        bank_branch_name: record.bank_branch_name,
-        bank_account_holder_name: record.bank_account_holder_name,
-        kyc_status: record.kyc_status,
-        payment_status: record.payment_status,
-        notice_generated: record.notice_generated,
-        notice_number: record.notice_number,
-        notice_date: record.notice_date,
-        notice_content: record.notice_content,
-        kyc_completed_at: record.kyc_completed_at,
-        kyc_completed_by: record.kyc_completed_by,
-        payment_initiated_at: record.payment_initiated_at,
-        payment_completed_at: record.payment_completed_at,
-        bank_reference: record.bank_reference,
-        assigned_agent: record.assigned_agent,
-        assigned_at: record.assigned_at,
-        documents: record.documents,
-        notes: record.notes,
-        is_active: record.is_active,
-        created_by: record.created_by ? {
-          id: record.created_by._id,
-          name: record.created_by.name,
-          email: record.created_by.email
-        } : null,
-        created_at: record.createdAt,
-        updated_at: record.updatedAt
-      }))
-    });
-  } catch (error) {
-    console.error('Error fetching landowner records:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching landowner records'
-    });
-  }
-});
-
-// @desc    Get landowner record by ID
-// @route   GET /api/landowners/:id
-// @access  Public (for now)
-router.get('/:id', async (req, res) => {
-  try {
-    const record = await MongoLandownerRecord.findById(req.params.id)
-      .populate('created_by', 'name email');
-
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: 'Landowner record not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      record: {
-        id: record._id,
-        survey_number: record.survey_number,
-        landowner_name: record.landowner_name,
-        area: record.area,
-        acquired_area: record.acquired_area,
-        rate: record.rate,
-        total_compensation: record.total_compensation,
-        solatium: record.solatium,
-        final_amount: record.final_amount,
-        village: record.village,
-        taluka: record.taluka,
-        district: record.district,
-        contact_phone: record.contact_phone,
-        contact_email: record.contact_email,
-        contact_address: record.contact_address,
-        is_tribal: record.is_tribal,
-        tribal_certificate_no: record.tribal_certificate_no,
-        tribal_lag: record.tribal_lag,
-        bank_account_number: record.bank_account_number,
-        bank_ifsc_code: record.bank_ifsc_code,
-        bank_name: record.bank_name,
-        bank_branch_name: record.bank_branch_name,
-        bank_account_holder_name: record.bank_account_holder_name,
-        kyc_status: record.kyc_status,
-        payment_status: record.payment_status,
-        notice_generated: record.notice_generated,
-        notice_number: record.notice_number,
-        notice_date: record.notice_date,
-        notice_content: record.notice_content,
-        kyc_completed_at: record.kyc_completed_at,
-        kyc_completed_by: record.kyc_completed_by,
-        payment_initiated_at: record.payment_initiated_at,
-        payment_completed_at: record.payment_completed_at,
-        bank_reference: record.bank_reference,
-        assigned_agent: record.assigned_agent,
-        assigned_at: record.assigned_at,
-        documents: record.documents,
-        notes: record.notes,
-        is_active: record.is_active,
-        created_by: record.created_by ? {
-          id: record.created_by._id,
-          name: record.created_by.name,
-          email: record.created_by.email
-        } : null,
-        created_at: record.createdAt,
-        updated_at: record.updatedAt
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching landowner record:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching landowner record'
     });
   }
 });

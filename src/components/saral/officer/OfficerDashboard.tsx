@@ -28,7 +28,7 @@ import {
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
 import VillageWiseReports from './VillageWiseReports';
-import KYCApprovalQueue from './KYCApprovalQueue';
+import KYCAssignmentManager from './KYCAssignmentManager';
 import PaymentInitiation from './PaymentInitiation';
 import NoticeGenerator from './NoticeGenerator';
 import SimpleAgentAssignment from './SimpleAgentAssignment';
@@ -390,7 +390,7 @@ const OfficerDashboard = () => {
             </TabsContent>
 
             <TabsContent value="kyc" className="mt-6">
-              <KYCApprovalQueue />
+              <KYCAssignmentManager />
             </TabsContent>
 
             <TabsContent value="payments" className="mt-6">
