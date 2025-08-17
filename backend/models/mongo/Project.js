@@ -63,7 +63,7 @@ const projectSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   description: String,
   documents: [{
