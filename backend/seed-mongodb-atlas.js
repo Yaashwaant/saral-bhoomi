@@ -51,6 +51,20 @@ async function seedMongoDBAtlas() {
     });
     await officerUser.save();
     console.log('✅ Officer user created:', officerUser.email);
+
+    // Create Field Officer User
+    console.log('👷 Creating field officer user...');
+    const fieldOfficerPassword = await bcrypt.hash('field123', 12);
+    const fieldOfficerUser = new User({
+      name: 'Rajesh Patil - Field Officer',
+      email: 'field.officer@saralbhoomi.gov.in',
+      password: fieldOfficerPassword,
+      role: 'field_officer',
+      department: 'Field Operations Department',
+      phone: '+91-9876543216'
+    });
+    await fieldOfficerUser.save();
+    console.log('✅ Field Officer user created:', fieldOfficerUser.email);
     
     // Create Project
     console.log('🏗️ Creating demo project...');
@@ -131,7 +145,7 @@ async function seedMongoDBAtlas() {
         district: "नागपूर",
         contact_phone: "+91-9876543214",
         contact_email: "ajay.thakur@email.com",
-        kyc_status: "pending",
+        kyc_status: "assigned",
         payment_status: "pending",
         is_tribal: true,
         is_active: true
@@ -150,7 +164,7 @@ async function seedMongoDBAtlas() {
         district: "नागपूर",
         contact_phone: "+91-9876543215",
         contact_email: "meena.verma@email.com",
-        kyc_status: "approved",
+        kyc_status: "assigned",
         payment_status: "pending",
         is_tribal: false,
         is_active: true
@@ -175,6 +189,7 @@ async function seedMongoDBAtlas() {
     console.log('\n🔑 Login Credentials:');
     console.log('Admin: admin@saralbhoomi.gov.in / admin123');
     console.log('Officer: officer@saralbhoomi.gov.in / officer123');
+    console.log('Field Officer: field.officer@saralbhoomi.gov.in / field123');
     
     console.log('\n🚀 Your MongoDB Atlas database is now ready for development!');
     
