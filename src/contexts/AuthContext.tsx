@@ -145,6 +145,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      console.log('🔐 Attempting login for:', email);
+      
       // Connect to backend API
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
@@ -154,14 +156,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('📡 Backend response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Backend response data:', data);
         
         if (data.success && data.accessToken) {
+          console.log('✅ Login successful, processing user data...');
+          
           // Store the JWT token
           localStorage.setItem('authToken', data.accessToken);
           
-          // Decode user info from token or use the user data from response
+          // Extract user info from response
           const userData = {
             id: data.user?.id || 'demo-id',
             name: data.user?.name || 'Demo User',
@@ -172,34 +179,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             language: 'marathi' as const
           };
           
+          console.log('👤 Processed user data:', userData);
+          
           setUser(userData);
           localStorage.setItem('saral_user', JSON.stringify(userData));
+          
+          console.log('💾 User data stored in state and localStorage');
           return true;
+        } else {
+          console.log('❌ Backend response indicates failure:', data);
         }
+      } else {
+        console.log('❌ Backend request failed with status:', response.status);
       }
       
       // Fallback to demo users if API fails
+      console.log('🔄 Falling back to demo users...');
       const foundUser = demoUsers.find(u => u.email === email);
+      console.log('🔍 Found demo user:', foundUser);
+      
       if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+        console.log('✅ Demo user authentication successful');
         setUser(foundUser);
         localStorage.setItem('saral_user', JSON.stringify(foundUser));
         localStorage.setItem('authToken', 'demo-jwt-token');
         return true;
       }
       
+      console.log('❌ No valid demo user found');
       return false;
     } catch (error) {
       console.error('Login error:', error);
       
       // Fallback to demo users if API fails
+      console.log('🔄 Falling back to demo users after error...');
       const foundUser = demoUsers.find(u => u.email === email);
+      console.log('🔍 Found demo user:', foundUser);
+      
       if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+        console.log('✅ Demo user authentication successful after error');
         setUser(foundUser);
         localStorage.setItem('saral_user', JSON.stringify(foundUser));
         localStorage.setItem('authToken', 'demo-jwt-token');
         return true;
       }
       
+      console.log('❌ No valid demo user found after error');
       return false;
     }
   };
