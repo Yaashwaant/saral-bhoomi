@@ -57,9 +57,11 @@ const OfficerDashboard = () => {
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
       payments: 'पेमेंट इनिशिएशन',
-      enhancedNotice: 'एन्हान्स्ड Notice',
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
+      landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -89,6 +91,9 @@ const OfficerDashboard = () => {
       payments: 'Payment Initiation',
       enhancedPayment: 'Enhanced Payment',
       documentUpload: 'Document Upload',
+      landRecordsManagement: 'Land Records Management',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -118,6 +123,9 @@ const OfficerDashboard = () => {
       payments: 'भुगतान शुरुआत',
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
+      landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -289,7 +297,7 @@ const OfficerDashboard = () => {
                 letterSpacing: '0.2px'
               }}>
                 <FileText className="h-4 w-4 mr-1" />
-                Land Record Management
+                {t.landRecordsManagement}
               </TabsTrigger>
               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -297,7 +305,7 @@ const OfficerDashboard = () => {
                 letterSpacing: '0.2px'
               }}>
                 <Database className="h-4 w-4 mr-1" />
-                JMR
+                {t.jmr}
               </TabsTrigger>
               <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -305,7 +313,7 @@ const OfficerDashboard = () => {
                 letterSpacing: '0.2px'
               }}>
                 <Award className="h-4 w-4 mr-1" />
-                Award
+                {t.award}
               </TabsTrigger>
               <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",

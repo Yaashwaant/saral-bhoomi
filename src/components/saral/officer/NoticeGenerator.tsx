@@ -258,6 +258,53 @@ const NoticeGenerator: React.FC = () => {
     loadExistingNotices();
   }, [selectedProject]);
 
+  // Load land records from the new API
+  useEffect(() => {
+    const loadLandRecords = async () => {
+      if (!selectedProject) return;
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data) {
+            // Transform the land records to match the expected format
+            const transformedRecords = data.data.map((record: any) => ({
+              id: record._id || record.id,
+              'स.नं./हि.नं./ग.नं.': record.survey_number,
+              'खातेदाराचे_नांव': record.landowner_name,
+              'गांव': record.village,
+              'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
+              'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
+              isTribal: record.is_tribal,
+              tribalCertificateNo: record.tribal_certificate_no,
+              tribalLag: record.tribal_lag,
+              noticeGenerated: record.notice_generated,
+              projectId: selectedProject
+            }));
+            setFilteredRecords(transformedRecords);
+          }
+        } else {
+          console.log('No land records found, falling back to landowner records');
+          // Fallback to existing landowner records
+          const projectRecords = landownerRecords.filter(r => 
+            String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
+          );
+          setFilteredRecords(projectRecords);
+        }
+      } catch (error) {
+        console.error('Error loading land records:', error);
+        // Fallback to existing landowner records
+        const projectRecords = landownerRecords.filter(r => 
+          String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
+        );
+        setFilteredRecords(projectRecords);
+      }
+    };
+
+    loadLandRecords();
+  }, [selectedProject, landownerRecords]);
+
   // Fallback: derive generated notices directly from landowner records (updated by CSV ingest)
   useEffect(() => {
     if (!selectedProject) { return; }
@@ -297,10 +344,17 @@ const NoticeGenerator: React.FC = () => {
       let filtered = projectRecords;
 
       if (searchTerm) {
-        filtered = filtered.filter(record => {
-          const surveyMatch = record['स.नं./हि.नं./ग.नं.']?.toLowerCase().includes(searchTerm.toLowerCase());
-          const ownerMatch = record['खातेदाराचे_नांव']?.toLowerCase().includes(searchTerm.toLowerCase());
-          const villageMatch = record['गांव']?.toLowerCase().includes(searchTerm.toLowerCase());
+        filtered = filtered.filter((record: any) => {
+          // Support both new land records structure and old CSV format
+          const surveyMatch = (
+            safeField(record, 'स.नं./हि.नं./ग.नं.').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          const ownerMatch = (
+            safeField(record, 'खातेदाराचे_नांव').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          const villageMatch = (
+            safeField(record, 'गांव').toLowerCase().includes(searchTerm.toLowerCase())
+          );
           
           console.log('Search filtering:', {
             searchTerm,
@@ -308,9 +362,9 @@ const NoticeGenerator: React.FC = () => {
             ownerMatch,
             villageMatch,
             record: {
-              survey: record['स.नं./हि.नं./ग.नं.'],
-              owner: record['खातेदाराचे_नांव'],
-              village: record['गांव']
+              survey: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+              owner: safeField(record, 'खातेदाराचे_नांव'),
+              village: safeField(record, 'गांव')
             }
           });
           
@@ -388,71 +442,34 @@ const NoticeGenerator: React.FC = () => {
   const safeField = (record: any, fieldName: string) => {
     // Define field mappings between old and new formats
     const fieldMappings: { [key: string]: string[] } = {
-      'खातेदाराचे_नांव': ['खातेदाराचे_नांव'],
-      'स.नं./हि.नं./ग.नं.': ['स.नं./हि.नं./ग.नं.', 'सर्वे_नं'],
+      'खातेदाराचे_नांव': ['खातेदाराचे_नांव', 'landowner_name'],
+      'स.नं./हि.नं./ग.नं.': ['स.नं./हि.नं./ग.नं.', 'सर्वे_नं', 'survey_number'],
       'गांव': ['गांव', 'village'],
-      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र'],
+      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र', 'area'],
       'संपादित_जमिनीचे_क्षेत्र': ['संपादित_जमिनीचे_क्षेत्र', 'संपादित_क्षेत्र'],
       'जमिनीचा_प्रकार': ['जमिनीचा_प्रकार'],
       'जमिनीचा_प्रकार_शेती_बिनशेती': ['जमिनीचा_प्रकार_शेती_बिनशेती'],
-      'मंजुर_केलेला_दर': ['मंजुर_केलेला_दर', 'दर'],
+      'मंजुर_केलेला_दर': ['मंजुर_केलेला_दर', 'दर', 'rate'],
       'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य': ['संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य'],
       'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक': ['कलम_26_2_नुसार_गावास_लागु_असलेले_गणक'],
-      'कलम_26_नुसार_जमिनीचा_मोबदला': ['कलम_26_नुसार_जमिनीचा_मोबदला'],
-      'बांधकामे_रक्कम': ['बांधकामे_रक्कम', 'संरचना_झाडे_विहिरी_रक्कम'],
-      'वनझाडे_रक्कम': ['वनझाडे_रक्कम'],
-      'फळझाडे_रक्कम': ['फळझाडे_रक्कम'],
-      'विहिरी_रक्कम': ['विहिरी_रक्कम'],
-      'एकुण_रक्कम_13_15_17_19': ['एकुण_रक्कम_13_15_17_19'],
-      'एकुण_रक्कम_11_20': ['एकुण_रक्कम_11_20'],
-      'सोलेशियम_100': ['सोलेशियम_100'],
-      'निर्धारित_मोबदला': ['निर्धारित_मोबदला'],
-      'एकुण_रक्कमेवर_25_वाढीव_मोबदला': ['एकुण_रक्कमेवर_25_वाढीव_मोबदला'],
-      'एकुण_मोबदला': ['एकुण_मोबदला', 'एकूण_मोबदला'],
-      'वजावट_रक्कम': ['वजावट_रक्कम'],
-      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम', 'अंतिम_रक्कम']
+      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम', 'total_compensation'],
+      'tribal_certificate_no': ['tribal_certificate_no', 'tribalCertificateNo'],
+      'tribal_lag': ['tribal_lag', 'tribalLag'],
+      'is_tribal': ['is_tribal', 'isTribal'],
+      'notice_generated': ['notice_generated', 'noticeGenerated']
     };
 
-    // Try all possible field names for this field
-    const possibleFields = fieldMappings[fieldName] || [fieldName];
-    let value = undefined;
-    let matchedField = '';
-
-    for (const possibleField of possibleFields) {
-      if (record[possibleField] !== undefined && record[possibleField] !== null && record[possibleField] !== '') {
-        value = record[possibleField];
-        matchedField = possibleField;
-        break;
+    // Check if the field name is in our mappings
+    if (fieldMappings[fieldName]) {
+      for (const mappedField of fieldMappings[fieldName]) {
+        if (record[mappedField] !== undefined && record[mappedField] !== null && record[mappedField] !== '') {
+          return record[mappedField];
+        }
       }
     }
 
-    // If still not found, try fuzzy matching
-    if (value === undefined || value === null) {
-      const keys = Object.keys(record);
-      const matchingKey = keys.find(key => 
-        key.trim() === fieldName.trim() || 
-        key.replace(/\s+/g, '') === fieldName.replace(/\s+/g, '') ||
-        key.includes(fieldName.split('_')[0])
-      );
-      
-      if (matchingKey) {
-        value = record[matchingKey];
-        matchedField = matchingKey;
-      }
-    }
-    
-    if (value === undefined || value === null || value === '') {
-      console.warn(`Field ${fieldName} not found. Tried: ${possibleFields.join(', ')}. Available keys:`, Object.keys(record));
-      return '';
-    }
-    
-    if (matchedField !== fieldName) {
-      console.log(`Field mapping: ${fieldName} -> ${matchedField} = ${value}`);
-    }
-    
-    // Clean up the value (remove quotes if present)
-    const cleanValue = typeof value === 'string' ? value.replace(/^"|"$/g, '') : value;
-    return cleanValue;
+    // Direct field access as fallback
+    return record[fieldName] || '';
   };
 
   const safeNumericField = (record: any, fieldName: string) => {
