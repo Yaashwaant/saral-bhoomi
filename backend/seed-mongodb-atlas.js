@@ -94,7 +94,9 @@ async function seedMongoDBAtlas() {
         contact_phone: "+91-9876543212",
         contact_email: "ram.patil@email.com",
         kyc_status: "approved",
-        payment_status: "completed"
+        payment_status: "completed",
+        is_tribal: false,
+        is_active: true
       },
       {
         survey_number: "123/2",
@@ -111,7 +113,9 @@ async function seedMongoDBAtlas() {
         contact_phone: "+91-9876543213",
         contact_email: "sunita.sharma@email.com",
         kyc_status: "approved",
-        payment_status: "initiated"
+        payment_status: "initiated",
+        is_tribal: false,
+        is_active: true
       },
       {
         survey_number: "124/1",
@@ -128,7 +132,9 @@ async function seedMongoDBAtlas() {
         contact_phone: "+91-9876543214",
         contact_email: "ajay.thakur@email.com",
         kyc_status: "pending",
-        payment_status: "pending"
+        payment_status: "pending",
+        is_tribal: true,
+        is_active: true
       },
       {
         survey_number: "125/1",
@@ -145,12 +151,17 @@ async function seedMongoDBAtlas() {
         contact_phone: "+91-9876543215",
         contact_email: "meena.verma@email.com",
         kyc_status: "approved",
-        payment_status: "pending"
+        payment_status: "pending",
+        is_tribal: false,
+        is_active: true
       }
     ];
     
     for (const recordData of landownerRecords) {
-      const record = new LandownerRecord(recordData);
+      const record = new LandownerRecord({
+        ...recordData,
+        project_id: demoProject._id
+      });
       await record.save();
       console.log(`✅ Landowner record created: ${record.landowner_name} (${record.survey_number})`);
     }

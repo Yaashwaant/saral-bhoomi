@@ -1,10 +1,14 @@
 import mongoose from 'mongoose';
 
 const landownerRecordSchema = new mongoose.Schema({
+  project_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    required: true
+  },
   survey_number: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   landowner_name: {
     type: String,
@@ -80,7 +84,8 @@ const landownerRecordSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for better query performance (survey_number index is automatically created by unique: true)
+// Indexes for better query performance
+landownerRecordSchema.index({ project_id: 1, survey_number: 1 }, { unique: true });
 landownerRecordSchema.index({ village: 1, taluka: 1, district: 1 });
 landownerRecordSchema.index({ kyc_status: 1 });
 landownerRecordSchema.index({ payment_status: 1 });
