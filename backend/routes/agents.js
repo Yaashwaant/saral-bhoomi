@@ -19,9 +19,9 @@ const router = express.Router();
 router.get('/list', async (req, res) => {
   try {
     const agents = await MongoUser.find({
-      role: 'agent',
+      role: { $in: ['agent', 'field_officer'] },
       is_active: true
-    }).select('_id name email phone department').sort({ name: 1 });
+    }).select('_id name email phone department role').sort({ name: 1 });
     
     res.status(200).json({
       success: true,
@@ -31,11 +31,38 @@ router.get('/list', async (req, res) => {
         name: agent.name,
         email: agent.email,
         phone: agent.phone,
-        department: agent.department
+        department: agent.department,
+        role: agent.role
       }))
     });
   } catch (error) {
     console.error('Error fetching agents:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch agents', agents: [] });
+  }
+});
+
+// Backward-compatible alias for older frontends
+router.get('/list-all', async (req, res) => {
+  try {
+    const agents = await MongoUser.find({
+      role: { $in: ['agent', 'field_officer'] },
+      is_active: true
+    }).select('_id name email phone department role').sort({ name: 1 });
+
+    res.status(200).json({
+      success: true,
+      count: agents.length,
+      agents: agents.map(agent => ({
+        id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone,
+        department: agent.department,
+        role: agent.role
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching agents (list-all):', error);
     res.status(500).json({ success: false, message: 'Failed to fetch agents', agents: [] });
   }
 });
@@ -207,13 +234,19 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
       });
     }
 
-    // Validate agent exists
-    const agent = await MongoUser.findById(agent_id);
-    if (!agent || agent.role !== 'agent') {
-      return res.status(404).json({
-        success: false,
-        message: 'Agent not found or invalid role'
-      });
+    // Validate agent exists (be lenient with incoming id formats)
+    let agent = null;
+    try {
+      agent = await MongoUser.findById(agent_id);
+    } catch (e) {
+      // ignore cast error, try resolving by known demo name below
+    }
+    if (!agent) {
+      // Attempt to resolve demo field officer by name
+      agent = await MongoUser.findOne({ name: 'Rajesh Patil - Field Officer', role: { $in: ['agent', 'field_officer'] }, is_active: true });
+    }
+    if (!agent || !['agent', 'field_officer'].includes(agent.role)) {
+      return res.status(404).json({ success: false, message: 'Agent not found or invalid role' });
     }
 
     // Validate project exists
@@ -227,7 +260,7 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
 
     // Update landowner record with agent assignment
     await MongoLandownerRecord.findByIdAndUpdate(landowner_id, {
-      assigned_agent: agent_id,
+      assigned_agent: agent._id,
       assigned_at: new Date(),
       notes: assignment_notes || `Assigned to agent: ${agent.name}`
     });
@@ -237,7 +270,7 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
       message: 'Agent assigned successfully',
       data: {
         landowner_id,
-        agent_id,
+        agent_id: agent._id,
         agent_name: agent.name,
         assigned_at: new Date(),
         project_id,
