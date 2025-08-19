@@ -357,41 +357,35 @@ router.get('/', async (req, res) => {
     if (status) whereClause.status = status;
     if (search) {
       whereClause.$or = [
-        { survey_number: { $ilike: `%${search}%` } },
-        { landowner_id: { $ilike: `%${search}%` } },
-        { village: { $ilike: `%${search}%` } },
-        { taluka: { $ilike: `%${search}%` } },
-        { district: { $ilike: `%${search}%` } }
+        { survey_number: { $regex: search, $options: 'i' } },
+        { landowner_id: { $regex: search, $options: 'i' } },
+        { village: { $regex: search, $options: 'i' } },
+        { taluka: { $regex: search, $options: 'i' } },
+        { district: { $regex: search, $options: 'i' } }
       ];
     }
 
-    const { count, rows: jmrRecords } = await MongoJMRRecord.findAndCountAll({
-      where: whereClause,
-      include: [
-        {
-          model: MongoProject,
-          attributes: ['name', 'description']
-        }
-      ],
-      order: [['created_at', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
+    // Use MongoDB methods instead of Sequelize methods
+    const jmrRecords = await MongoJMRRecord.find(whereClause)
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .populate('project_id', 'name description');
+
+    const count = await MongoJMRRecord.countDocuments(whereClause);
 
     // Get blockchain verification status for each record
     const recordsWithBlockchain = await Promise.all(
       jmrRecords.map(async (record) => {
-        const blockchainEntries = await MongoBlockchainLedger.findAll({
-          where: { 
-            survey_number: record.survey_number,
-            event_type: 'JMR_Measurement_Uploaded'
-          },
-          order: [['timestamp', 'DESC']],
-          limit: 1
-        });
+        const blockchainEntries = await MongoBlockchainLedger.find({ 
+          survey_number: record.survey_number,
+          event_type: 'JMR_Measurement_Uploaded'
+        })
+        .sort({ timestamp: -1 })
+        .limit(1);
 
         return {
-          ...record.toJSON(),
+          ...record.toObject(),
           blockchain_verified: blockchainEntries.length > 0,
           blockchain_hash: blockchainEntries[0]?.current_hash || null,
           blockchain_timestamp: blockchainEntries[0]?.timestamp || null
@@ -426,14 +420,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const jmrRecord = await MongoJMRRecord.findByPk(id, {
-      include: [
-        {
-          model: MongoProject,
-          attributes: ['name', 'description']
-        }
-      ]
-    });
+    const jmrRecord = await MongoJMRRecord.findById(id).populate('project_id', 'name description');
 
     if (!jmrRecord) {
       return res.status(404).json({
@@ -443,10 +430,9 @@ router.get('/:id', async (req, res) => {
     }
 
     // Get blockchain history for this survey number
-    const blockchainHistory = await MongoBlockchainLedger.findAll({
-      where: { survey_number: jmrRecord.survey_number },
-      order: [['timestamp', 'ASC']]
-    });
+    const blockchainHistory = await MongoBlockchainLedger.find({ 
+      survey_number: jmrRecord.survey_number 
+    }).sort({ timestamp: 1 });
 
     res.json({
       success: true,
@@ -472,7 +458,7 @@ router.put('/:id', validateJMR, async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    const jmrRecord = await MongoJMRRecord.findByPk(id);
+    const jmrRecord = await MongoJMRRecord.findById(id);
     if (!jmrRecord) {
       return res.status(404).json({
         success: false,
@@ -481,10 +467,10 @@ router.put('/:id', validateJMR, async (req, res) => {
     }
 
     // Store old values for blockchain logging
-    const oldValues = { ...jmrRecord.toJSON() };
+    const oldValues = { ...jmrRecord.toObject() };
 
     // Update JMR record
-    await jmrRecord.update(updateData);
+    await MongoJMRRecord.findByIdAndUpdate(id, updateData, { new: true });
 
     // Create blockchain entry for the update using enhanced service
     try {
@@ -540,7 +526,7 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    const jmrRecord = await MongoJMRRecord.findByPk(id);
+    const jmrRecord = await MongoJMRRecord.findById(id);
     if (!jmrRecord) {
       return res.status(404).json({
         success: false,
@@ -577,10 +563,10 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Soft delete the record
-    await jmrRecord.update({ 
+    await MongoJMRRecord.findByIdAndUpdate(id, { 
       is_active: false,
       deleted_at: new Date()
-    });
+    }, { new: true });
 
     res.json({
       success: true,
@@ -613,11 +599,9 @@ router.post('/bulk-sync', async (req, res) => {
     const { project_id, officer_id = 1 } = req.body;
 
     // Get all JMR records that don't have blockchain entries
-    const jmrRecords = await MongoJMRRecord.findAll({
-      where: {
-        is_active: true,
-        ...(project_id && { project_id })
-      }
+    const jmrRecords = await MongoJMRRecord.find({
+      is_active: true,
+      ...(project_id && { project_id })
     });
 
     if (jmrRecords.length === 0) {
@@ -636,10 +620,8 @@ router.post('/bulk-sync', async (req, res) => {
       try {
         // Check if blockchain entry already exists
         const existingBlockchainEntry = await MongoBlockchainLedger.findOne({
-          where: {
-            survey_number: jmrRecord.survey_number,
-            event_type: 'JMR_Measurement_Uploaded'
-          }
+          survey_number: jmrRecord.survey_number,
+          event_type: 'JMR_Measurement_Uploaded'
         });
 
         if (existingBlockchainEntry) {
