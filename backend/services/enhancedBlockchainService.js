@@ -59,8 +59,12 @@ class EnhancedBlockchainService {
       this.contract = new ethers.Contract(contractInfo.address, contractABI, this.wallet);
       console.log('📜 Enhanced smart contract initialized');
 
-      // Set up event polling
-      await this.setupEventPolling();
+      // Set up event polling only if contract is deployed
+      if (this.contract && this.contract.target) {
+        await this.setupEventPolling();
+      } else {
+        console.log('⚠️ Contract not deployed, skipping event polling setup');
+      }
 
       this.isInitialized = true;
       console.log('✅ Enhanced blockchain service initialized successfully');
@@ -133,28 +137,57 @@ class EnhancedBlockchainService {
       if (!this.provider || !this.contract) return;
 
       const currentBlock = await this.provider.getBlockNumber();
-      const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - 1000);
-
-      if (fromBlock > currentBlock) return;
-
-      const logs = await this.provider.getLogs({
-        address: this.contract.target,
-        fromBlock,
-        toBlock: currentBlock
-      });
-
-      for (const log of logs) {
-        try {
-          const decodedLog = this.contract.interface.parseLog(log);
-          if (decodedLog && decodedLog.name) {
-            await this.processBlockchainEvent(decodedLog, log);
-          }
-        } catch (parseError) {
-          console.warn('⚠️ Failed to parse log:', parseError.message);
-        }
+      
+      // Initialize lastProcessedBlock if it's 0 (first run)
+      if (this.lastProcessedBlock === 0) {
+        this.lastProcessedBlock = currentBlock - 1;
+        console.log(`🔄 Initializing blockchain polling from block ${this.lastProcessedBlock}`);
+        return;
       }
 
-      this.lastProcessedBlock = currentBlock;
+      // Limit the block range to avoid RPC errors (max 1000 blocks)
+      const maxBlockRange = 1000;
+      const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - maxBlockRange);
+      
+      if (fromBlock > currentBlock) {
+        console.log(`⏭️ Skipping polling: fromBlock ${fromBlock} > currentBlock ${currentBlock}`);
+        return;
+      }
+
+      // Only poll if there are new blocks to process
+      if (fromBlock === currentBlock) {
+        console.log(`⏭️ No new blocks to process (fromBlock: ${fromBlock}, currentBlock: ${currentBlock})`);
+        return;
+      }
+
+      console.log(`🔍 Polling blockchain events from block ${fromBlock} to ${currentBlock}`);
+
+      try {
+        const logs = await this.provider.getLogs({
+          address: this.contract.target,
+          fromBlock,
+          toBlock: currentBlock
+        });
+
+        console.log(`📝 Found ${logs.length} blockchain events`);
+
+        for (const log of logs) {
+          try {
+            const decodedLog = this.contract.interface.parseLog(log);
+            if (decodedLog && decodedLog.name) {
+              await this.processBlockchainEvent(decodedLog, log);
+            }
+          } catch (parseError) {
+            console.warn('⚠️ Failed to parse log:', parseError.message);
+          }
+        }
+
+        this.lastProcessedBlock = currentBlock;
+        console.log(`✅ Blockchain polling completed. Last processed block: ${this.lastProcessedBlock}`);
+      } catch (rpcError) {
+        console.warn(`⚠️ RPC error during polling: ${rpcError.message}`);
+        // Don't update lastProcessedBlock on RPC errors to retry next time
+      }
     } catch (error) {
       console.error('❌ Event polling failed:', error.message);
     }
