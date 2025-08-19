@@ -96,16 +96,23 @@ const BlockchainDashboard: React.FC = () => {
       console.log('Timeline response:', timelineResponse.status, timelineData);
       console.log('JMR response:', jmrData);
       
-      // Combine the data
+      // Combine the data with enhanced blockchain status
       const searchResults = {
         surveyNumber: searchSurvey,
         existsOnBlockchain: searchResponse.ok && searchData.data?.existsOnBlockchain,
+        existsInDatabase: searchResponse.ok && searchData.data?.existsInDatabase,
+        overallStatus: searchResponse.ok ? searchData.data?.overallStatus : 'unknown',
+        statusMessage: searchResponse.ok ? searchData.data?.statusMessage : 'Search failed',
         integrityStatus: searchResponse.ok && searchData.data?.integrityStatus?.isIntegrityValid,
         timelineCount: timelineResponse.ok ? (timelineData.data?.timeline || []).length : 0,
         lastChecked: new Date().toISOString(),
         ownerId: jmrData?.data?.records?.[0]?.owner_id || searchData?.data?.metadata?.owner_id || null,
-        landType: jmrData?.data?.records?.[0]?.land_type || searchData?.data?.metadata?.land_type || null,
-        area: jmrData?.data?.records?.[0]?.measured_area || searchData?.data?.metadata?.area || null
+        landType: searchResponse.ok && searchData.data?.databaseRecord?.land_type || jmrData?.data?.records?.[0]?.land_type || null,
+        area: searchResponse.ok && searchData.data?.databaseRecord?.measured_area || jmrData?.data?.records?.[0]?.measured_area || null,
+        village: searchResponse.ok && searchData.data?.databaseRecord?.village || null,
+        taluka: searchResponse.ok && searchData.data?.databaseRecord?.taluka || null,
+        district: searchResponse.ok && searchData.data?.databaseRecord?.district || null,
+        blockchainEntry: searchResponse.ok && searchData.data?.blockchainEntry || null
       };
       
       setSearchResults(searchResults);
@@ -135,6 +142,79 @@ const BlockchainDashboard: React.FC = () => {
       
       setError('Failed to search survey on blockchain. Check console for details.');
       toast.error('Failed to search survey on blockchain');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Sync individual survey to blockchain
+  const handleSyncToBlockchain = async (surveyNumber: string) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/jmr-blockchain/bulk-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer demo-jwt-token'
+        },
+        body: JSON.stringify({
+          project_id: 1, // Default project ID
+          officer_id: 1  // Default officer ID
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Survey ${surveyNumber} synced to blockchain successfully!`);
+        
+        // Refresh the search results
+        await handleSearch();
+      } else {
+        const errorData = await response.json();
+        toast.error(`Failed to sync survey: ${errorData.message}`);
+      }
+    } catch (error) {
+      console.error('Failed to sync survey to blockchain:', error);
+      toast.error('Failed to sync survey to blockchain');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bulk sync all records to blockchain
+  const handleBulkSync = async () => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`/api/jmr-blockchain/bulk-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer demo-jwt-token'
+        },
+        body: JSON.stringify({
+          project_id: 1, // Default project ID
+          officer_id: 1  // Default officer ID
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Bulk sync completed! ${data.data.synced} records synced, ${data.data.errors} errors`);
+        
+        // Show detailed results
+        console.log('Bulk sync results:', data.data);
+        
+        // Refresh blockchain status
+        await loadBlockchainStatus();
+      } else {
+        const errorData = await response.json();
+        toast.error(`Bulk sync failed: ${errorData.message}`);
+      }
+    } catch (error) {
+      console.error('Failed to perform bulk sync:', error);
+      toast.error('Failed to perform bulk sync');
     } finally {
       setLoading(false);
     }
@@ -297,40 +377,97 @@ const BlockchainDashboard: React.FC = () => {
                     <Search className="h-5 w-5 text-blue-600" />
                     <h3 className="font-semibold text-blue-800">Search Results for {searchResults.surveyNumber}</h3>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Blockchain Status:</span>
-                      <Badge variant={searchResults.existsOnBlockchain ? "default" : "secondary"} className="ml-2">
-                        {searchResults.existsOnBlockchain ? "Found" : "Not Found"}
-                      </Badge>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Integrity Status:</span>
-                      <Badge variant={searchResults.integrityStatus ? "default" : "destructive"} className="ml-2">
-                        {searchResults.integrityStatus ? "Valid" : "Compromised"}
-                      </Badge>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Timeline Events:</span>
-                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.timelineCount, '0')}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Owner ID:</span>
-                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.ownerId)}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Land Type:</span>
-                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.landType)}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Land Area:</span>
-                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.area)}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Last Checked:</span>
-                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.lastChecked, 'Never')}</span>
-                    </div>
-                  </div>
+                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                     <div>
+                       <span className="font-medium text-gray-600">Overall Status:</span>
+                       <Badge 
+                         variant={
+                           searchResults.overallStatus === 'synced' ? "default" : 
+                           searchResults.overallStatus === 'database_only' ? "secondary" :
+                           searchResults.overallStatus === 'blockchain_only' ? "outline" :
+                           "destructive"
+                         } 
+                         className="ml-2"
+                       >
+                         {searchResults.overallStatus === 'synced' ? 'Synced' :
+                          searchResults.overallStatus === 'database_only' ? 'Database Only' :
+                          searchResults.overallStatus === 'blockchain_only' ? 'Blockchain Only' :
+                          'Not Found'}
+                       </Badge>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Database Status:</span>
+                       <Badge variant={searchResults.existsInDatabase ? "default" : "destructive"} className="ml-2">
+                         {searchResults.existsInDatabase ? "Found" : "Not Found"}
+                       </Badge>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Blockchain Status:</span>
+                       <Badge variant={searchResults.existsOnBlockchain ? "default" : "secondary"} className="ml-2">
+                         {searchResults.existsOnBlockchain ? "Found" : "Not Found"}
+                       </Badge>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Timeline Events:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.timelineCount, '0')}</span>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Land Type:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.landType)}</span>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Land Area:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.area)}</span>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Village:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.village)}</span>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">District:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.district)}</span>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-600">Last Checked:</span>
+                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.lastChecked, 'Never')}</span>
+                     </div>
+                   </div>
+                   
+                   {/* Status Message */}
+                   <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                     <p className="text-sm text-blue-800">
+                       <strong>Status:</strong> {searchResults.statusMessage}
+                     </p>
+                   </div>
+                   
+                   {/* Blockchain Entry Details */}
+                   {searchResults.blockchainEntry && (
+                     <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+                       <p className="text-sm text-green-800">
+                         <strong>Blockchain Entry:</strong> Block ID: {searchResults.blockchainEntry.block_id?.substring(0, 8)}..., 
+                         Hash: {searchResults.blockchainEntry.current_hash?.substring(0, 8)}..., 
+                         Timestamp: {new Date(searchResults.blockchainEntry.timestamp).toLocaleString()}
+                       </p>
+                     </div>
+                   )}
+                   
+                   {/* Sync to Blockchain Button */}
+                   {searchResults.existsInDatabase && !searchResults.existsOnBlockchain && (
+                     <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded">
+                       <p className="text-sm text-orange-800 mb-2">
+                         <strong>Action Required:</strong> This record exists in the database but not on the blockchain.
+                       </p>
+                       <Button 
+                         onClick={() => handleSyncToBlockchain(searchResults.surveyNumber)}
+                         variant="outline" 
+                         size="sm"
+                         className="bg-orange-100 hover:bg-orange-200 border-orange-300"
+                       >
+                         <Plus className="h-4 w-4 mr-2" />
+                         Sync to Blockchain
+                       </Button>
+                     </div>
+                   )}
                 </div>
               )}
             </CardContent>
@@ -459,25 +596,56 @@ const BlockchainDashboard: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Verify Integrity</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Verify survey integrity.
-                </p>
-                <div className="text-sm text-gray-500 space-y-1">
-                  <p><span className="font-medium">Current Status:</span> {formatFieldValue(searchResults?.integrityStatus ? 'Valid' : 'Unknown', 'N/A')}</p>
-                  <p><span className="font-medium">Last Checked:</span> {formatFieldValue(searchResults?.lastChecked, 'Never')}</p>
-                  <p><span className="font-medium">Blockchain Status:</span> {formatFieldValue(searchResults?.existsOnBlockchain ? 'Found' : 'Not Found', 'N/A')}</p>
-                </div>
-                <Button className="w-full" variant="outline" disabled={!searchSurvey.trim()}>
-                  <Shield className="h-4 w-4 mr-2" />
-                  Verify Integrity
-                </Button>
-              </CardContent>
-            </Card>
+                         <Card>
+               <CardHeader>
+                 <CardTitle>Verify Integrity</CardTitle>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                 <p className="text-sm text-gray-600">
+                   Verify survey integrity.
+                 </p>
+                 <div className="text-sm text-gray-500 space-y-1">
+                   <p><span className="font-medium">Current Status:</span> {formatFieldValue(searchResults?.integrityStatus ? 'Valid' : 'Unknown', 'N/A')}</p>
+                   <p><span className="font-medium">Last Checked:</span> {formatFieldValue(searchResults?.lastChecked, 'Never')}</p>
+                   <p><span className="font-medium">Blockchain Status:</span> {formatFieldValue(searchResults?.existsOnBlockchain ? 'Found' : 'Not Found', 'N/A')}</p>
+                 </div>
+                 <Button className="w-full" variant="outline" disabled={!searchSurvey.trim()}>
+                   <Shield className="h-4 w-4 mr-2" />
+                   Verify Integrity
+                 </Button>
+               </CardContent>
+             </Card>
+           </div>
+           
+           {/* Bulk Sync Section */}
+           <Card>
+             <CardHeader>
+               <CardTitle>Bulk Blockchain Sync</CardTitle>
+               <CardDescription>Sync all existing land records to the blockchain</CardDescription>
+             </CardHeader>
+             <CardContent className="space-y-4">
+               <p className="text-sm text-gray-600">
+                 This will create blockchain entries for all land records that exist in the database but not on the blockchain.
+               </p>
+               <div className="text-sm text-gray-500 space-y-1">
+                 <p><span className="font-medium">Note:</span> This process may take some time depending on the number of records.</p>
+                 <p><span className="font-medium">Project ID:</span> 1 (Default)</p>
+                 <p><span className="font-medium">Officer ID:</span> 1 (Default)</p>
+               </div>
+               <Button 
+                 className="w-full" 
+                 onClick={() => handleBulkSync()}
+                 disabled={loading}
+               >
+                 {loading ? (
+                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                 ) : (
+                   <RefreshCw className="h-4 w-4 mr-2" />
+                 )}
+                 {loading ? 'Syncing...' : 'Sync All Records to Blockchain'}
+               </Button>
+             </CardContent>
+           </Card>
           </div>
         </TabsContent>
       </Tabs>
