@@ -1,10 +1,10 @@
 import { ethers } from 'ethers';
 import crypto from 'crypto';
 import BlockchainConfig from '../config/blockchain.js';
-import { MongoBlockchainLedger } from '../models/mongo/BlockchainLedger.js';
-import { MongoJMRRecord } from '../models/mongo/JMRRecord.js';
-import { MongoLandownerRecord } from '../models/mongo/LandownerRecord.js';
-import { MongoProject } from '../models/mongo/Project.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
 
 class EnhancedBlockchainService {
   constructor() {

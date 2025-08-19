@@ -1,9 +1,9 @@
 import express from 'express';
 import multer from 'multer';
 import { body, param, query, validationResult } from 'express-validator';
-import { MongoJMRRecord } from '../models/mongo/JMRRecord.js';
-import { MongoProject } from '../models/mongo/Project.js';
-import { MongoBlockchainLedger } from '../models/mongo/BlockchainLedger.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import EnhancedBlockchainService from '../services/enhancedBlockchainService.js';
 import { authMiddleware } from '../middleware/auth.js';
 

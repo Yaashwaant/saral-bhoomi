@@ -6,55 +6,82 @@ const blockchainLedgerSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  survey_number: {
+    type: String,
+    required: true,
+    index: true
+  },
+  event_type: {
+    type: String,
+    required: true,
+    enum: [
+      'JMR_MEASUREMENT_UPLOADED',
+      'JMR_MEASUREMENT_UPDATED', 
+      'JMR_MEASUREMENT_DELETED',
+      'LANDOWNER_RECORD_CREATED',
+      'LANDOWNER_RECORD_UPDATED',
+      'LANDOWNER_RECORD_DELETED',
+      'SURVEY_CREATED_ON_BLOCKCHAIN',
+      'LAND_RECORD_CREATED',
+      'LAND_RECORD_UPDATED',
+      'LAND_RECORD_DELETED'
+    ]
+  },
+  officer_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   project_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
     required: false
   },
-  officer_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
     required: false
   },
-  transaction_type: {
-    type: String,
-    required: true,
-    enum: ['jmr_creation', 'award_publication', 'notice_issuance', 'payment_processing', 'status_update']
-  },
-  survey_number: {
-    type: String,
-    required: false,
-    index: true
-  },
-  previous_hash: {
-    type: String,
-    required: false
-  },
-  current_hash: {
+  remarks: {
     type: String,
     required: false
   },
   timestamp: {
     type: Date,
-    required: false,
+    required: true,
     default: Date.now
+  },
+  previous_hash: {
+    type: String,
+    required: true,
+    default: '0x0000000000000000000000000000000000000000000000000000000000000000'
+  },
+  current_hash: {
+    type: String,
+    required: true
+  },
+  nonce: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  is_valid: {
+    type: Boolean,
+    default: true
+  },
+  // Legacy fields for backward compatibility
+  transaction_type: {
+    type: String,
+    required: false,
+    enum: ['jmr_creation', 'award_publication', 'notice_issuance', 'payment_processing', 'status_update']
   },
   data: {
     type: mongoose.Schema.Types.Mixed,
     required: false
   },
-  nonce: {
-    type: Number,
-    required: false
-  },
   difficulty: {
     type: Number,
-    required: true,
+    required: false,
     default: 4
-  },
-  is_valid: {
-    type: Boolean,
-    default: true
   },
   validation_errors: [String],
   mined_by: {
@@ -73,35 +100,31 @@ const blockchainLedgerSchema = new mongoose.Schema({
 
 // Indexes
 blockchainLedgerSchema.index({ block_id: 1 });
-blockchainLedgerSchema.index({ project_id: 1 });
-blockchainLedgerSchema.index({ officer_id: 1 });
 blockchainLedgerSchema.index({ survey_number: 1 });
+blockchainLedgerSchema.index({ event_type: 1 });
+blockchainLedgerSchema.index({ officer_id: 1 });
+blockchainLedgerSchema.index({ project_id: 1 });
 blockchainLedgerSchema.index({ timestamp: 1 });
-blockchainLedgerSchema.index({ transaction_type: 1 });
-blockchainLedgerSchema.index({ block_status: 1 });
+blockchainLedgerSchema.index({ current_hash: 1 });
 
 // Method to calculate hash
 blockchainLedgerSchema.methods.calculateHash = function() {
   const dataString = JSON.stringify({
     block_id: this.block_id,
-    project_id: this.project_id.toString(),
-    officer_id: this.officer_id.toString(),
-    transaction_type: this.transaction_type,
     survey_number: this.survey_number,
-    previous_hash: this.previous_hash,
+    event_type: this.event_type,
+    officer_id: this.officer_id.toString(),
+    project_id: this.project_id ? this.project_id.toString() : '',
+    metadata: this.metadata,
+    remarks: this.remarks,
     timestamp: this.timestamp,
-    data: this.data,
+    previous_hash: this.previous_hash,
     nonce: this.nonce
   });
   
-  // Simple hash function (in production, use crypto-js or similar)
-  let hash = 0;
-  for (let i = 0; i < dataString.length; i++) {
-    const char = dataString.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return hash.toString(16);
+  // Use crypto module for proper hashing
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(dataString).digest('hex');
 };
 
 export default mongoose.model('BlockchainLedger', blockchainLedgerSchema);

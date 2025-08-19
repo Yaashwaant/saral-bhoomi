@@ -6,6 +6,10 @@ const jmrRecordSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  owner_id: {
+    type: String,
+    required: false
+  },
   project_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
@@ -33,6 +37,18 @@ const jmrRecordSchema = new mongoose.Schema({
     type: String,
     required: false,
     enum: ['tribal', 'non-tribal']
+  },
+  village: {
+    type: String,
+    required: false
+  },
+  taluka: {
+    type: String,
+    required: false
+  },
+  district: {
+    type: String,
+    required: false
   },
   category: {
     type: String,
@@ -92,5 +108,8 @@ jmrRecordSchema.index({ project_id: 1 });
 jmrRecordSchema.index({ officer_id: 1 });
 jmrRecordSchema.index({ measurement_date: 1 });
 jmrRecordSchema.index({ status: 1 });
+jmrRecordSchema.index({ village: 1 });
+jmrRecordSchema.index({ taluka: 1 });
+jmrRecordSchema.index({ district: 1 });
 
 export default mongoose.model('JMRRecord', jmrRecordSchema);
