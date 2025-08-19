@@ -596,57 +596,56 @@ const BlockchainDashboard: React.FC = () => {
               </CardContent>
             </Card>
 
-                         <Card>
-               <CardHeader>
-                 <CardTitle>Verify Integrity</CardTitle>
-               </CardHeader>
-               <CardContent className="space-y-4">
-                 <p className="text-sm text-gray-600">
-                   Verify survey integrity.
-                 </p>
-                 <div className="text-sm text-gray-500 space-y-1">
-                   <p><span className="font-medium">Current Status:</span> {formatFieldValue(searchResults?.integrityStatus ? 'Valid' : 'Unknown', 'N/A')}</p>
-                   <p><span className="font-medium">Last Checked:</span> {formatFieldValue(searchResults?.lastChecked, 'Never')}</p>
-                   <p><span className="font-medium">Blockchain Status:</span> {formatFieldValue(searchResults?.existsOnBlockchain ? 'Found' : 'Not Found', 'N/A')}</p>
-                 </div>
-                 <Button className="w-full" variant="outline" disabled={!searchSurvey.trim()}>
-                   <Shield className="h-4 w-4 mr-2" />
-                   Verify Integrity
-                 </Button>
-               </CardContent>
-             </Card>
-           </div>
-           
-           {/* Bulk Sync Section */}
-           <Card>
-             <CardHeader>
-               <CardTitle>Bulk Blockchain Sync</CardTitle>
-               <CardDescription>Sync all existing land records to the blockchain</CardDescription>
-             </CardHeader>
-             <CardContent className="space-y-4">
-               <p className="text-sm text-gray-600">
-                 This will create blockchain entries for all land records that exist in the database but not on the blockchain.
-               </p>
-               <div className="text-sm text-gray-500 space-y-1">
-                 <p><span className="font-medium">Note:</span> This process may take some time depending on the number of records.</p>
-                 <p><span className="font-medium">Project ID:</span> 1 (Default)</p>
-                 <p><span className="font-medium">Officer ID:</span> 1 (Default)</p>
-               </div>
-               <Button 
-                 className="w-full" 
-                 onClick={() => handleBulkSync()}
-                 disabled={loading}
-               >
-                 {loading ? (
-                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                 ) : (
-                   <RefreshCw className="h-4 w-4 mr-2" />
-                 )}
-                 {loading ? 'Syncing...' : 'Sync All Records to Blockchain'}
-               </Button>
-             </CardContent>
-           </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Verify Integrity</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Verify survey integrity.
+                </p>
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p><span className="font-medium">Current Status:</span> {formatFieldValue(searchResults?.integrityStatus ? 'Valid' : 'Unknown', 'N/A')}</p>
+                  <p><span className="font-medium">Last Checked:</span> {formatFieldValue(searchResults?.lastChecked, 'Never')}</p>
+                  <p><span className="font-medium">Blockchain Status:</span> {formatFieldValue(searchResults?.existsOnBlockchain ? 'Found' : 'Not Found', 'N/A')}</p>
+                </div>
+                <Button className="w-full" variant="outline" disabled={!searchSurvey.trim()}>
+                  <Shield className="h-4 w-4 mr-2" />
+                  Verify Integrity
+                </Button>
+              </CardContent>
+            </Card>
           </div>
+          
+          {/* Bulk Sync Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Bulk Blockchain Sync</CardTitle>
+              <CardDescription>Sync all existing land records to the blockchain</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                This will create blockchain entries for all land records that exist in the database but not on the blockchain.
+              </p>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p><span className="font-medium">Note:</span> This process may take some time depending on the number of records.</p>
+                <p><span className="font-medium">Project ID:</span> 1 (Default)</p>
+                <p><span className="font-medium">Officer ID:</span> 1 (Default)</p>
+              </div>
+              <Button 
+                className="w-full" 
+                onClick={() => handleBulkSync()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                {loading ? 'Syncing...' : 'Sync All Records to Blockchain'}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
