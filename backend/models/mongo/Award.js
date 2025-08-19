@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 const awardSchema = new mongoose.Schema({
   survey_number: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   project_id: {
     type: mongoose.Schema.Types.ObjectId,

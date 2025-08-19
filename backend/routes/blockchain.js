@@ -1,6 +1,7 @@
 import express from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, param, query, validationResult } from 'express-validator';
 import EnhancedBlockchainService from '../services/enhancedBlockchainService.js';
+import SurveyDataAggregationService from '../services/surveyDataAggregationService.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -13,10 +14,10 @@ enhancedBlockchainService.initialize().catch(console.error);
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
+    return res.status(400).json({ 
+        success: false,
       message: 'Validation failed',
-      errors: errors.array()
+      errors: errors.array() 
     });
   }
   next();
@@ -51,7 +52,7 @@ router.get('/status', async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     const status = await enhancedBlockchainService.getEnhancedNetworkStatus();
-    
+
     res.json({
       success: true,
       message: 'Blockchain service is healthy',
@@ -65,7 +66,7 @@ router.get('/health', async (req, res) => {
   } catch (error) {
     console.error('❌ Blockchain health check failed:', error);
     res.status(503).json({
-      success: false,
+        success: false,
       message: 'Blockchain service is unhealthy',
       error: error.message,
       timestamp: new Date().toISOString()
@@ -164,7 +165,10 @@ router.get('/search/*', [
     // Check local blockchain ledger for this survey
     const localBlockchainEntry = await MongoBlockchainLedger.findOne({
       survey_number: surveyNumber,
-      event_type: 'JMR_MEASUREMENT_UPLOADED'
+      $or: [
+        { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] } },
+        { transaction_type: { $exists: true } } // Old schema
+      ]
     }).sort({ timestamp: -1 });
 
     // Determine overall status
@@ -286,7 +290,7 @@ router.get('/sync-status', [
 
     // Get all blockchain entries
     const blockchainEntries = await MongoBlockchainLedger.find({
-      event_type: 'JMR_MEASUREMENT_UPLOADED'
+      event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] }
     });
 
     // Create a map of blockchain entries by survey number
@@ -511,6 +515,384 @@ router.post('/create-survey', [
     res.status(500).json({
       success: false,
       message: 'Failed to create survey on blockchain',
+      error: error.message
+    });
+  }
+});
+
+// ===== ENHANCED BLOCKCHAIN OPERATIONS =====
+
+/**
+ * @route POST /api/blockchain/create-or-update-survey
+ * @desc Create or update survey block on blockchain
+ * @access Private (Officers only)
+ */
+router.post('/create-or-update-survey', [
+  authMiddleware,
+  body('survey_number').notEmpty().withMessage('Survey number is required'),
+  body('data').notEmpty().withMessage('Survey data is required'),
+  body('event_type').notEmpty().withMessage('Event type is required'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('project_id').optional().isString().withMessage('Project ID must be a string'),
+  body('remarks').optional().isString().withMessage('Remarks must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      survey_number,
+      data,
+      event_type,
+      officer_id,
+      project_id,
+      remarks
+    } = req.body;
+
+    const result = await enhancedBlockchainService.createOrUpdateSurveyBlock(
+      survey_number,
+      data,
+      event_type,
+      officer_id,
+      project_id,
+      remarks
+    );
+
+    res.json({
+      success: true,
+      message: 'Survey block created/updated successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to create/update survey block:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create/update survey block',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/add-timeline-entry
+ * @desc Add timeline entry to survey block
+ * @access Private (Officers only)
+ */
+router.post('/add-timeline-entry', [
+  authMiddleware,
+  body('survey_number').notEmpty().withMessage('Survey number is required'),
+  body('action').notEmpty().withMessage('Action is required'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('data_hash').notEmpty().withMessage('Data hash is required'),
+  body('previous_hash').notEmpty().withMessage('Previous hash is required'),
+  body('metadata').optional().isObject().withMessage('Metadata must be an object'),
+  body('remarks').optional().isString().withMessage('Remarks must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      survey_number,
+      action,
+      officer_id,
+      data_hash,
+      previous_hash,
+      metadata,
+      remarks
+    } = req.body;
+
+    const result = await enhancedBlockchainService.addTimelineEntry(
+      survey_number,
+      action,
+      officer_id,
+      data_hash,
+      previous_hash,
+      metadata,
+      remarks
+    );
+
+    res.json({
+      success: true,
+      message: 'Timeline entry added successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to add timeline entry:', error);
+    res.status(500).json({
+        success: false,
+      message: 'Failed to add timeline entry',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/verify-integrity/:surveyNumber
+ * @desc Verify survey integrity
+ * @access Private (Officers only)
+ */
+router.get('/verify-integrity/*', [
+  authMiddleware,
+  param('0').notEmpty().withMessage('Survey number is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const surveyNumber = req.params[0];
+    const integrity = await enhancedBlockchainService.verifySurveyIntegrity(surveyNumber);
+
+    res.json({
+      success: true,
+      data: integrity
+    });
+  } catch (error) {
+    console.error('❌ Failed to verify survey integrity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify survey integrity',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/survey-timeline/:surveyNumber
+ * @desc Get survey timeline
+ * @access Private (Officers only)
+ */
+router.get('/survey-timeline/*', [
+  authMiddleware,
+  param('0').notEmpty().withMessage('Survey number is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const surveyNumber = req.params[0];
+    const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
+
+    res.json({
+      success: true,
+      data: timeline
+    });
+  } catch (error) {
+    console.error('❌ Failed to get survey timeline:', error);
+    res.status(500).json({
+        success: false,
+      message: 'Failed to get survey timeline',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/bulk-sync
+ * @desc Bulk sync existing records to blockchain
+ * @access Private (Officers only)
+ */
+router.post('/bulk-sync', [
+  authMiddleware,
+  body('records').isArray().withMessage('Records must be an array'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('project_id').optional().isString().withMessage('Project ID must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { records, officer_id, project_id } = req.body;
+
+    const result = await enhancedBlockchainService.bulkSyncToBlockchain(
+      records,
+      officer_id,
+      project_id
+    );
+
+    res.json({
+      success: true,
+      message: 'Bulk sync completed',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to bulk sync to blockchain:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk sync to blockchain',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/surveys-with-status
+ * @desc Get surveys with blockchain status
+ * @access Private (Officers only)
+ */
+router.get('/surveys-with-status', [
+  authMiddleware,
+  query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('Limit must be between 1 and 1000'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const surveys = await enhancedBlockchainService.getSurveysWithBlockchainStatus(limit);
+
+    res.json({
+      success: true,
+      data: surveys
+    });
+  } catch (error) {
+    console.error('❌ Failed to get surveys with blockchain status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get surveys with blockchain status',
+      error: error.message
+    });
+  }
+});
+
+// ===== NEW SURVEY DATA AGGREGATION ROUTES =====
+
+/**
+ * @route GET /api/blockchain/surveys-with-complete-status
+ * @desc Get all surveys with complete blockchain status and data summary
+ * @access Private (Officers only)
+ */
+router.get('/surveys-with-complete-status', [
+  authMiddleware
+], async (req, res) => {
+  try {
+    const surveyService = new SurveyDataAggregationService();
+    const surveys = await surveyService.getAllSurveysWithBlockchainStatus();
+    
+    res.json({
+      success: true,
+      data: surveys,
+      total: surveys.length
+    });
+  } catch (error) {
+    console.error('❌ Failed to get surveys with complete blockchain status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get surveys with complete blockchain status',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/create-or-update-survey-complete
+ * @desc Create or update survey block with complete data from all collections
+ * @access Private (Officers only)
+ */
+router.post('/create-or-update-survey-complete', [
+  authMiddleware,
+  body('survey_number').notEmpty().withMessage('Survey number is required'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('project_id').optional(),
+  body('remarks').optional()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { survey_number, officer_id, project_id, remarks } = req.body;
+    
+    const surveyService = new SurveyDataAggregationService();
+    const result = await surveyService.createOrUpdateSurveyBlock(
+      survey_number, 
+      officer_id, 
+      project_id, 
+      remarks
+    );
+
+    res.json({
+      success: true,
+      message: 'Survey block created/updated successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to create/update survey block:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create/update survey block',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/bulk-sync-all-surveys
+ * @desc Bulk sync all surveys to blockchain with complete data aggregation
+ * @access Private (Officers only)
+ */
+router.post('/bulk-sync-all-surveys', [
+  authMiddleware,
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('project_id').optional()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { officer_id, project_id } = req.body;
+    
+    const surveyService = new SurveyDataAggregationService();
+    const result = await surveyService.bulkSyncAllSurveys(officer_id, project_id);
+
+    res.json({
+      success: true,
+      message: 'Bulk sync completed successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to bulk sync surveys:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk sync surveys',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/survey-complete-data/*
+ * @desc Get complete survey data from all collections for a specific survey
+ * @access Private (Officers only)
+ */
+router.get('/survey-complete-data/*', [
+  authMiddleware
+], async (req, res) => {
+  try {
+    const surveyNumber = req.params[0];
+    
+    if (!surveyNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Survey number is required'
+      });
+    }
+
+    const surveyService = new SurveyDataAggregationService();
+    const surveyData = await surveyService.getCompleteSurveyData(surveyNumber);
+
+    res.json({
+      success: true,
+      data: {
+        survey_number: surveyNumber,
+        survey_data: surveyData,
+        summary: surveyService.getSurveyDataSummary(surveyData)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get complete survey data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get complete survey data',
       error: error.message
     });
   }

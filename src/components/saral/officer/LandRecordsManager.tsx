@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { FileText, Eye, Download, Upload, Database } from 'lucide-react';
+import { FileText, Eye, Download, Upload, Database, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { config } from '../../../config';
 
 interface LandRecord {
@@ -74,7 +74,38 @@ const LandRecordsManager: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
       if (response.ok) {
         const data = await response.json();
-        setLandRecords(data.data || []);
+        const records = data.data || [];
+        
+        // 🔗 Check blockchain status for each record
+        const recordsWithBlockchainStatus = await Promise.all(
+          records.map(async (record) => {
+            try {
+              const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/search/${record.survey_number}`, {
+                headers: {
+                  'Authorization': 'Bearer demo-jwt-token',
+                  'x-demo-role': 'officer'
+                }
+              });
+              
+              if (blockchainResponse.ok) {
+                const blockchainData = await blockchainResponse.json();
+                return {
+                  ...record,
+                  blockchain_verified: blockchainData.data?.existsOnBlockchain || false
+                };
+              }
+            } catch (error) {
+              console.debug(`Could not check blockchain status for ${record.survey_number}:`, error);
+            }
+            
+            return {
+              ...record,
+              blockchain_verified: false
+            };
+          })
+        );
+        
+        setLandRecords(recordsWithBlockchainStatus);
       } else {
         toast.error('Failed to load land records');
       }
@@ -117,7 +148,43 @@ const LandRecordsManager: React.FC = () => {
       });
 
       if (response.ok) {
+        const landRecordData = await response.json();
         toast.success('Land record created successfully');
+        
+        // 🔗 AUTOMATIC BLOCKCHAIN GENERATION
+        try {
+          console.log('🔄 Creating blockchain block for survey:', landRecordForm.survey_number);
+          
+          const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+              'x-demo-role': 'officer'
+            },
+            body: JSON.stringify({
+              survey_number: landRecordForm.survey_number,
+              officer_id: user?.id || 'demo-officer',
+              project_id: selectedProject,
+              remarks: `Land record created for survey ${landRecordForm.survey_number}`
+            })
+          });
+          
+          if (blockchainResponse.ok) {
+            const blockchainResult = await blockchainResponse.json();
+            toast.success(`✅ Blockchain block created successfully for survey ${landRecordForm.survey_number}!`);
+            console.log('Blockchain creation result:', blockchainResult);
+          } else {
+            const blockchainError = await blockchainResponse.json();
+            console.warn('⚠️ Blockchain creation failed:', blockchainError);
+            toast.warning(`⚠️ Land record saved but blockchain creation failed: ${blockchainError.message}`);
+          }
+        } catch (blockchainError) {
+          console.error('❌ Error creating blockchain block:', blockchainError);
+          toast.warning('⚠️ Land record saved but blockchain creation failed');
+        }
+        
+        // Reset form
         setLandRecordForm({
           survey_number: '',
           landowner_name: '',
@@ -134,6 +201,8 @@ const LandRecordsManager: React.FC = () => {
           payment_status: 'pending',
           blockchain_verified: false
         });
+        
+        // Refresh both land records and blockchain status
         loadLandRecords();
       } else {
         const errorData = await response.json();
@@ -183,6 +252,63 @@ const LandRecordsManager: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         toast.success(`Successfully uploaded ${result.uploaded} land records`);
+        
+        // 🔗 AUTOMATIC BLOCKCHAIN GENERATION FOR CSV UPLOADS
+        if (result.uploaded > 0 && result.survey_numbers) {
+          try {
+            console.log('🔄 Creating blockchain blocks for CSV uploaded surveys:', result.survey_numbers);
+            
+            // Create blockchain blocks for all uploaded survey numbers
+            const blockchainPromises = result.survey_numbers.map(async (surveyNumber: string) => {
+              try {
+                const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`,
+                    'x-demo-role': 'officer'
+                  },
+                  body: JSON.stringify({
+                    survey_number: surveyNumber,
+                    officer_id: user?.id || 'demo-officer',
+                    project_id: selectedProject,
+                    remarks: `Land record created via CSV upload for survey ${surveyNumber}`
+                  })
+                });
+                
+                if (blockchainResponse.ok) {
+                  console.log(`✅ Blockchain block created for survey ${surveyNumber}`);
+                  return { surveyNumber, success: true };
+                } else {
+                  console.warn(`⚠️ Blockchain creation failed for survey ${surveyNumber}`);
+                  return { surveyNumber, success: false };
+                }
+              } catch (error) {
+                console.error(`❌ Error creating blockchain for survey ${surveyNumber}:`, error);
+                return { surveyNumber, success: false };
+              }
+            });
+            
+            // Wait for all blockchain creations to complete
+            const blockchainResults = await Promise.all(blockchainPromises);
+            const successful = blockchainResults.filter(r => r.success).length;
+            const failed = blockchainResults.filter(r => !r.success).length;
+            
+            if (successful > 0) {
+              toast.success(`✅ Created blockchain blocks for ${successful} surveys`);
+            }
+            if (failed > 0) {
+              toast.warning(`⚠️ Failed to create blockchain blocks for ${failed} surveys`);
+            }
+            
+            console.log('Blockchain creation results:', blockchainResults);
+            
+          } catch (blockchainError) {
+            console.error('❌ Error in bulk blockchain creation:', blockchainError);
+            toast.warning('⚠️ CSV uploaded but blockchain creation failed');
+          }
+        }
+        
         setCsvFile(null);
         loadLandRecords();
       } else {
@@ -220,6 +346,80 @@ const LandRecordsManager: React.FC = () => {
     a.download = 'land_records_template.csv';
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleBulkBlockchainSync = async () => {
+    if (!selectedProject) {
+      toast.error('Please select a project first');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Get records that don't have blockchain verification
+      const recordsToSync = landRecords.filter(record => !record.blockchain_verified);
+      
+      if (recordsToSync.length === 0) {
+        toast.info('All land records are already on the blockchain!');
+        return;
+      }
+
+      console.log(`🔄 Syncing ${recordsToSync.length} land records to blockchain...`);
+      
+      // Create blockchain blocks for all missing records
+      const blockchainPromises = recordsToSync.map(async (record) => {
+        try {
+          const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer demo-jwt-token',
+              'x-demo-role': 'officer'
+            },
+            body: JSON.stringify({
+              survey_number: record.survey_number,
+              officer_id: user?.id || 'demo-officer',
+              project_id: selectedProject,
+              remarks: `Bulk sync: Land record for survey ${record.survey_number}`
+            })
+          });
+          
+          if (blockchainResponse.ok) {
+            console.log(`✅ Blockchain block created for survey ${record.survey_number}`);
+            return { surveyNumber: record.survey_number, success: true };
+          } else {
+            console.warn(`⚠️ Blockchain creation failed for survey ${record.survey_number}`);
+            return { surveyNumber: record.survey_number, success: false };
+          }
+        } catch (error) {
+          console.error(`❌ Error creating blockchain for survey ${record.survey_number}:`, error);
+          return { surveyNumber: record.survey_number, success: false };
+        }
+      });
+      
+      // Wait for all blockchain creations to complete
+      const blockchainResults = await Promise.all(blockchainPromises);
+      const successful = blockchainResults.filter(r => r.success).length;
+      const failed = blockchainResults.filter(r => !r.success).length;
+      
+      if (successful > 0) {
+        toast.success(`✅ Created blockchain blocks for ${successful} surveys`);
+      }
+      if (failed > 0) {
+        toast.warning(`⚠️ Failed to create blockchain blocks for ${failed} surveys`);
+      }
+      
+      console.log('Bulk blockchain sync results:', blockchainResults);
+      
+      // Refresh the records to show updated blockchain status
+      await loadLandRecords();
+      
+    } catch (error) {
+      console.error('❌ Error in bulk blockchain sync:', error);
+      toast.error('Failed to sync records to blockchain');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusBadge = (status: string, type: 'kyc' | 'payment') => {
@@ -470,7 +670,19 @@ const LandRecordsManager: React.FC = () => {
           {/* Records Display */}
           <Card>
             <CardHeader>
-              <CardTitle>Land Records</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Land Records</CardTitle>
+                <Button 
+                  onClick={handleBulkBlockchainSync}
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Sync Missing to Blockchain
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -492,6 +704,7 @@ const LandRecordsManager: React.FC = () => {
                         <TableHead>Village</TableHead>
                         <TableHead>KYC Status</TableHead>
                         <TableHead>Payment Status</TableHead>
+                        <TableHead>Blockchain Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -503,6 +716,24 @@ const LandRecordsManager: React.FC = () => {
                           <TableCell>{record.village}</TableCell>
                           <TableCell>{getStatusBadge(record.kyc_status, 'kyc')}</TableCell>
                           <TableCell>{getStatusBadge(record.payment_status, 'payment')}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={record.blockchain_verified ? "default" : "secondary"}
+                              className="flex items-center gap-1"
+                            >
+                              {record.blockchain_verified ? (
+                                <>
+                                  <CheckCircle className="h-3 w-3" />
+                                  Verified
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3 w-3" />
+                                  Pending
+                                </>
+                              )}
+                            </Badge>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

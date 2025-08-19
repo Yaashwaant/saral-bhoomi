@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 const jmrRecordSchema = new mongoose.Schema({
   survey_number: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   owner_id: {
     type: String,

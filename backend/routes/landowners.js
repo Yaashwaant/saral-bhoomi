@@ -394,11 +394,17 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
           // Clean up uploaded file
           fs.unlinkSync(req.file.path);
 
+          // Extract survey numbers for blockchain creation
+          const surveyNumbers = results
+            .filter((_, index) => !errors.some(error => error.includes(`Row ${index + 1}`)))
+            .map(record => record.survey_number);
+
           res.status(200).json({
             success: true,
             message: `CSV upload completed. ${uploaded} records uploaded successfully.`,
             uploaded,
             total: results.length,
+            survey_numbers: surveyNumbers, // 🔗 Added for blockchain creation
             errors: errors.length > 0 ? errors : undefined
           });
         } catch (error) {

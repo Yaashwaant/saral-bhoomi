@@ -91,21 +91,32 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
       project_id,
       remarks,
       is_active: true,
-      created_at: new Date(),
-      updated_at: new Date()
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
-    // Create blockchain entry automatically
+    // Create or update blockchain survey block automatically
     try {
-      const blockchainEntry = await enhancedBlockchainService.createJMRBlockchainEntry(
-        jmrRecord,
+      const blockchainResult = await enhancedBlockchainService.createOrUpdateSurveyBlock(
+        survey_number,
+        jmrRecord.toObject(),
+        'JMR_MEASUREMENT_UPLOADED',
         officer_id,
-        project_id
+        project_id,
+        `JMR measurement uploaded for survey ${survey_number}`
       );
 
-      console.log('✅ Blockchain entry created for JMR:', survey_number);
+      // Update JMR record with blockchain info
+      await MongoJMRRecord.findByIdAndUpdate(jmrRecord._id, {
+        blockchain_block_id: blockchainResult.block_id,
+        blockchain_hash: blockchainResult.hash,
+        blockchain_status: 'synced',
+        blockchain_last_verified: new Date()
+      });
+
+      console.log('✅ Blockchain survey block created/updated for JMR:', survey_number);
     } catch (blockchainError) {
-      console.warn('⚠️ Failed to create blockchain entry for JMR:', survey_number, blockchainError.message);
+      console.warn('⚠️ Failed to create blockchain survey block for JMR:', survey_number, blockchainError.message);
       // Continue with JMR creation even if blockchain fails
     }
 
@@ -156,7 +167,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     // Use MongoDB methods instead of Sequelize methods
     const jmrRecords = await MongoJMRRecord.find(whereClause)
-      .sort({ created_at: -1 })
+      .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .populate('project_id', 'name description');
@@ -537,19 +548,30 @@ router.post('/bulk-sync', authMiddleware, async (req, res) => {
           continue;
         }
 
-        // Create blockchain entry
-        const blockchainEntry = await enhancedBlockchainService.createJMRBlockchainEntry(
-          jmrRecord,
+        // Create or update blockchain survey block
+        const blockchainResult = await enhancedBlockchainService.createOrUpdateSurveyBlock(
+          jmrRecord.survey_number,
+          jmrRecord.toObject(),
+          'JMR_MEASUREMENT_UPLOADED',
           officer_id,
-          jmrRecord.project_id
+          jmrRecord.project_id,
+          `Bulk sync: JMR measurement for survey ${jmrRecord.survey_number}`
         );
+
+        // Update JMR record with blockchain info
+        await MongoJMRRecord.findByIdAndUpdate(jmrRecord._id, {
+          blockchain_block_id: blockchainResult.block_id,
+          blockchain_hash: blockchainResult.hash,
+          blockchain_status: 'synced',
+          blockchain_last_verified: new Date()
+        });
 
         syncedCount++;
         results.push({
           survey_number: jmrRecord.survey_number,
           status: 'synced',
-          block_id: blockchainEntry.block_id,
-          hash: blockchainEntry.current_hash
+          block_id: blockchainResult.block_id,
+          hash: blockchainResult.hash
         });
 
         console.log(`✅ Synced survey ${jmrRecord.survey_number} to blockchain`);
@@ -580,6 +602,171 @@ router.post('/bulk-sync', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to perform bulk sync',
+      error: error.message
+    });
+  }
+});
+
+// ===== ENHANCED JMR BLOCKCHAIN OPERATIONS =====
+
+/**
+ * @route GET /:id/blockchain-status
+ * @desc Get blockchain status for specific JMR record
+ * @access Private (Officers only)
+ */
+router.get('/:id/blockchain-status', [
+  authMiddleware,
+  param('id').notEmpty().withMessage('JMR ID is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const jmrId = req.params.id;
+    const jmrRecord = await MongoJMRRecord.findById(jmrId);
+
+    if (!jmrRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'JMR record not found'
+      });
+    }
+
+    // Get blockchain status
+    const blockchainStatus = await enhancedBlockchainService.verifySurveyIntegrity(jmrRecord.survey_number);
+    const timeline = await enhancedBlockchainService.getSurveyTimeline(jmrRecord.survey_number);
+
+    res.json({
+      success: true,
+      data: {
+        jmr_record: jmrRecord,
+        blockchain_status: blockchainStatus,
+        timeline: timeline,
+        blockchain_info: {
+          block_id: jmrRecord.blockchain_block_id,
+          hash: jmrRecord.blockchain_hash,
+          status: jmrRecord.blockchain_status,
+          last_verified: jmrRecord.blockchain_last_verified
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get JMR blockchain status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get JMR blockchain status',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route POST /:id/update-with-blockchain
+ * @desc Update JMR record and blockchain block
+ * @access Private (Officers only)
+ */
+router.post('/:id/update-with-blockchain', [
+  authMiddleware,
+  param('id').notEmpty().withMessage('JMR ID is required'),
+  body('updates').isObject().withMessage('Updates must be an object'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('remarks').optional().isString().withMessage('Remarks must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const jmrId = req.params.id;
+    const { updates, officer_id, remarks } = req.body;
+
+    // Get existing JMR record
+    const existingJMR = await MongoJMRRecord.findById(jmrId);
+    if (!existingJMR) {
+      return res.status(404).json({
+        success: false,
+        message: 'JMR record not found'
+      });
+    }
+
+    // Update JMR record
+    const updatedJMR = await MongoJMRRecord.findByIdAndUpdate(
+      jmrId,
+      { ...updates, updatedAt: new Date() },
+      { new: true }
+    );
+
+    // Update blockchain block
+    try {
+      const blockchainResult = await enhancedBlockchainService.updateSurveyBlock(
+        existingJMR.blockchain_block_id ? await MongoBlockchainLedger.findById(existingJMR.blockchain_block_id) : null,
+        updatedJMR.toObject(),
+        'JMR_MEASUREMENT_UPDATED',
+        officer_id,
+        updatedJMR.project_id,
+        remarks || `JMR record updated for survey ${updatedJMR.survey_number}`
+      );
+
+      // Update JMR record with new blockchain info
+      await MongoJMRRecord.findByIdAndUpdate(jmrId, {
+        blockchain_hash: blockchainResult.hash,
+        blockchain_last_verified: new Date()
+      });
+
+      console.log('✅ JMR and blockchain updated successfully:', updatedJMR.survey_number);
+    } catch (blockchainError) {
+      console.warn('⚠️ Failed to update blockchain for JMR:', updatedJMR.survey_number, blockchainError.message);
+      // Continue with JMR update even if blockchain fails
+    }
+
+    res.json({
+      success: true,
+      message: 'JMR record updated successfully with blockchain integration',
+      data: {
+        jmr_record: updatedJMR,
+        blockchain_updated: true
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to update JMR with blockchain:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update JMR record',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /:id/timeline
+ * @desc Get timeline for specific JMR record
+ * @access Private (Officers only)
+ */
+router.get('/:id/timeline', [
+  authMiddleware,
+  param('id').notEmpty().withMessage('JMR ID is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const jmrId = req.params.id;
+    const jmrRecord = await MongoJMRRecord.findById(jmrId);
+
+    if (!jmrRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'JMR record not found'
+      });
+    }
+
+    const timeline = await enhancedBlockchainService.getSurveyTimeline(jmrRecord.survey_number);
+
+    res.json({
+      success: true,
+      data: {
+        jmr_record: jmrRecord,
+        timeline: timeline
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get JMR timeline:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get JMR timeline',
       error: error.message
     });
   }

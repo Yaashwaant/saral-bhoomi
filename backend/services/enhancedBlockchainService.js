@@ -497,8 +497,11 @@ class EnhancedBlockchainService {
   async surveyExistsOnBlockchain(surveyNumber) {
     try {
       const entry = await MongoBlockchainLedger.findOne({
-        survey_number,
-        event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'LANDOWNER_RECORD_CREATED'] }
+        survey_number: surveyNumber,
+        $or: [
+          { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'LANDOWNER_RECORD_CREATED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] } },
+          { transaction_type: { $exists: true } } // Old schema
+        ]
       });
 
       return !!entry;
@@ -536,7 +539,7 @@ class EnhancedBlockchainService {
           break;
         }
       }
-      
+
       return {
         isIntegrityValid: isValid,
         lastChecked: entries[entries.length - 1].timestamp,
@@ -558,7 +561,7 @@ class EnhancedBlockchainService {
   async getTimelineCount(surveyNumber) {
     try {
       const count = await MongoBlockchainLedger.countDocuments({
-        survey_number
+        survey_number: surveyNumber
       });
       return count;
     } catch (error) {
@@ -573,20 +576,49 @@ class EnhancedBlockchainService {
   async getSurveyTimeline(surveyNumber) {
     try {
       const events = await MongoBlockchainLedger.find({
-        survey_number
+        survey_number: surveyNumber
       }).sort({ timestamp: 1 });
+      
+      const timeline = [];
+      
+      events.forEach(event => {
+        // Handle both old and new schema
+        if (event.timeline_history && Array.isArray(event.timeline_history)) {
+          // New schema with timeline_history
+          event.timeline_history.forEach(timelineItem => {
+            timeline.push({
+              id: timelineItem._id || event._id,
+              event_type: timelineItem.action || event.event_type,
+              timestamp: timelineItem.timestamp || event.timestamp,
+              officer_id: timelineItem.officer_id || event.officer_id,
+              metadata: timelineItem.metadata || event.metadata,
+              remarks: timelineItem.remarks || event.remarks,
+              block_id: timelineItem.block_id || event.block_id,
+              current_hash: timelineItem.data_hash || event.current_hash,
+              previous_hash: timelineItem.previous_hash || event.previous_hash
+            });
+          });
+        } else {
+          // Old schema - convert to timeline format
+        timeline.push({
+            id: event._id,
+            event_type: event.transaction_type || event.event_type || 'BLOCKCHAIN_ENTRY',
+            timestamp: event.timestamp,
+            officer_id: event.officer_id || 'unknown',
+            metadata: { 
+              transaction_type: event.transaction_type,
+              block_status: event.block_status,
+              block_id: event.block_id
+            },
+            remarks: `Blockchain entry: ${event.transaction_type || 'unknown'}`,
+            block_id: event.block_id,
+            current_hash: event.current_hash,
+            previous_hash: event.previous_hash
+          });
+        }
+      });
 
-      return events.map(event => ({
-        id: event._id,
-        event_type: event.event_type,
-        timestamp: event.timestamp,
-        officer_id: event.officer_id,
-        metadata: event.metadata,
-        remarks: event.remarks,
-        block_id: event.block_id,
-        current_hash: event.current_hash,
-        previous_hash: event.previous_hash
-      }));
+      return timeline;
     } catch (error) {
       console.error('❌ Failed to get survey timeline:', error);
       return [];
@@ -614,7 +646,7 @@ class EnhancedBlockchainService {
           console.warn('⚠️ Could not get wallet balance:', balanceError.message);
         }
       }
-
+      
       return {
         success: true,
         data: {
@@ -648,7 +680,7 @@ class EnhancedBlockchainService {
       };
     } catch (error) {
       console.error('❌ Failed to get enhanced network status:', error);
-      return {
+      return { 
         success: false,
         message: error.message,
         error: error.toString()
@@ -663,13 +695,13 @@ class EnhancedBlockchainService {
     try {
       const surveys = await MongoJMRRecord.find({ is_active: true })
         .limit(limit)
-        .sort({ created_at: -1 });
+        .sort({ createdAt: -1 });
 
       const surveysWithStatus = await Promise.all(
         surveys.map(async (survey) => {
           const blockchainStatus = await this.surveyExistsOnBlockchain(survey.survey_number);
           const integrityStatus = await this.getSurveyIntegrityStatus(survey.survey_number);
-          const timelineCount = await this.getTimelineCount(survey.survey_number);
+          const timelineCount = await this.getSurveyTimeline(survey.survey_number);
 
           return {
             ...survey.toObject(),
@@ -684,6 +716,340 @@ class EnhancedBlockchainService {
     } catch (error) {
       console.error('❌ Failed to get surveys with blockchain status:', error);
       return [];
+    }
+  }
+
+  /**
+   * Create or update survey block on blockchain
+   */
+  async createOrUpdateSurveyBlock(surveyNumber, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Blockchain service not initialized');
+      }
+
+      // Check if survey block already exists
+      let existingBlock = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber,
+        event_type: 'SURVEY_CREATED_ON_BLOCKCHAIN'
+      });
+
+      if (existingBlock) {
+        // Update existing block
+        return await this.updateSurveyBlock(existingBlock, data, eventType, officerId, projectId, remarks);
+      } else {
+        // Create new block
+        return await this.createSurveyBlock(surveyNumber, data, eventType, officerId, projectId, remarks);
+      }
+    } catch (error) {
+      console.error('❌ Failed to create/update survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create new survey block
+   */
+  async createSurveyBlock(surveyNumber, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      const blockId = `BLOCK_${surveyNumber}_${Date.now()}`;
+      const timestamp = new Date();
+      
+      // Generate initial survey data structure
+      const surveyData = {
+        jmr: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        notice: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        payment: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        award: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        landowner: { data: null, hash: null, last_updated: null, status: 'not_created' }
+      };
+
+      // Create initial timeline entry
+      const timelineHistory = [{
+        action: 'SURVEY_CREATED_ON_BLOCKCHAIN',
+        timestamp: timestamp,
+        officer_id: officerId,
+        data_hash: this.generateDataHash(data),
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        metadata: { event_type: eventType, project_id: projectId },
+        remarks: `Survey ${surveyNumber} registered on blockchain`
+      }];
+
+      // Create blockchain ledger entry
+      const ledgerEntry = new MongoBlockchainLedger({
+        block_id: blockId,
+        survey_number: surveyNumber,
+        event_type: 'SURVEY_CREATED_ON_BLOCKCHAIN',
+        officer_id: officerId,
+        project_id: projectId,
+        survey_data: surveyData,
+        timeline_history: timelineHistory,
+        metadata: { event_type: eventType, project_id: projectId },
+        remarks: remarks,
+        timestamp: timestamp,
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        current_hash: null, // Will be generated by pre-save middleware
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      const savedEntry = await ledgerEntry.save();
+
+      console.log('✅ Survey block created:', {
+        block_id: blockId,
+        survey_number: surveyNumber,
+        hash: savedEntry.current_hash
+      });
+
+      return {
+        success: true,
+        block_id: blockId,
+        hash: savedEntry.current_hash,
+        ledger_entry: savedEntry
+      };
+    } catch (error) {
+      console.error('❌ Failed to create survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update existing survey block
+   */
+  async updateSurveyBlock(existingBlock, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      const timestamp = new Date();
+      const previousHash = existingBlock.current_hash;
+
+      // Add timeline entry
+      existingBlock.addTimelineEntry(
+        eventType,
+        officerId,
+        this.generateDataHash(data),
+        previousHash,
+        { event_type: eventType, project_id: projectId },
+        remarks
+      );
+
+      // Update survey data section based on event type
+      if (eventType.includes('JMR')) {
+        existingBlock.updateSurveyDataSection('jmr', data, 'updated');
+      } else if (eventType.includes('NOTICE')) {
+        existingBlock.updateSurveyDataSection('notice', data, 'updated');
+      } else if (eventType.includes('PAYMENT')) {
+        existingBlock.updateSurveyDataSection('payment', data, 'updated');
+      } else if (eventType.includes('AWARD')) {
+        existingBlock.updateSurveyDataSection('award', data, 'updated');
+      } else if (eventType.includes('LANDOWNER')) {
+        existingBlock.updateSurveyDataSection('landowner', data, 'updated');
+      }
+
+      // Save updated block
+      const updatedBlock = await existingBlock.save();
+
+      console.log('✅ Survey block updated:', {
+        block_id: existingBlock.block_id,
+        survey_number: existingBlock.survey_number,
+        new_hash: updatedBlock.current_hash
+      });
+
+      return {
+        success: true,
+        block_id: existingBlock.block_id,
+        hash: updatedBlock.current_hash,
+        ledger_entry: updatedBlock
+      };
+    } catch (error) {
+      console.error('❌ Failed to update survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add timeline entry to survey block
+   */
+  async addTimelineEntry(surveyNumber, action, officerId, dataHash, previousHash, metadata, remarks) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        throw new Error(`No blockchain block found for survey ${surveyNumber}`);
+      }
+
+      block.addTimelineEntry(action, officerId, dataHash, previousHash, metadata, remarks);
+      const updatedBlock = await block.save();
+
+      console.log('✅ Timeline entry added:', {
+        survey_number: surveyNumber,
+        action: action,
+        new_hash: updatedBlock.current_hash
+      });
+
+      return {
+        success: true,
+        hash: updatedBlock.current_hash,
+        timeline_entry: updatedBlock.timeline_history[updatedBlock.timeline_history.length - 1]
+      };
+    } catch (error) {
+      console.error('❌ Failed to add timeline entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify survey integrity
+   */
+  async verifySurveyIntegrity(surveyNumber) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        return {
+          isValid: false,
+          reason: 'No blockchain block found',
+          survey_number: surveyNumber
+        };
+      }
+
+      // Verify chain integrity
+      const chainIntegrity = await MongoBlockchainLedger.verifyChainIntegrity(surveyNumber);
+      
+      // Verify data integrity for each section
+      const dataIntegrity = {};
+      for (const [sectionName, sectionData] of Object.entries(block.survey_data || {})) {
+        if (sectionData.data && sectionData.hash) {
+          const currentHash = this.generateDataHash(sectionData.data);
+          dataIntegrity[sectionName] = {
+            isValid: currentHash === sectionData.hash,
+            storedHash: sectionData.hash,
+            currentHash: currentHash,
+            lastUpdated: sectionData.last_updated
+          };
+        } else {
+          dataIntegrity[sectionName] = {
+            isValid: true,
+            storedHash: null,
+            currentHash: null,
+            lastUpdated: null
+          };
+        }
+      }
+
+      // Overall integrity status
+      const overallIntegrity = chainIntegrity.isValid && 
+        Object.values(dataIntegrity).every(section => section.isValid);
+
+      return {
+        isValid: overallIntegrity,
+        reason: overallIntegrity ? 'All integrity checks passed' : 'Integrity check failed',
+        survey_number: surveyNumber,
+        chain_integrity: chainIntegrity,
+        data_integrity: dataIntegrity,
+        block_hash: block.current_hash,
+        last_updated: block.updatedAt
+      };
+    } catch (error) {
+      console.error('❌ Failed to verify survey integrity:', error);
+      return {
+        isValid: false,
+        reason: `Verification error: ${error.message}`,
+        survey_number: surveyNumber
+      };
+    }
+  }
+
+        /**
+   * Get survey timeline
+   */
+  async getSurveyTimeline(surveyNumber) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        return [];
+      }
+
+      return block.timeline_history || [];
+    } catch (error) {
+      console.error('❌ Failed to get survey timeline:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Generate data hash
+   */
+  generateDataHash(data) {
+    try {
+      const dataString = JSON.stringify(data, Object.keys(data).sort());
+      return crypto.createHash('sha256').update(dataString).digest('hex');
+    } catch (error) {
+      console.error('❌ Error generating data hash:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get survey integrity status
+   */
+  async getSurveyIntegrityStatus(surveyNumber) {
+    try {
+      const integrity = await this.verifySurveyIntegrity(surveyNumber);
+      return integrity.isValid ? 'verified' : 'compromised';
+    } catch (error) {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Bulk sync existing records to blockchain
+   */
+  async bulkSyncToBlockchain(records, officerId, projectId = null) {
+    try {
+    const results = [];
+    
+      for (const record of records) {
+        try {
+          const result = await this.createOrUpdateSurveyBlock(
+            record.survey_number,
+            record,
+            'RECORD_CREATED',
+            officerId,
+            projectId,
+            'Bulk sync from existing records'
+          );
+        results.push({
+            survey_number: record.survey_number,
+            success: true,
+            result: result
+        });
+      } catch (error) {
+        results.push({
+            survey_number: record.survey_number,
+            success: false,
+          error: error.message
+        });
+      }
+    }
+    
+      return {
+        success: true,
+        total_records: records.length,
+        successful_syncs: results.filter(r => r.success).length,
+        failed_syncs: results.filter(r => !r.success).length,
+        results: results
+      };
+    } catch (error) {
+      console.error('❌ Failed to bulk sync to blockchain:', error);
+      throw error;
     }
   }
 
