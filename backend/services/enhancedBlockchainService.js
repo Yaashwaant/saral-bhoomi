@@ -39,7 +39,7 @@ class EnhancedBlockchainService {
         console.log('🌐 WebSocket provider initialized');
       } catch (wsError) {
         console.log('⚠️ WebSocket failed, using HTTP provider');
-        this.provider = new ethers.JsonRpcProvider(
+      this.provider = new ethers.JsonRpcProvider(
           this.config.getNetworkInfo().rpcUrl,
           {
             name: "polygon-amoy",
@@ -51,13 +51,13 @@ class EnhancedBlockchainService {
       // Initialize wallet
       const walletInfo = this.config.getWalletInfo();
       this.wallet = new ethers.Wallet(walletInfo.privateKey, this.provider);
-      console.log('🔐 Enhanced blockchain wallet initialized');
+        console.log('🔐 Enhanced blockchain wallet initialized');
 
       // Initialize contract
       const contractInfo = this.config.getContractInfo();
       const contractABI = await this.loadContractABI(contractInfo.abiPath);
       this.contract = new ethers.Contract(contractInfo.address, contractABI, this.wallet);
-      console.log('📜 Enhanced smart contract initialized');
+        console.log('📜 Enhanced smart contract initialized');
 
       // Set up event polling only if contract is deployed
       if (this.contract && this.contract.target) {
@@ -68,7 +68,7 @@ class EnhancedBlockchainService {
 
       this.isInitialized = true;
       console.log('✅ Enhanced blockchain service initialized successfully');
-
+      
       return {
         success: true,
         message: 'Enhanced blockchain service initialized successfully',
@@ -91,7 +91,7 @@ class EnhancedBlockchainService {
   async loadContractABI(abiPath) {
     try {
       // Basic ABI for land records
-      return [
+    return [
         "function createLandRecord(string surveyNumber, string ownerId, string landType, uint256 area, string location, string dataHash) external",
         "function updateLandRecord(string surveyNumber, string newDataHash, string changeReason) external",
         "function getLandRecord(string surveyNumber) external view returns (tuple(string surveyNumber, string ownerId, string landType, uint256 area, string location, uint256 timestamp, string hash))",
@@ -226,7 +226,7 @@ class EnhancedBlockchainService {
     try {
       const [surveyNumber, ownerId, dataHash] = args;
       
-      await MongoBlockchainLedger.create({
+      const ledgerEntry = new MongoBlockchainLedger({
         survey_number: surveyNumber,
         event_type: 'LAND_RECORD_CREATED',
         officer_id: 1, // Default officer
@@ -243,6 +243,10 @@ class EnhancedBlockchainService {
         is_valid: true
       });
 
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
+
       console.log(`✅ Land record created event processed: ${surveyNumber}`);
     } catch (error) {
       console.error('❌ Failed to process land record created event:', error);
@@ -256,7 +260,7 @@ class EnhancedBlockchainService {
     try {
       const [surveyNumber, newDataHash] = args;
       
-      await MongoBlockchainLedger.create({
+      const ledgerEntry = new MongoBlockchainLedger({
         survey_number: surveyNumber,
         event_type: 'LAND_RECORD_UPDATED',
         officer_id: 1, // Default officer
@@ -272,6 +276,10 @@ class EnhancedBlockchainService {
         is_valid: true
       });
 
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
+
       console.log(`✅ Land record updated event processed: ${surveyNumber}`);
     } catch (error) {
       console.error('❌ Failed to process land record updated event:', error);
@@ -285,7 +293,7 @@ class EnhancedBlockchainService {
     try {
       const [surveyNumber] = args;
       
-      await MongoBlockchainLedger.create({
+      const ledgerEntry = new MongoBlockchainLedger({
         survey_number: surveyNumber,
         event_type: 'LAND_RECORD_DELETED',
         officer_id: 1, // Default officer
@@ -300,6 +308,10 @@ class EnhancedBlockchainService {
         nonce: Math.floor(Math.random() * 1000000),
         is_valid: true
       });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
 
       console.log(`✅ Land record deleted event processed: ${surveyNumber}`);
     } catch (error) {
@@ -357,8 +369,8 @@ class EnhancedBlockchainService {
 
       const previousHash = previousEntry ? previousEntry.current_hash : '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-      // Create ledger entry
-      const ledgerEntry = {
+      // Create ledger entry with proper data formatting
+      const ledgerEntry = new MongoBlockchainLedger({
         survey_number,
         event_type,
         officer_id,
@@ -371,10 +383,13 @@ class EnhancedBlockchainService {
         current_hash: currentHash,
         nonce: Math.floor(Math.random() * 1000000),
         is_valid: true
-      };
+      });
+
+      // Validate the entry before saving
+      await ledgerEntry.validate();
 
       // Store in database
-      const savedEntry = await MongoBlockchainLedger.create(ledgerEntry);
+      const savedEntry = await ledgerEntry.save();
 
       console.log('📝 Blockchain ledger entry created:', {
         survey_number,
@@ -521,7 +536,7 @@ class EnhancedBlockchainService {
           break;
         }
       }
-
+      
       return {
         isIntegrityValid: isValid,
         lastChecked: entries[entries.length - 1].timestamp,
