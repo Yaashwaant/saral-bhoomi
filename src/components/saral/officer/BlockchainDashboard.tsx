@@ -275,7 +275,7 @@ const BlockchainDashboard: React.FC = () => {
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formatFieldValue(blockchainStatus?.network, 'Polygon Mumbai Testnet')}
+                  {formatFieldValue(blockchainStatus?.network?.name, 'Polygon Amoy Testnet')}
                 </p>
               </CardContent>
             </Card>
@@ -286,7 +286,7 @@ const BlockchainDashboard: React.FC = () => {
                 <Database className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.chainId, '80001')}</div>
+                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.network?.chainId, '80002')}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Chain ID
                 </p>
@@ -299,7 +299,7 @@ const BlockchainDashboard: React.FC = () => {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.blockNumber)}</div>
+                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.status?.lastProcessedBlock || 'N/A')}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Latest Block
                 </p>
@@ -312,7 +312,7 @@ const BlockchainDashboard: React.FC = () => {
                 <Shield className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.gasPrice)}</div>
+                <div className="text-2xl font-bold">{formatFieldValue(blockchainStatus?.gas?.gasPrice || 'N/A')}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Current Gas
                 </p>
@@ -330,19 +330,19 @@ const BlockchainDashboard: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Wallet Balance</p>
-                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus.walletBalance)}</p>
+                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus?.wallet?.balance || 'N/A')}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Pending Transactions</p>
-                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus.pendingTransactions, '0')}</p>
+                    <p className="text-sm font-medium text-gray-500">Wallet Address</p>
+                    <p className="text-lg font-semibold text-xs">{formatFieldValue(blockchainStatus?.wallet?.address || 'N/A')}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Transactions</p>
-                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus.totalTransactions, '0')}</p>
+                    <p className="text-sm font-medium text-gray-500">Contract Address</p>
+                    <p className="text-lg font-semibold text-xs">{formatFieldValue(blockchainStatus?.contract?.address || 'N/A')}</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Service Status</p>
-                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus.serviceStatus)}</p>
+                    <p className="text-lg font-semibold">{formatFieldValue(blockchainStatus?.status?.isInitialized ? 'Active' : 'Inactive')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -377,8 +377,8 @@ const BlockchainDashboard: React.FC = () => {
                     <Search className="h-5 w-5 text-blue-600" />
                     <h3 className="font-semibold text-blue-800">Search Results for {searchResults.surveyNumber}</h3>
                   </div>
-                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                     <div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
                        <span className="font-medium text-gray-600">Overall Status:</span>
                        <Badge 
                          variant={
@@ -402,23 +402,23 @@ const BlockchainDashboard: React.FC = () => {
                        </Badge>
                      </div>
                      <div>
-                       <span className="font-medium text-gray-600">Blockchain Status:</span>
-                       <Badge variant={searchResults.existsOnBlockchain ? "default" : "secondary"} className="ml-2">
-                         {searchResults.existsOnBlockchain ? "Found" : "Not Found"}
-                       </Badge>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-600">Timeline Events:</span>
-                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.timelineCount, '0')}</span>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-600">Land Type:</span>
-                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.landType)}</span>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-600">Land Area:</span>
-                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.area)}</span>
-                     </div>
+                      <span className="font-medium text-gray-600">Blockchain Status:</span>
+                      <Badge variant={searchResults.existsOnBlockchain ? "default" : "secondary"} className="ml-2">
+                        {searchResults.existsOnBlockchain ? "Found" : "Not Found"}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Timeline Events:</span>
+                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.timelineCount, '0')}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Land Type:</span>
+                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.landType)}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Land Area:</span>
+                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.area)}</span>
+                    </div>
                      <div>
                        <span className="font-medium text-gray-600">Village:</span>
                        <span className="ml-2 font-semibold">{formatFieldValue(searchResults.village)}</span>
@@ -427,11 +427,11 @@ const BlockchainDashboard: React.FC = () => {
                        <span className="font-medium text-gray-600">District:</span>
                        <span className="ml-2 font-semibold">{formatFieldValue(searchResults.district)}</span>
                      </div>
-                     <div>
-                       <span className="font-medium text-gray-600">Last Checked:</span>
-                       <span className="ml-2 font-semibold">{formatFieldValue(searchResults.lastChecked, 'Never')}</span>
-                     </div>
-                   </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Last Checked:</span>
+                      <span className="ml-2 font-semibold">{formatFieldValue(searchResults.lastChecked, 'Never')}</span>
+                    </div>
+                  </div>
                    
                    {/* Status Message */}
                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
@@ -525,7 +525,7 @@ const BlockchainDashboard: React.FC = () => {
                           <span className="font-medium text-gray-600">Land Area:</span>
                           <p className="font-semibold">{formatFieldValue(searchResults.area)}</p>
                         </div>
-                      </div>
+                  </div>
                     </CardContent>
                   </Card>
 
@@ -536,7 +536,7 @@ const BlockchainDashboard: React.FC = () => {
                       <Clock className="h-8 w-8 mx-auto mb-2" />
                       <p className="text-sm">Timeline events loaded from blockchain</p>
                       <p className="text-xs text-gray-500">Click "View All Events" to see complete timeline</p>
-                    </div>
+                        </div>
                     
                     <div className="text-center py-2 text-gray-500">
                       <p className="text-sm">Found {searchResults.timelineCount} timeline events</p>
@@ -551,7 +551,7 @@ const BlockchainDashboard: React.FC = () => {
                       >
                         View All Events
                       </Button>
-                    </div>
+                      </div>
                   </div>
                 </div>
               ) : searchResults && searchResults.timelineCount === 0 ? (
