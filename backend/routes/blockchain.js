@@ -127,17 +127,24 @@ router.post('/', [
 // ===== SURVEY SEARCH & STATUS =====
 
 /**
- * @route GET /api/blockchain/search/:surveyNumber
+ * @route GET /api/blockchain/search/*
  * @desc Search for survey blockchain status and database record
  * @access Private (Officers only)
  */
-router.get('/search/:surveyNumber', [
+router.get('/search/*', [
   authMiddleware,
-  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
   handleValidationErrors
 ], async (req, res) => {
   try {
-    const { surveyNumber } = req.params;
+    // Extract survey number from the wildcard path
+    const surveyNumber = req.params[0]; // This captures everything after /search/
+    
+    if (!surveyNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Survey number is required'
+      });
+    }
 
     // Import JMR model to check database
     const MongoJMRRecord = (await import('../models/mongo/JMRRecord.js')).default;
@@ -215,17 +222,24 @@ router.get('/search/:surveyNumber', [
 });
 
 /**
- * @route GET /api/blockchain/timeline/:surveyNumber
+ * @route GET /api/blockchain/timeline/*
  * @desc Get timeline events for a specific survey
  * @access Private (Officers only)
  */
-router.get('/timeline/:surveyNumber', [
+router.get('/timeline/*', [
   authMiddleware,
-  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
   handleValidationErrors
 ], async (req, res) => {
   try {
-    const { surveyNumber } = req.params;
+    // Extract survey number from the wildcard path
+    const surveyNumber = req.params[0]; // This captures everything after /timeline/
+    
+    if (!surveyNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Survey number is required'
+      });
+    }
 
     const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
 
@@ -336,17 +350,24 @@ router.get('/sync-status', [
 // ===== INTEGRITY VERIFICATION =====
 
 /**
- * @route GET /api/blockchain/verify-integrity/:surveyNumber
+ * @route GET /api/blockchain/verify-integrity/*
  * @desc Verify integrity of a survey's blockchain chain
  * @access Private (Officers only)
  */
-router.get('/verify-integrity/:surveyNumber', [
+router.get('/verify-integrity/*', [
   authMiddleware,
-  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
   handleValidationErrors
 ], async (req, res) => {
   try {
-    const { surveyNumber } = req.params;
+    // Extract survey number from the wildcard path
+    const surveyNumber = req.params[0]; // This captures everything after /verify-integrity/
+    
+    if (!surveyNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Survey number is required'
+      });
+    }
 
     const integrityStatus = await enhancedBlockchainService.getSurveyIntegrityStatus(surveyNumber);
 

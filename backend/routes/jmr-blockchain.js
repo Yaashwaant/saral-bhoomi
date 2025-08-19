@@ -14,7 +14,7 @@ const enhancedBlockchainService = new EnhancedBlockchainService();
 enhancedBlockchainService.initialize().catch(console.error);
 
 // Multer configuration for file uploads
-const upload = multer({
+const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
@@ -34,14 +34,14 @@ const validateJMR = [
 ];
 
 const handleValidationErrors = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors: errors.array()
-    });
-  }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
   next();
 };
 
@@ -80,12 +80,12 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
     // Create JMR record
     const jmrRecord = await MongoJMRRecord.create({
       survey_number,
-      measured_area: parseFloat(measured_area),
-      land_type,
-      tribal_classification: tribal_classification === 'true',
-      village,
-      taluka,
-      district,
+        measured_area: parseFloat(measured_area),
+        land_type,
+        tribal_classification: tribal_classification === 'true',
+        village,
+        taluka,
+        district,
       owner_id,
       officer_id,
       project_id,
@@ -140,7 +140,7 @@ router.get('/', authMiddleware, async (req, res) => {
 
     // Build query conditions
     const whereClause = { is_active: true };
-    
+
     if (project_id) whereClause.project_id = project_id;
     if (officer_id) whereClause.officer_id = officer_id;
     
@@ -167,7 +167,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const recordsWithBlockchain = await Promise.all(
       jmrRecords.map(async (record) => {
         const blockchainEntries = await MongoBlockchainLedger.find({ 
-          survey_number: record.survey_number,
+            survey_number: record.survey_number,
           event_type: 'JMR_MEASUREMENT_UPLOADED'
         }).sort({ timestamp: -1 }).limit(1);
 
@@ -272,10 +272,10 @@ router.put('/:id', validateJMR, authMiddleware, async (req, res) => {
         event_type: 'JMR_MEASUREMENT_UPDATED',
         officer_id: req.user?.id || 1,
         project_id: jmrRecord.project_id,
-        metadata: {
+      metadata: {
           jmr_id: jmrRecord._id,
-          old_values: oldValues,
-          new_values: updateData,
+        old_values: oldValues,
+        new_values: updateData,
           update_reason: updateData.remarks || 'Record updated'
         },
         remarks: `JMR record updated for survey ${jmrRecord.survey_number}`,
@@ -331,11 +331,11 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         event_type: 'JMR_MEASUREMENT_DELETED',
         officer_id: req.user?.id || 1,
         project_id: jmrRecord.project_id,
-        metadata: {
+      metadata: {
           deleted_jmr_id: jmrRecord._id,
-          deleted_at: new Date().toISOString(),
-          reason: reason || 'Record deleted by user'
-        },
+        deleted_at: new Date().toISOString(),
+        reason: reason || 'Record deleted by user'
+      },
         remarks: `JMR record deleted for survey ${jmrRecord.survey_number}. Reason: ${reason || 'Not specified'}`,
         timestamp: new Date().toISOString()
       });
@@ -347,7 +347,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     // Soft delete - mark as inactive
     await MongoJMRRecord.findByIdAndUpdate(id, { 
-      is_active: false, 
+      is_active: false,
       updated_at: new Date() 
     });
 
