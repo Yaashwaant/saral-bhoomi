@@ -1,155 +1,107 @@
 import express from 'express';
-import { body, validationResult } from 'express-validator';
 import multer from 'multer';
-import MongoJMRRecord from '../models/mongo/JMRRecord.js';
-import MongoProject from '../models/mongo/Project.js';
-import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
-import enhancedBlockchainService from '../services/enhancedBlockchainService.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import fs from 'fs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { body, param, query, validationResult } from 'express-validator';
+import { MongoJMRRecord } from '../models/mongo/JMRRecord.js';
+import { MongoProject } from '../models/mongo/Project.js';
+import { MongoBlockchainLedger } from '../models/mongo/BlockchainLedger.js';
+import EnhancedBlockchainService from '../services/enhancedBlockchainService.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
+const enhancedBlockchainService = new EnhancedBlockchainService();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = join(__dirname, '../uploads/jmr');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+// Initialize blockchain service
+enhancedBlockchainService.initialize().catch(console.error);
+
+// Multer configuration for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `jmr-${uniqueSuffix}-${file.originalname}`);
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    // Allow only specific file types
-    if (file.mimetype.startsWith('image/') || 
-        file.mimetype === 'application/pdf' ||
-        file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        file.mimetype === 'application/vnd.ms-excel') {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only images, PDFs, and Excel files are allowed.'), false);
-    }
-  }
 });
 
 // Validation middleware
 const validateJMR = [
   body('survey_number').notEmpty().withMessage('Survey number is required'),
-  body('project_id').isMongoId().withMessage('Valid project ID is required'),
-  body('officer_id').isMongoId().withMessage('Valid officer ID is required'),
   body('measured_area').isFloat({ min: 0 }).withMessage('Measured area must be a positive number'),
-  body('land_type').isIn(['agricultural', 'residential', 'commercial', 'industrial', 'forest', 'other']).withMessage('Invalid land type'),
+  body('land_type').notEmpty().withMessage('Land type is required'),
   body('village').notEmpty().withMessage('Village is required'),
   body('taluka').notEmpty().withMessage('Taluka is required'),
-  body('district').notEmpty().withMessage('District is required')
+  body('district').notEmpty().withMessage('District is required'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('project_id').notEmpty().withMessage('Project ID is required'),
 ];
 
-// Create JMR record with blockchain integration
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: errors.array()
+    });
+  }
+  next();
+};
+
+// ===== JMR CRUD OPERATIONS =====
+
+/**
+ * @route POST /
+ * @desc Create JMR record with automatic blockchain integration
+ * @access Private (Officers only)
+ */
 router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
     const {
       survey_number,
-      project_id,
-      officer_id,
       measured_area,
       land_type,
+      tribal_classification = false,
       village,
       taluka,
       district,
-      category,
-      notes,
-      tribal_classification = 'non-tribal'
+      owner_id,
+      officer_id,
+      project_id,
+      remarks = ''
     } = req.body;
 
-    // Check if JMR already exists for this survey number and project
-    const existingJMR = await MongoJMRRecord.findOne({
-      survey_number,
-      project_id
-    });
-
-    if (existingJMR) {
-      return res.status(409).json({
+    // Check if survey already exists
+    const existingSurvey = await MongoJMRRecord.findOne({ survey_number });
+    if (existingSurvey) {
+      return res.status(400).json({
         success: false,
-        message: 'JMR record already exists for this survey number and project'
+        message: 'Survey number already exists'
       });
     }
-
-    // Process uploaded files
-    const attachments = req.files ? req.files.map(file => ({
-      filename: file.filename,
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      size: file.size,
-      path: file.path
-    })) : [];
 
     // Create JMR record
     const jmrRecord = await MongoJMRRecord.create({
       survey_number,
-      project_id,
-      officer_id,
-      measured_area,
+      measured_area: parseFloat(measured_area),
       land_type,
       tribal_classification: tribal_classification === 'true',
-      category,
-      date_of_measurement: new Date(),
-      attachments,
-      notes,
       village,
       taluka,
       district,
-      status: 'pending'
+      owner_id,
+      officer_id,
+      project_id,
+      remarks,
+      is_active: true,
+      created_at: new Date(),
+      updated_at: new Date()
     });
 
-    // Create blockchain entry using enhanced service
+    // Create blockchain entry automatically
     try {
-      const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
-        survey_number,
-        event_type: 'JMR_Measurement_Uploaded',
+      const blockchainEntry = await enhancedBlockchainService.createJMRBlockchainEntry(
+        jmrRecord,
         officer_id,
-        project_id,
-        metadata: {
-          measured_area: parseFloat(measured_area),
-          land_type,
-          tribal_classification: tribal_classification === 'true',
-          village,
-          taluka,
-          district,
-          attachments_count: attachments.length,
-          jmr_id: jmrRecord.id
-        },
-        remarks: `JMR measurement uploaded for survey ${survey_number}. Area: ${measured_area} acres, Type: ${land_type}, Village: ${village}, Taluka: ${taluka}, District: ${district}`,
-        timestamp: new Date().toISOString()
-      });
-
-      // Store in local blockchain ledger for reference
-      await MongoBlockchainLedger.create({
-        ...blockchainEntry,
-        project_id,
-        officer_id: officer_id
-      });
+        project_id
+      );
 
       console.log('✅ Blockchain entry created for JMR:', survey_number);
     } catch (blockchainError) {
@@ -159,9 +111,9 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
 
     res.status(201).json({
       success: true,
-      message: 'JMR record created successfully with blockchain entry',
+      message: 'JMR record created successfully with blockchain integration',
       data: {
-        jmr_id: jmrRecord.id,
+        jmr_id: jmrRecord._id,
         survey_number: jmrRecord.survey_number,
         blockchain_synced: true
       }
@@ -176,185 +128,22 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
   }
 });
 
-// Bulk upload JMR records via CSV
-router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
+/**
+ * @route GET /
+ * @desc Get all JMR records with blockchain status
+ * @access Private (Officers only)
+ */
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'CSV file is required'
-      });
-    }
+    const { page = 1, limit = 10, search, project_id, officer_id } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    if (!req.file.mimetype.includes('csv') && 
-        !req.file.mimetype.includes('excel') && 
-        !req.file.mimetype.includes('spreadsheet')) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid file type. Only CSV and Excel files are allowed.'
-      });
-    }
-
-    // Parse CSV file
-    const csv = require('csv-parser');
-    const results = [];
+    // Build query conditions
+    const whereClause = { is_active: true };
     
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on('data', (data) => results.push(data))
-      .on('end', async () => {
-        try {
-          const createdRecords = [];
-          const errors = [];
-
-          for (let i = 0; i < results.length; i++) {
-            const row = results[i];
-            try {
-              // Validate required fields
-              if (!row.survey_number || !row.project_id || !row.landowner_id || !row.measured_area) {
-                errors.push({
-                  row: i + 2, // +2 because CSV is 1-indexed and we have header
-                  error: 'Missing required fields',
-                  data: row
-                });
-                continue;
-              }
-
-              // Check if JMR already exists
-              const existingJMR = await MongoJMRRecord.findOne({
-                survey_number: row.survey_number, 
-                project_id: row.project_id
-              });
-
-              if (existingJMR) {
-                errors.push({
-                  row: i + 2,
-                  error: 'JMR record already exists',
-                  data: row
-                });
-                continue;
-              }
-
-              // Create JMR record
-              const jmrRecord = await MongoJMRRecord.create({
-                survey_number: row.survey_number,
-                project_id: row.project_id,
-                landowner_id: row.landowner_id,
-                measured_area: parseFloat(row.measured_area),
-                land_type: row.land_type || 'Agricultural',
-                tribal_classification: row.tribal_classification === 'true',
-                category: row.category,
-                date_of_measurement: new Date(),
-                notes: row.notes,
-                village: row.village,
-                taluka: row.taluka,
-                district: row.district,
-                officer_id: row.officer_id,
-                status: 'pending'
-              });
-
-              // Create blockchain entry using enhanced service
-              try {
-                const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
-                  survey_number: row.survey_number,
-                  event_type: 'JMR_Measurement_Uploaded',
-                  officer_id: row.officer_id,
-                  project_id: row.project_id,
-                  metadata: {
-                    measured_area: parseFloat(row.measured_area),
-                    land_type: row.land_type || 'Agricultural',
-                    tribal_classification: row.tribal_classification === 'true',
-                    village: row.village,
-                    taluka: row.taluka,
-                    district: row.district,
-                    jmr_id: jmrRecord.id
-                  },
-                  remarks: `Bulk upload: JMR measurement for survey ${row.survey_number}`,
-                  timestamp: new Date().toISOString()
-                });
-
-                // Store in local blockchain ledger
-                await MongoBlockchainLedger.create({
-                  ...blockchainEntry,
-                  project_id: row.project_id,
-                  officer_id: row.officer_id
-                });
-
-                createdRecords.push({
-                  jmr_id: jmrRecord.id,
-                  survey_number: jmrRecord.survey_number,
-                  blockchain_synced: true
-                });
-              } catch (blockchainError) {
-                console.warn('⚠️ Failed to create blockchain entry for bulk upload:', row.survey_number, blockchainError.message);
-                createdRecords.push({
-                  jmr_id: jmrRecord.id,
-                  survey_number: jmrRecord.survey_number,
-                  blockchain_synced: false
-                });
-              }
-            } catch (error) {
-              errors.push({
-                row: i + 2,
-                error: error.message,
-                data: row
-              });
-            }
-          }
-
-          // Clean up uploaded file
-          fs.unlinkSync(req.file.path);
-
-          res.json({
-            success: true,
-            message: `Bulk upload completed. ${createdRecords.length} records created, ${errors.length} errors.`,
-            data: {
-              created_records: createdRecords,
-              errors: errors,
-              total_processed: results.length
-            }
-          });
-        } catch (error) {
-          console.error('Bulk upload processing error:', error);
-          res.status(500).json({
-            success: false,
-            message: 'Failed to process bulk upload',
-            error: error.message
-          });
-        }
-      });
-  } catch (error) {
-    console.error('Bulk upload error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to process bulk upload',
-      error: error.message
-    });
-  }
-});
-
-// Get JMR records with blockchain verification
-router.get('/', async (req, res) => {
-  try {
-    const { 
-      page = 1, 
-      limit = 20, 
-      project_id, 
-      officer_id, 
-      land_type, 
-      tribal_classification,
-      status,
-      search 
-    } = req.query;
-
-    const offset = (page - 1) * limit;
-    let whereClause = {};
-
     if (project_id) whereClause.project_id = project_id;
     if (officer_id) whereClause.officer_id = officer_id;
-    if (land_type) whereClause.land_type = land_type;
-    if (tribal_classification !== undefined) whereClause.tribal_classification = tribal_classification === 'true';
-    if (status) whereClause.status = status;
+    
     if (search) {
       whereClause.$or = [
         { survey_number: { $regex: search, $options: 'i' } },
@@ -379,10 +168,8 @@ router.get('/', async (req, res) => {
       jmrRecords.map(async (record) => {
         const blockchainEntries = await MongoBlockchainLedger.find({ 
           survey_number: record.survey_number,
-          event_type: 'JMR_Measurement_Uploaded'
-        })
-        .sort({ timestamp: -1 })
-        .limit(1);
+          event_type: 'JMR_MEASUREMENT_UPLOADED'
+        }).sort({ timestamp: -1 }).limit(1);
 
         return {
           ...record.toObject(),
@@ -401,7 +188,7 @@ router.get('/', async (req, res) => {
           page: parseInt(page),
           limit: parseInt(limit),
           total: count,
-          pages: Math.ceil(count / limit)
+          pages: Math.ceil(count / parseInt(limit))
         }
       }
     });
@@ -415,13 +202,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get JMR record by ID with blockchain history
-router.get('/:id', async (req, res) => {
+/**
+ * @route GET /:id
+ * @desc Get JMR record by ID with blockchain history
+ * @access Private (Officers only)
+ */
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
 
     const jmrRecord = await MongoJMRRecord.findById(id).populate('project_id', 'name description');
-
     if (!jmrRecord) {
       return res.status(404).json({
         success: false,
@@ -437,9 +227,8 @@ router.get('/:id', async (req, res) => {
     res.json({
       success: true,
       data: {
-        jmr_record: jmrRecord,
-        blockchain_history: blockchainHistory,
-        total_blockchain_entries: blockchainHistory.length
+        jmr: jmrRecord,
+        blockchain_history: blockchainHistory
       }
     });
   } catch (error) {
@@ -452,8 +241,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Update JMR record with blockchain logging
-router.put('/:id', validateJMR, async (req, res) => {
+/**
+ * @route PUT /:id
+ * @desc Update JMR record with blockchain logging
+ * @access Private (Officers only)
+ */
+router.put('/:id', validateJMR, authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -472,28 +265,21 @@ router.put('/:id', validateJMR, async (req, res) => {
     // Update JMR record
     await MongoJMRRecord.findByIdAndUpdate(id, updateData, { new: true });
 
-    // Create blockchain entry for the update using enhanced service
+    // Create blockchain entry for update
     try {
       const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
         survey_number: jmrRecord.survey_number,
-        event_type: 'JMR_Measurement_Updated',
-        officer_id: updateData.officer_id || jmrRecord.officer_id,
+        event_type: 'JMR_MEASUREMENT_UPDATED',
+        officer_id: req.user?.id || 1,
         project_id: jmrRecord.project_id,
         metadata: {
-          updated_fields: Object.keys(updateData),
+          jmr_id: jmrRecord._id,
           old_values: oldValues,
           new_values: updateData,
-          jmr_id: jmrRecord.id
+          update_reason: updateData.remarks || 'Record updated'
         },
         remarks: `JMR record updated for survey ${jmrRecord.survey_number}`,
         timestamp: new Date().toISOString()
-      });
-
-      // Store in local blockchain ledger for reference
-      await MongoBlockchainLedger.create({
-        ...blockchainEntry,
-        project_id: jmrRecord.project_id,
-        officer_id: updateData.officer_id || jmrRecord.officer_id
       });
 
       console.log('✅ Blockchain entry created for JMR update:', jmrRecord.survey_number);
@@ -503,9 +289,9 @@ router.put('/:id', validateJMR, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'JMR record updated successfully with blockchain entry',
+      message: 'JMR record updated successfully with blockchain logging',
       data: {
-        jmr_id: jmrRecord.id,
+        jmr_id: jmrRecord._id,
         survey_number: jmrRecord.survey_number,
         blockchain_synced: true
       }
@@ -520,11 +306,15 @@ router.put('/:id', validateJMR, async (req, res) => {
   }
 });
 
-// Delete JMR record (soft delete with blockchain logging)
-router.delete('/:id', async (req, res) => {
+/**
+ * @route DELETE /:id
+ * @desc Delete JMR record with blockchain logging
+ * @access Private (Officers only)
+ */
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reason = 'Record deleted by user' } = req.body;
 
     const jmrRecord = await MongoJMRRecord.findById(id);
     if (!jmrRecord) {
@@ -538,11 +328,11 @@ router.delete('/:id', async (req, res) => {
     try {
       const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
         survey_number: jmrRecord.survey_number,
-        event_type: 'JMR_Measurement_Deleted',
-        officer_id: req.user?.id || 1, // Default to user 1 if no auth context
+        event_type: 'JMR_MEASUREMENT_DELETED',
+        officer_id: req.user?.id || 1,
         project_id: jmrRecord.project_id,
         metadata: {
-          deleted_jmr_id: jmrRecord.id,
+          deleted_jmr_id: jmrRecord._id,
           deleted_at: new Date().toISOString(),
           reason: reason || 'Record deleted by user'
         },
@@ -550,29 +340,22 @@ router.delete('/:id', async (req, res) => {
         timestamp: new Date().toISOString()
       });
 
-      // Store in local blockchain ledger for reference
-      await MongoBlockchainLedger.create({
-        ...blockchainEntry,
-        project_id: jmrRecord.project_id,
-        officer_id: req.user?.id || 1
-      });
-
       console.log('✅ Blockchain entry created for JMR deletion:', jmrRecord.survey_number);
     } catch (blockchainError) {
       console.warn('⚠️ Failed to create blockchain entry for JMR deletion:', jmrRecord.survey_number, blockchainError.message);
     }
 
-    // Soft delete the record
+    // Soft delete - mark as inactive
     await MongoJMRRecord.findByIdAndUpdate(id, { 
-      is_active: false,
-      deleted_at: new Date()
-    }, { new: true });
+      is_active: false, 
+      updated_at: new Date() 
+    });
 
     res.json({
       success: true,
-      message: 'JMR record deleted successfully with blockchain entry',
+      message: 'JMR record deleted successfully with blockchain logging',
       data: {
-        jmr_id: jmrRecord.id,
+        jmr_id: jmrRecord._id,
         survey_number: jmrRecord.survey_number,
         blockchain_synced: true
       }
@@ -587,14 +370,135 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ===== BULK OPERATIONS =====
+
+/**
+ * @route POST /bulk-upload
+ * @desc Bulk upload JMR records with blockchain integration
+ * @access Private (Officers only)
+ */
+router.post('/bulk-upload', upload.single('csv'), authMiddleware, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'CSV file is required'
+      });
+    }
+
+    const csvContent = req.file.buffer.toString();
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 1; i < lines.length; i++) {
+      try {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+
+        // Validate required fields
+        if (!row.survey_number || !row.measured_area || !row.land_type) {
+          throw new Error('Missing required fields');
+        }
+
+        // Create JMR record
+        const jmrRecord = await MongoJMRRecord.create({
+          survey_number: row.survey_number,
+          measured_area: parseFloat(row.measured_area),
+          land_type: row.land_type || 'Agricultural',
+          tribal_classification: row.tribal_classification === 'true',
+          village: row.village,
+          taluka: row.taluka,
+          district: row.district,
+          owner_id: row.owner_id,
+          officer_id: row.officer_id || 1,
+          project_id: row.project_id || 1,
+          remarks: row.remarks || 'Bulk upload',
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+
+        // Create blockchain entry automatically
+        try {
+          const blockchainEntry = await enhancedBlockchainService.createJMRBlockchainEntry(
+            jmrRecord,
+            row.officer_id || 1,
+            row.project_id || 1
+          );
+
+          // Store in local blockchain ledger for reference
+          await MongoBlockchainLedger.create({
+            ...blockchainEntry.toObject(),
+            project_id: row.project_id || 1,
+            officer_id: row.officer_id || 1
+          });
+
+          successCount++;
+          results.push({
+            survey_number: row.survey_number,
+            status: 'success',
+            jmr_id: jmrRecord._id,
+            blockchain_entry: blockchainEntry._id
+          });
+
+          console.log(`✅ Bulk upload: Survey ${row.survey_number} created with blockchain entry`);
+        } catch (blockchainError) {
+          console.warn(`⚠️ Failed to create blockchain entry for survey ${row.survey_number}:`, blockchainError.message);
+          // Still count as success for JMR creation
+          successCount++;
+          results.push({
+            survey_number: row.survey_number,
+            status: 'success_no_blockchain',
+            jmr_id: jmrRecord._id,
+            error: blockchainError.message
+          });
+        }
+      } catch (error) {
+        errorCount++;
+        results.push({
+          survey_number: row.survey_number || 'unknown',
+          status: 'error',
+          error: error.message
+        });
+        console.error(`❌ Bulk upload error for row ${i}:`, error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Bulk upload completed. ${successCount} successful, ${errorCount} errors`,
+      data: {
+        total: lines.length - 1,
+        successful: successCount,
+        errors: errorCount,
+        results
+      }
+    });
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process bulk upload',
+      error: error.message
+    });
+  }
+});
+
 // ===== BULK BLOCKCHAIN SYNC =====
 
 /**
- * @route POST /api/jmr-blockchain/bulk-sync
+ * @route POST /bulk-sync
  * @desc Bulk sync existing JMR records to blockchain
  * @access Private (Officers only)
  */
-router.post('/bulk-sync', async (req, res) => {
+router.post('/bulk-sync', authMiddleware, async (req, res) => {
   try {
     const { project_id, officer_id = 1 } = req.body;
 
@@ -621,7 +525,7 @@ router.post('/bulk-sync', async (req, res) => {
         // Check if blockchain entry already exists
         const existingBlockchainEntry = await MongoBlockchainLedger.findOne({
           survey_number: jmrRecord.survey_number,
-          event_type: 'JMR_Measurement_Uploaded'
+          event_type: 'JMR_MEASUREMENT_UPLOADED'
         });
 
         if (existingBlockchainEntry) {
@@ -634,30 +538,11 @@ router.post('/bulk-sync', async (req, res) => {
         }
 
         // Create blockchain entry
-        const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
-          survey_number: jmrRecord.survey_number,
-          event_type: 'JMR_Measurement_Uploaded',
-          officer_id: officer_id,
-          project_id: jmrRecord.project_id,
-          metadata: {
-            measured_area: jmrRecord.measured_area,
-            land_type: jmrRecord.land_type,
-            tribal_classification: jmrRecord.tribal_classification,
-            village: jmrRecord.village,
-            taluka: jmrRecord.taluka,
-            district: jmrRecord.district,
-            jmr_id: jmrRecord.id
-          },
-          remarks: `Bulk sync: JMR measurement for survey ${jmrRecord.survey_number}. Area: ${jmrRecord.measured_area} acres, Type: ${jmrRecord.land_type}, Village: ${jmrRecord.village}`,
-          timestamp: new Date().toISOString()
-        });
-
-        // Store in local blockchain ledger
-        await MongoBlockchainLedger.create({
-          ...blockchainEntry,
-          project_id: jmrRecord.project_id,
-          officer_id: officer_id
-        });
+        const blockchainEntry = await enhancedBlockchainService.createJMRBlockchainEntry(
+          jmrRecord,
+          officer_id,
+          jmrRecord.project_id
+        );
 
         syncedCount++;
         results.push({
