@@ -10,7 +10,8 @@ const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ 
-        success: false,
+      success: false,
+      message: 'Validation failed',
       errors: errors.array() 
     });
   }
@@ -243,23 +244,71 @@ router.get('/search/:surveyNumber', [
   try {
     const { surveyNumber } = req.params;
 
-    // Get survey data from database (you'll need to implement this based on your existing models)
-    // For now, we'll return blockchain status
+    // Import JMR model to check database
+    const MongoJMRRecord = (await import('../models/mongo/JMRRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+
+    // Check if survey exists in database
+    const dbRecord = await MongoJMRRecord.findOne({
+      where: { survey_number: surveyNumber, is_active: true }
+    });
+
+    // Check if survey exists on blockchain
     const blockchainStatus = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
     const integrityStatus = await enhancedBlockchainService.getSurveyIntegrityStatus(surveyNumber);
     const timelineCount = await enhancedBlockchainService.getTimelineCount(surveyNumber);
 
-    // TODO: Fetch survey data from your existing database models
-    // const surveyData = await getSurveyDataFromDatabase(surveyNumber);
+    // Check local blockchain ledger for this survey
+    const localBlockchainEntry = await MongoBlockchainLedger.findOne({
+      where: { 
+        survey_number: surveyNumber,
+        event_type: 'JMR_Measurement_Uploaded'
+      },
+      order: [['timestamp', 'DESC']]
+    });
+
+    // Determine overall status
+    let overallStatus = 'unknown';
+    let statusMessage = '';
+
+    if (dbRecord && localBlockchainEntry) {
+      overallStatus = 'synced';
+      statusMessage = 'Record exists in database and on blockchain';
+    } else if (dbRecord && !localBlockchainEntry) {
+      overallStatus = 'database_only';
+      statusMessage = 'Record exists in database but not on blockchain';
+    } else if (!dbRecord && localBlockchainEntry) {
+      overallStatus = 'blockchain_only';
+      statusMessage = 'Record exists on blockchain but not in database';
+    } else {
+      overallStatus = 'not_found';
+      statusMessage = 'Record not found in database or on blockchain';
+    }
 
     res.json({
       success: true,
       data: {
         surveyNumber,
+        existsInDatabase: !!dbRecord,
         existsOnBlockchain: blockchainStatus,
+        localBlockchainEntry: !!localBlockchainEntry,
+        overallStatus,
+        statusMessage,
         integrityStatus: integrityStatus || { isIntegrityValid: false, lastChecked: null, compromiseReason: 'Not checked' },
         timelineCount,
-        // surveyData: surveyData || null
+        databaseRecord: dbRecord ? {
+          measured_area: dbRecord.measured_area,
+          land_type: dbRecord.land_type,
+          village: dbRecord.village,
+          taluka: dbRecord.taluka,
+          district: dbRecord.district,
+          status: dbRecord.status
+        } : null,
+        blockchainEntry: localBlockchainEntry ? {
+          block_id: localBlockchainEntry.block_id,
+          current_hash: localBlockchainEntry.current_hash,
+          timestamp: localBlockchainEntry.timestamp
+        } : null
       }
     });
   } catch (error) {
@@ -448,6 +497,96 @@ router.get('/transactions', authMiddleware, async (req, res) => {
   }
 });
 
+// ===== SYNC STATUS =====
+
+/**
+ * @route GET /api/blockchain/sync-status
+ * @desc Get sync status of all surveys
+ * @access Private (Officers only)
+ */
+router.get('/sync-status', [
+  authMiddleware
+], async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    
+    // Import models
+    const MongoJMRRecord = (await import('../models/mongo/JMRRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+
+    // Get all active JMR records
+    const jmrRecords = await MongoJMRRecord.findAll({
+      where: {
+        is_active: true,
+        ...(project_id && { project_id })
+      }
+    });
+
+    // Get all blockchain entries
+    const blockchainEntries = await MongoBlockchainLedger.findAll({
+      where: {
+        event_type: 'JMR_Measurement_Uploaded'
+      }
+    });
+
+    // Create a map of blockchain entries by survey number
+    const blockchainMap = new Map();
+    blockchainEntries.forEach(entry => {
+      blockchainMap.set(entry.survey_number, entry);
+    });
+
+    // Analyze sync status
+    const syncStatus = jmrRecords.map(record => {
+      const blockchainEntry = blockchainMap.get(record.survey_number);
+      return {
+        survey_number: record.survey_number,
+        exists_in_database: true,
+        exists_on_blockchain: !!blockchainEntry,
+        sync_status: blockchainEntry ? 'synced' : 'not_synced',
+        database_data: {
+          measured_area: record.measured_area,
+          land_type: record.land_type,
+          village: record.village,
+          taluka: record.taluka,
+          district: record.district,
+          status: record.status
+        },
+        blockchain_data: blockchainEntry ? {
+          block_id: blockchainEntry.block_id,
+          current_hash: blockchainEntry.current_hash,
+          timestamp: blockchainEntry.timestamp
+        } : null
+      };
+    });
+
+    // Count statistics
+    const totalRecords = syncStatus.length;
+    const syncedRecords = syncStatus.filter(s => s.sync_status === 'synced').length;
+    const unsyncedRecords = totalRecords - syncedRecords;
+    const syncPercentage = totalRecords > 0 ? Math.round((syncedRecords / totalRecords) * 100) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total_records: totalRecords,
+          synced_records: syncedRecords,
+          unsynced_records: unsyncedRecords,
+          sync_percentage: syncPercentage
+        },
+        records: syncStatus
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get sync status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get sync status',
+      error: error.message
+    });
+  }
+});
+
 // ===== HEALTH CHECK =====
 
 /**
@@ -462,9 +601,9 @@ router.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       service: 'Enhanced Blockchain Service',
       status: 'healthy',
-      network: 'Polygon Mumbai Testnet',
-      chainId: 80001,
-      message: 'Service is running (blockchain integration pending configuration)'
+      network: 'Polygon Amoy Testnet',
+      chainId: 80002,
+      message: 'Service is running with enhanced blockchain integration'
     });
   } catch (error) {
     res.status(503).json({
