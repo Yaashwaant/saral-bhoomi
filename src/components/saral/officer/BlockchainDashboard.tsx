@@ -23,6 +23,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { config } from '@/config';
 
 const BlockchainDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -35,7 +36,7 @@ const BlockchainDashboard: React.FC = () => {
   const loadBlockchainStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/blockchain/status');
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/status`);
       if (response.ok) {
         const data = await response.json();
         setBlockchainStatus(data.data);
@@ -65,7 +66,7 @@ const BlockchainDashboard: React.FC = () => {
       setError(null);
       
       // First check if survey exists on blockchain
-      const searchResponse = await fetch(`/api/blockchain/search/${searchSurvey}`, {
+      const searchResponse = await fetch(`${config.API_BASE_URL}/blockchain/search/${searchSurvey}`, {
         headers: {
           'Authorization': 'Bearer demo-jwt-token'
         }
@@ -73,7 +74,7 @@ const BlockchainDashboard: React.FC = () => {
       const searchData = await searchResponse.json();
       
       // Get timeline events
-      const timelineResponse = await fetch(`/api/blockchain/timeline/${searchSurvey}`, {
+      const timelineResponse = await fetch(`${config.API_BASE_URL}/blockchain/timeline/${searchSurvey}`, {
         headers: {
           'Authorization': 'Bearer demo-jwt-token'
         }
@@ -83,7 +84,11 @@ const BlockchainDashboard: React.FC = () => {
       // Get JMR data if available
       let jmrData = null;
       try {
-        const jmrResponse = await fetch(`/api/jmr-blockchain?search=${searchSurvey}`);
+        const jmrResponse = await fetch(`${config.API_BASE_URL}/jmr-blockchain?search=${searchSurvey}`, {
+          headers: {
+            'Authorization': 'Bearer demo-jwt-token'
+          }
+        });
         if (jmrResponse.ok) {
           jmrData = await jmrResponse.json();
         }
@@ -152,7 +157,7 @@ const BlockchainDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`/api/jmr-blockchain/bulk-sync`, {
+      const response = await fetch(`${config.API_BASE_URL}/jmr-blockchain/bulk-sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,7 +192,7 @@ const BlockchainDashboard: React.FC = () => {
     try {
       setLoading(true);
       
-      const response = await fetch(`/api/jmr-blockchain/bulk-sync`, {
+      const response = await fetch(`${config.API_BASE_URL}/jmr-blockchain/bulk-sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
