@@ -163,8 +163,7 @@ router.post('/', validateJMR, upload.array('attachments', 5), async (req, res) =
       data: {
         jmr_id: jmrRecord.id,
         survey_number: jmrRecord.survey_number,
-        block_id: blockchainBlock.block_id,
-        blockchain_hash: blockchainBlock.current_hash
+        blockchain_synced: true
       }
     });
   } catch (error) {
@@ -254,32 +253,46 @@ router.post('/bulk-upload', upload.single('csv'), async (req, res) => {
                 status: 'pending'
               });
 
-              // Create blockchain entry
-              const blockData = {
-                surveyNumber: row.survey_number,
-                eventType: 'JMR_Measurement_Uploaded',
-                officerId: row.officer_id,
-                projectId: row.project_id,
-                metadata: {
-                  measured_area: parseFloat(row.measured_area),
-                  land_type: row.land_type || 'Agricultural',
-                  tribal_classification: row.tribal_classification === 'true',
-                  village: row.village,
-                  taluka: row.taluka,
-                  district: row.district,
-                  jmr_id: jmrRecord.id
-                },
-                remarks: `Bulk upload: JMR measurement for survey ${row.survey_number}`
-              };
+              // Create blockchain entry using enhanced service
+              try {
+                const blockchainEntry = await enhancedBlockchainService.createLedgerEntry({
+                  survey_number: row.survey_number,
+                  event_type: 'JMR_Measurement_Uploaded',
+                  officer_id: row.officer_id,
+                  project_id: row.project_id,
+                  metadata: {
+                    measured_area: parseFloat(row.measured_area),
+                    land_type: row.land_type || 'Agricultural',
+                    tribal_classification: row.tribal_classification === 'true',
+                    village: row.village,
+                    taluka: row.taluka,
+                    district: row.district,
+                    jmr_id: jmrRecord.id
+                  },
+                  remarks: `Bulk upload: JMR measurement for survey ${row.survey_number}`,
+                  timestamp: new Date().toISOString()
+                });
 
-              const blockchainBlock = await blockchainService.createBlock(blockData);
-              await MongoBlockchainLedger.create(blockchainBlock);
+                // Store in local blockchain ledger
+                await MongoBlockchainLedger.create({
+                  ...blockchainEntry,
+                  project_id: row.project_id,
+                  officer_id: row.officer_id
+                });
 
-              createdRecords.push({
-                jmr_id: jmrRecord.id,
-                survey_number: jmrRecord.survey_number,
-                block_id: blockchainBlock.block_id
-              });
+                createdRecords.push({
+                  jmr_id: jmrRecord.id,
+                  survey_number: jmrRecord.survey_number,
+                  blockchain_synced: true
+                });
+              } catch (blockchainError) {
+                console.warn('⚠️ Failed to create blockchain entry for bulk upload:', row.survey_number, blockchainError.message);
+                createdRecords.push({
+                  jmr_id: jmrRecord.id,
+                  survey_number: jmrRecord.survey_number,
+                  blockchain_synced: false
+                });
+              }
             } catch (error) {
               errors.push({
                 row: i + 2,
@@ -508,8 +521,7 @@ router.put('/:id', validateJMR, async (req, res) => {
       data: {
         jmr_id: jmrRecord.id,
         survey_number: jmrRecord.survey_number,
-        block_id: blockchainBlock.block_id,
-        blockchain_hash: blockchainBlock.current_hash
+        blockchain_synced: true
       }
     });
   } catch (error) {
@@ -576,8 +588,7 @@ router.delete('/:id', async (req, res) => {
       data: {
         jmr_id: jmrRecord.id,
         survey_number: jmrRecord.survey_number,
-        block_id: blockchainBlock.block_id,
-        blockchain_hash: blockchainBlock.current_hash
+        blockchain_synced: true
       }
     });
   } catch (error) {
