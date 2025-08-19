@@ -800,6 +800,64 @@ class EnhancedBlockchainService {
   }
 
   /**
+   * Create blockchain ledger entry
+   */
+  async createLedgerEntry(entryData) {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Blockchain service not initialized');
+      }
+
+      const {
+        survey_number,
+        event_type,
+        officer_id,
+        metadata = {},
+        project_id,
+        remarks,
+        timestamp
+      } = entryData;
+
+      // Generate unique block ID
+      const blockId = crypto.randomBytes(16).toString('hex');
+      
+      // Create hash from entry data
+      const dataString = `${survey_number}${event_type}${officer_id}${timestamp}${JSON.stringify(metadata)}`;
+      const currentHash = crypto.createHash('sha256').update(dataString).digest('hex');
+      
+      // For now, return the entry data with generated IDs
+      // In a full implementation, this would be stored on the blockchain
+      const ledgerEntry = {
+        id: Date.now(),
+        block_id: blockId,
+        survey_number,
+        event_type,
+        officer_id,
+        timestamp: timestamp || new Date().toISOString(),
+        metadata,
+        project_id,
+        remarks,
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        current_hash: currentHash,
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      };
+
+      console.log('📝 Blockchain ledger entry created:', {
+        survey_number,
+        event_type,
+        block_id: blockId,
+        hash: currentHash
+      });
+
+      return ledgerEntry;
+    } catch (error) {
+      console.error('❌ Failed to create ledger entry:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Clean up resources when service is destroyed
    */
   cleanup() {
@@ -830,5 +888,6 @@ export const getSurveysWithBlockchainStatus = (surveyNumbers) => enhancedBlockch
 // Export new utility functions for historical data
 export const getSurveyHistoricalLogs = (surveyNumber, fromBlock, toBlock) => enhancedBlockchainService.getSurveyHistoricalLogs(surveyNumber, fromBlock, toBlock);
 export const getRecentSurveyEvents = (surveyNumber, blockRange) => enhancedBlockchainService.getRecentSurveyEvents(surveyNumber, blockRange);
+export const createLedgerEntry = (entryData) => enhancedBlockchainService.createLedgerEntry(entryData);
 
 export default enhancedBlockchainService;

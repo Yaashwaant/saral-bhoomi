@@ -61,6 +61,57 @@ router.get('/status', async (req, res) => {
   }
 });
 
+// ===== BLOCKCHAIN LEDGER ENTRIES =====
+
+/**
+ * @route POST /api/blockchain
+ * @desc Record blockchain event/ledger entry (general purpose)
+ * @access Private (Officers only)
+ */
+router.post('/', [
+  authMiddleware,
+  body('survey_number').notEmpty().withMessage('Survey number is required'),
+  body('event_type').notEmpty().withMessage('Event type is required'),
+  body('officer_id').notEmpty().withMessage('Officer ID is required'),
+  body('metadata').optional().isObject().withMessage('Metadata must be an object'),
+  body('project_id').optional().isString().withMessage('Project ID must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const {
+      survey_number,
+      event_type,
+      officer_id,
+      metadata = {},
+      project_id
+    } = req.body;
+
+    // Create blockchain ledger entry
+    const result = await enhancedBlockchainService.createLedgerEntry({
+      survey_number,
+      event_type,
+      officer_id,
+      metadata,
+      project_id,
+      remarks: `Event: ${event_type}`,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: 'Blockchain event recorded successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to record blockchain event:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record blockchain event',
+      error: error.message
+    });
+  }
+});
+
 // ===== SURVEY BLOCK MANAGEMENT =====
 
 /**

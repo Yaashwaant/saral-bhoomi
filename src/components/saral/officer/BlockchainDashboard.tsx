@@ -65,17 +65,25 @@ const BlockchainDashboard: React.FC = () => {
       setError(null);
       
       // First check if survey exists on blockchain
-      const ledgerResponse = await fetch(`/api/blockchain/ledger/${searchSurvey}`);
-      const ledgerData = await ledgerResponse.json();
+      const searchResponse = await fetch(`/api/blockchain/search/${searchSurvey}`, {
+        headers: {
+          'Authorization': 'Bearer demo-jwt-token'
+        }
+      });
+      const searchData = await searchResponse.json();
       
       // Get timeline events
-      const timelineResponse = await fetch(`/api/blockchain/timeline/${searchSurvey}`);
+      const timelineResponse = await fetch(`/api/blockchain/timeline/${searchSurvey}`, {
+        headers: {
+          'Authorization': 'Bearer demo-jwt-token'
+        }
+      });
       const timelineData = await timelineResponse.json();
       
       // Get JMR data if available
       let jmrData = null;
       try {
-        const jmrResponse = await fetch(`/api/jmr-blockchain?survey_number=${searchSurvey}`);
+        const jmrResponse = await fetch(`/api/jmr-blockchain?search=${searchSurvey}`);
         if (jmrResponse.ok) {
           jmrData = await jmrResponse.json();
         }
@@ -83,16 +91,21 @@ const BlockchainDashboard: React.FC = () => {
         console.debug('JMR data not available for this survey');
       }
       
+      // Log responses for debugging
+      console.log('Blockchain search response:', searchResponse.status, searchData);
+      console.log('Timeline response:', timelineResponse.status, timelineData);
+      console.log('JMR response:', jmrData);
+      
       // Combine the data
       const searchResults = {
         surveyNumber: searchSurvey,
-        existsOnBlockchain: ledgerResponse.ok && ledgerData.data,
-        integrityStatus: ledgerResponse.ok && ledgerData.data?.is_valid,
+        existsOnBlockchain: searchResponse.ok && searchData.data?.existsOnBlockchain,
+        integrityStatus: searchResponse.ok && searchData.data?.integrityStatus?.isIntegrityValid,
         timelineCount: timelineResponse.ok ? (timelineData.data?.timeline || []).length : 0,
         lastChecked: new Date().toISOString(),
-        ownerId: jmrData?.data?.records?.[0]?.owner_id || ledgerData?.data?.metadata?.owner_id || null,
-        landType: jmrData?.data?.records?.[0]?.land_type || ledgerData?.data?.metadata?.land_type || null,
-        area: jmrData?.data?.records?.[0]?.measured_area || ledgerData?.data?.metadata?.area || null
+        ownerId: jmrData?.data?.records?.[0]?.owner_id || searchData?.data?.metadata?.owner_id || null,
+        landType: jmrData?.data?.records?.[0]?.land_type || searchData?.data?.metadata?.land_type || null,
+        area: jmrData?.data?.records?.[0]?.measured_area || searchData?.data?.metadata?.area || null
       };
       
       setSearchResults(searchResults);
@@ -106,7 +119,21 @@ const BlockchainDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to search survey:', err);
-      setError('Failed to search survey on blockchain');
+      
+      // Set fallback data when API calls fail
+      setSearchResults({
+        surveyNumber: searchSurvey,
+        existsOnBlockchain: false,
+        integrityStatus: false,
+        timelineCount: 0,
+        lastChecked: new Date().toISOString(),
+        ownerId: null,
+        landType: null,
+        area: null,
+        error: err.message
+      });
+      
+      setError('Failed to search survey on blockchain. Check console for details.');
       toast.error('Failed to search survey on blockchain');
     } finally {
       setLoading(false);
