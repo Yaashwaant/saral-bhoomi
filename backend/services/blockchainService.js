@@ -1,255 +1,278 @@
+// saral-bhoomi/backend/services/blockchainService.js
 import { ethers } from 'ethers';
-import crypto from 'crypto';
+import BlockchainConfig from '../config/blockchain.js';
 
 class BlockchainService {
   constructor() {
+    this.config = new BlockchainConfig();
     this.provider = null;
-    this.wallet = null;
+    this.signer = null;
     this.contract = null;
     this.isInitialized = false;
-    this.chainId = 80001; // Mumbai testnet
-    this.contractAddress = process.env.CONTRACT_ADDRESS;
-    this.privateKey = process.env.PRIVATE_KEY;
-    
-    this.initialize();
   }
 
   async initialize() {
     try {
-      // Initialize Polygon Mumbai testnet provider
+      if (this.isInitialized) {
+        return { success: true, message: 'Already initialized' };
+      }
+
+      // Check if blockchain is enabled
+      if (!this.config.isBlockchainEnabled()) {
+        return { 
+          success: false, 
+          message: 'Blockchain is disabled in configuration' 
+        };
+      }
+
+      // Validate configuration
+      const validation = this.config.validate();
+      if (!validation.isValid) {
+        throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Initialize provider with explicit network configuration
       this.provider = new ethers.JsonRpcProvider(
-        process.env.POLYGON_RPC_URL || 'https://rpc-mumbai.maticvigil.com'
+        this.config.getNetworkInfo().rpcUrl,
+        {
+          name: "polygon-amoy",   // Amoy testnet name
+          chainId: 80002          // Amoy testnet chain ID
+        }
       );
-
-      // Initialize wallet if private key is provided
-      if (this.privateKey) {
-        this.wallet = new ethers.Wallet(this.privateKey, this.provider);
-        console.log('🔐 Blockchain wallet initialized');
-      }
-
-      // Initialize contract if address is provided
-      if (this.contractAddress) {
-        this.contract = new ethers.Contract(
-          this.contractAddress,
-          this.getContractABI(),
-          this.wallet || this.provider
-        );
-        console.log('📜 Smart contract initialized');
-      }
+      
+      // Initialize signer
+      this.signer = new ethers.Wallet(this.config.getWalletInfo().privateKey, this.provider);
+      
+      // Load contract ABI and initialize contract
+      const contractInfo = this.config.getContractInfo();
+      const contractABI = await this.loadContractABI(contractInfo.abiPath);
+      
+      this.contract = new ethers.Contract(
+        contractInfo.address,
+        contractABI,
+        this.signer
+      );
 
       this.isInitialized = true;
+      
       console.log('✅ Blockchain service initialized successfully');
+      console.log(`🌐 Network: ${this.config.getNetworkInfo().name}`);
+      console.log(`📜 Contract: ${contractInfo.address}`);
+      console.log(`👤 Wallet: ${this.config.getWalletInfo().address}`);
+      
+      return {
+        success: true,
+        message: 'Blockchain service initialized successfully',
+        network: this.config.getNetworkInfo(),
+        contract: contractInfo.address
+      };
+
     } catch (error) {
       console.error('❌ Failed to initialize blockchain service:', error);
-      this.isInitialized = false;
-    }
-  }
-
-  getContractABI() {
-    // Simplified ABI for land records tracking
-    return [
-      'event LandRecordUpdated(string surveyNumber, string eventType, address officer, uint256 timestamp, string metadata)',
-      'function updateLandRecord(string surveyNumber, string eventType, string metadata) external',
-      'function getLandRecord(string surveyNumber) external view returns (string[] memory eventTypes, uint256[] memory timestamps, address[] memory officers)',
-      'function verifyRecord(string surveyNumber, uint256 blockNumber) external view returns (bool)'
-    ];
-  }
-
-  // Generate a unique block ID for the blockchain ledger
-  generateBlockId(surveyNumber, eventType, timestamp) {
-    const data = `${surveyNumber}-${eventType}-${timestamp}-${Date.now()}`;
-    return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
-  }
-
-  // Calculate hash for blockchain integrity
-  calculateHash(surveyNumber, eventType, officerId, timestamp, previousHash, nonce, documentHash = '') {
-    const data = `${surveyNumber}${eventType}${officerId}${timestamp}${previousHash}${nonce}${documentHash}`;
-    return crypto.createHash('sha256').update(data).digest('hex');
-  }
-
-  // Create a new blockchain block
-  async createBlock(blockData) {
-    try {
-      if (!this.isInitialized) {
-        throw new Error('Blockchain service not initialized');
-      }
-
-      const {
-        surveyNumber,
-        eventType,
-        officerId,
-        projectId,
-        metadata,
-        remarks
-      } = blockData;
-
-      // Get the latest block for previous hash
-      const latestBlock = await this.getLatestBlock();
-      const previousHash = latestBlock ? latestBlock.current_hash : '0'.repeat(64);
-
-      // Generate block ID
-      const blockId = this.generateBlockId(surveyNumber, eventType, new Date().toISOString());
-
-      // Calculate current hash
-      const timestamp = new Date();
-      const nonce = Math.floor(Math.random() * 1000000);
-      const documentHash = metadata?.document_hash || '';
-      const currentHash = this.calculateHash(
-        surveyNumber,
-        eventType,
-        officerId,
-        timestamp,
-        previousHash,
-        nonce,
-        documentHash
-      );
-
-      // If blockchain integration is available, submit to smart contract
-      if (this.contract && this.wallet) {
-        try {
-          const tx = await this.contract.updateLandRecord(
-            surveyNumber,
-            eventType,
-            JSON.stringify(metadata)
-          );
-          await tx.wait();
-          console.log(`🔗 Blockchain transaction confirmed: ${tx.hash}`);
-        } catch (error) {
-          console.warn('⚠️ Blockchain transaction failed, continuing with local ledger:', error.message);
-        }
-      }
-
       return {
-        block_id: blockId,
-        survey_number: surveyNumber,
-        event_type: eventType,
-        officer_id: officerId,
-        timestamp: timestamp,
-        metadata: metadata,
-        previous_hash: previousHash,
-        current_hash: currentHash,
-        nonce: nonce,
-        project_id: projectId,
-        remarks: remarks,
-        is_valid: true
+        success: false,
+        message: error.message,
+        error: error.toString()
       };
-    } catch (error) {
-      console.error('❌ Failed to create blockchain block:', error);
-      throw error;
     }
   }
 
-  // Get the latest block from the blockchain
-  async getLatestBlock() {
+  async loadContractABI(abiPath) {
     try {
-      if (!this.isInitialized) {
-        return null;
-      }
-
-      // This would typically query the smart contract
-      // For now, return null as we'll handle this in the database
-      return null;
+      // For now, return a basic ABI structure
+      // In production, you'd load this from the artifacts file
+      return [
+        "function createLandRecord(string surveyNumber, string ownerId, string landType, uint256 area, string location) external",
+        "function updateLandRecord(string surveyNumber, string newData, string changeReason) external",
+        "function getLandRecord(string surveyNumber) external view returns (tuple(string surveyNumber, string ownerId, string landType, uint256 area, string location, uint256 timestamp, string hash))",
+        "function verifyRecordIntegrity(string surveyNumber, string dataHash) external view returns (bool)",
+        "function isAuthorizedOfficer(address officer) external view returns (bool)",
+        "function addAuthorizedOfficer(address officer) external",
+        "function removeAuthorizedOfficer(address officer) external"
+      ];
     } catch (error) {
-      console.error('❌ Failed to get latest block:', error);
-      return null;
+      console.error('Failed to load contract ABI:', error);
+      throw new Error('Failed to load contract ABI');
     }
   }
 
-  // Verify blockchain integrity
-  async verifyBlockchainIntegrity(surveyNumber) {
-    try {
-      if (!this.isInitialized) {
-        return { isValid: false, reason: 'Blockchain service not initialized' };
-      }
-
-      // This would typically verify against the smart contract
-      // For now, return a mock verification
-      return { isValid: true, reason: 'Blockchain verification passed' };
-    } catch (error) {
-      console.error('❌ Failed to verify blockchain integrity:', error);
-      return { isValid: false, reason: error.message };
-    }
-  }
-
-  // Get network status
   async getNetworkStatus() {
     try {
       if (!this.provider) {
-        return { connected: false, network: 'Unknown' };
+        return {
+          connected: false,
+          message: 'Provider not initialized'
+        };
       }
 
       const network = await this.provider.getNetwork();
       const blockNumber = await this.provider.getBlockNumber();
       const gasPrice = await this.provider.getFeeData();
+      const balance = await this.provider.getBalance(this.config.getWalletInfo().address);
 
       return {
         connected: true,
-        network: network.name,
+        network: this.config.getNetworkInfo().name,
         chainId: network.chainId,
         blockNumber: blockNumber.toString(),
-        gasPrice: ethers.formatUnits(gasPrice.gasPrice, 'gwei') + ' gwei'
+        gasPrice: ethers.formatUnits(gasPrice.gasPrice || 0, 'gwei') + ' gwei',
+        maxPriorityFee: ethers.formatUnits(gasPrice.maxPriorityFeePerGas || 0, 'gwei') + ' gwei',
+        maxFee: ethers.formatUnits(gasPrice.maxFeePerGas || 0, 'gwei') + ' gwei',
+        walletBalance: ethers.formatEther(balance) + ' MATIC',
+        pendingTransactions: 0,
+        totalTransactions: 0,
+        serviceStatus: 'Blockchain Service Active'
       };
+
     } catch (error) {
-      console.error('❌ Failed to get network status:', error);
-      return { connected: false, network: 'Error', error: error.message };
+      console.error('Failed to get network status:', error);
+      return {
+        connected: false,
+        message: error.message,
+        error: error.toString()
+      };
     }
   }
 
-  // Simulate blockchain mining (for demo purposes)
-  async mineBlock(difficulty = 4) {
-    try {
-      const target = '0'.repeat(difficulty);
-      let nonce = 0;
-      let hash = '';
-
-      do {
-        hash = crypto.createHash('sha256').update(nonce.toString()).digest('hex');
-        nonce++;
-      } while (hash.substring(0, difficulty) !== target);
-
-      return { hash, nonce: nonce - 1 };
-    } catch (error) {
-      console.error('❌ Failed to mine block:', error);
-      throw error;
-    }
-  }
-
-  // Get gas estimate for transaction
-  async estimateGas(surveyNumber, eventType, metadata) {
+  async createLandRecord(surveyNumber, ownerId, landType, area, location) {
     try {
       if (!this.contract) {
-        return { estimatedGas: '0', gasPrice: '0' };
+        throw new Error('Contract not initialized');
       }
 
-      const gasEstimate = await this.contract.updateLandRecord.estimateGas(
+      const gasSettings = this.config.getGasSettings();
+      
+      const tx = await this.contract.createLandRecord(
         surveyNumber,
-        eventType,
-        JSON.stringify(metadata)
+        ownerId,
+        landType,
+        area,
+        location,
+        {
+          gasLimit: gasSettings.limit,
+          maxFeePerGas: gasSettings.maxFeePerGas,
+          maxPriorityFeePerGas: gasSettings.maxPriorityFeePerGas
+        }
       );
 
-      const feeData = await this.provider.getFeeData();
-
+      const receipt = await tx.wait();
+      
       return {
-        estimatedGas: gasEstimate.toString(),
-        gasPrice: ethers.formatUnits(feeData.gasPrice, 'gwei') + ' gwei',
-        totalCost: ethers.formatEther(gasEstimate * feeData.gasPrice) + ' MATIC'
+        success: true,
+        transactionHash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        message: 'Land record created successfully'
       };
+
     } catch (error) {
-      console.error('❌ Failed to estimate gas:', error);
-      return { estimatedGas: '0', gasPrice: '0', error: error.message };
+      console.error('Failed to create land record:', error);
+      return {
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
     }
+  }
+
+  async getLandRecord(surveyNumber) {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      const record = await this.contract.getLandRecord(surveyNumber);
+      
+      return {
+        success: true,
+        data: {
+          surveyNumber: record[0],
+          ownerId: record[1],
+          landType: record[2],
+          area: record[3].toString(),
+          location: record[4],
+          timestamp: record[5].toString(),
+          hash: record[6]
+        }
+      };
+
+    } catch (error) {
+      console.error('Failed to get land record:', error);
+      return {
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
+    }
+  }
+
+  async verifyRecordIntegrity(surveyNumber, dataHash) {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      const isValid = await this.contract.verifyRecordIntegrity(surveyNumber, dataHash);
+      
+      return {
+        success: true,
+        isValid: isValid,
+        message: isValid ? 'Record integrity verified' : 'Record integrity check failed'
+      };
+
+    } catch (error) {
+      console.error('Failed to verify record integrity:', error);
+      return {
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
+    }
+  }
+
+  async isAuthorizedOfficer(address) {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      const isAuthorized = await this.contract.isAuthorizedOfficer(address);
+      
+      return {
+        success: true,
+        isAuthorized: isAuthorized,
+        message: isAuthorized ? 'Address is authorized officer' : 'Address is not authorized officer'
+      };
+
+    } catch (error) {
+      console.error('Failed to check officer authorization:', error);
+      return {
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
+    }
+  }
+
+  getServiceInfo() {
+    return {
+      initialized: this.isInitialized,
+      network: this.config.getNetworkInfo(),
+      contract: this.config.getContractInfo(),
+      wallet: this.config.getWalletInfo(),
+      gas: this.config.getGasSettings()
+    };
+  }
+
+  // Check if blockchain is enabled
+  isBlockchainEnabled() {
+    return this.config.isBlockchainEnabled();
+  }
+
+  // Get configuration summary
+  getConfigSummary() {
+    return this.config.getSummary();
   }
 }
 
-// Create singleton instance
-const blockchainService = new BlockchainService();
-
-// Export individual functions for use in other services
-export const createBlock = (blockData) => blockchainService.createBlock(blockData);
-export const getLatestBlock = () => blockchainService.getLatestBlock();
-export const verifyBlockchainIntegrity = (surveyNumber) => blockchainService.verifyBlockchainIntegrity(surveyNumber);
-export const getNetworkStatus = () => blockchainService.getNetworkStatus();
-export const mineBlock = (difficulty) => blockchainService.mineBlock(difficulty);
-export const estimateGas = (surveyNumber, eventType, metadata) => blockchainService.estimateGas(surveyNumber, eventType, metadata);
-
-export default blockchainService;
+export default BlockchainService;

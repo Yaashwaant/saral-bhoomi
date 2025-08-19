@@ -1,40 +1,12 @@
 import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { authorize } from '../middleware/auth.js';
+import { upload } from '../middleware/upload.js';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import { uploadFileBuffer } from '../services/cloudinaryService.js';
+import { validateProjectId } from '../middleware/validation.js';
 
 const router = express.Router();
-
-// Configure multer for file uploads (memory storage for Cloudinary)
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/csv',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only PDF, images, Word, Excel, and CSV files are allowed.'), false);
-    }
-  }
-});
 
 // @desc    Get documents for a project
 // @route   GET /api/documents/:projectId
@@ -91,10 +63,14 @@ router.get('/:projectId', authorize('officer', 'admin'), async (req, res) => {
   }
 });
 
-// @desc    Upload document (Officer/Admin)
+// @desc    Upload document
 // @route   POST /api/documents/upload
 // @access  Private
-router.post('/upload', authorize('officer', 'admin'), upload.single('file'), async (req, res) => {
+router.post('/upload', authorize('officer', 'admin'), upload.single('file'), validateProjectId, async (req, res) => {
+  console.log('🔍 Upload endpoint accessed');
+  console.log('👤 User:', req.user);
+  console.log('📁 File:', req.file);
+  console.log('📝 Body:', req.body);
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -168,16 +144,60 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), asy
 
     // Add document to landowner record
     const currentDocuments = Array.isArray(landownerRecord.documents) ? landownerRecord.documents : [];
-    const updatedDocuments = [...currentDocuments, newDocument];
+    
+    // Clean existing documents to ensure they're objects
+    const cleanCurrentDocuments = currentDocuments.filter(doc => 
+      typeof doc === 'object' && doc !== null && doc.name && doc.url && doc.type
+    );
+    
+    const updatedDocuments = [...cleanCurrentDocuments, newDocument];
 
     console.log('🔍 Updating landowner record with ID:', landownerRecord._id);
     console.log('🔍 Landowner record type:', typeof landownerRecord._id);
+    console.log('🔍 Current documents count:', currentDocuments.length);
+    console.log('🔍 Clean documents count:', cleanCurrentDocuments.length);
+    console.log('🔍 New document to add:', newDocument);
+    console.log('🔍 Updated documents array:', updatedDocuments);
 
-    // Use updateOne instead of findByIdAndUpdate to avoid ObjectId casting issues
-    await MongoLandownerRecord.updateOne(
-      { _id: landownerRecord._id },
-      { documents: updatedDocuments }
-    );
+    // Validate the documents array before update
+    try {
+      // Try using findByIdAndUpdate first
+      const updateResult = await MongoLandownerRecord.findByIdAndUpdate(
+        landownerRecord._id,
+        { documents: updatedDocuments },
+        { new: true, runValidators: true }
+      );
+      
+      console.log('✅ Update result:', updateResult);
+      
+    } catch (updateError) {
+      console.error('❌ findByIdAndUpdate failed, trying updateOne...');
+      
+      try {
+        // Fallback to updateOne
+        const updateResult = await MongoLandownerRecord.updateOne(
+          { _id: landownerRecord._id },
+          { documents: updatedDocuments }
+        );
+        
+        console.log('✅ UpdateOne result:', updateResult);
+        console.log('✅ Modified count:', updateResult.modifiedCount);
+        
+      } catch (updateOneError) {
+        console.error('❌ Both update methods failed');
+        console.error('❌ UpdateOne error:', updateOneError.message);
+        
+        // Try to get more details about the existing documents
+        const existingRecord = await MongoLandownerRecord.findById(landownerRecord._id);
+        if (existingRecord && existingRecord.documents) {
+          console.log('🔍 Existing documents structure:', existingRecord.documents);
+          console.log('🔍 First document type:', typeof existingRecord.documents[0]);
+          console.log('🔍 First document:', existingRecord.documents[0]);
+        }
+        
+        throw updateOneError;
+      }
+    }
 
     console.log('💾 Document saved to MongoDB for survey:', survey_number);
 
@@ -211,7 +231,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), asy
 // @desc    Upload document (Field Officer)
 // @route   POST /api/documents/field-upload
 // @access  Private
-router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upload.single('file'), async (req, res) => {
+router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upload.single('file'), validateProjectId, async (req, res) => {
   console.log('🔍 Field upload endpoint accessed');
   console.log('👤 User:', req.user);
   console.log('📁 File:', req.file);

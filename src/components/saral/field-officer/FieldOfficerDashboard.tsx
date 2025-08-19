@@ -67,8 +67,25 @@ const FieldOfficerDashboard: React.FC = () => {
     }
   }, [selectedProject]);
 
+  // Debug: Log projects when they change
+  useEffect(() => {
+    console.log('🔍 Projects loaded:', projects);
+    console.log('🔍 Projects structure:', projects.map(p => ({ id: p.id, name: p.projectName, type: typeof p.id })));
+    
+    // If projects are loaded and no project is selected, select the first one
+    if (projects.length > 0 && !selectedProject) {
+      console.log('🔍 Auto-selecting first project:', projects[0].id);
+      setSelectedProject(projects[0].id);
+    }
+  }, [projects, selectedProject]);
+
   const loadKYCAssignments = async () => {
     if (!selectedProject) return;
+    
+    console.log('🔍 Loading KYC assignments for project:', selectedProject);
+    console.log('🔍 Project type:', typeof selectedProject);
+    console.log('🔍 Available projects:', projects);
+    
     setLoading(true);
     try {
       // Load KYC assignments for this field officer
@@ -102,10 +119,18 @@ const FieldOfficerDashboard: React.FC = () => {
                 assigned_at: record.assigned_at ? new Date(record.assigned_at) : new Date(),
                 assignment_notes: record.assignment_notes,
                 documents_uploaded: record.documents_uploaded || false,
-                project_id: record.project_id,
-                project_name: projects.find(p => p.id === record.project_id)?.projectName || 'Unknown Project'
+                project_id: selectedProject, // Always use selectedProject instead of record.project_id
+                project_name: projects.find(p => p.id === selectedProject)?.projectName || 'Unknown Project'
               }));
             setKycAssignments(assignedRecords);
+            
+            // Debug: Log the assignments to see their project_id values
+            console.log('🔍 Loaded assignments:', assignedRecords);
+            console.log('🔍 Assignment project_ids:', assignedRecords.map(a => ({ 
+              survey: a.survey_number, 
+              project_id: a.project_id, 
+              type: typeof a.project_id 
+            })));
           }
         }
       }
@@ -123,14 +148,27 @@ const FieldOfficerDashboard: React.FC = () => {
       return;
     }
 
+    if (!selectedProject) {
+      toast.error('Please select a project first');
+      return;
+    }
+
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('survey_number', selectedAssignment.survey_number);
       formData.append('document_type', documentType);
-      formData.append('project_id', selectedAssignment.project_id);
+      formData.append('project_id', selectedProject); // Use selectedProject instead of selectedAssignment.project_id
       formData.append('notes', uploadNotes);
+
+      console.log('📤 Uploading document with project_id:', selectedProject);
+      console.log('📤 Form data:', {
+        survey_number: selectedAssignment.survey_number,
+        document_type: documentType,
+        project_id: selectedProject,
+        notes: uploadNotes
+      });
 
       const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
       const headers: Record<string, string> = {
@@ -188,19 +226,32 @@ const FieldOfficerDashboard: React.FC = () => {
         headers['x-demo-role'] = 'field_officer';
       }
       
+      // Prepare update data
+      const updateData: any = {
+        kyc_status: kycStatus,
+        kyc_notes: kycNotes,
+        kyc_completed_at: kycStatus === 'completed' || kycStatus === 'approved' ? new Date() : null,
+        kyc_completed_by: user?.id || 'demo-field-officer'
+      };
+
+      // Automatically set payment_status to 'pending' when KYC is completed/approved
+      if (kycStatus === 'completed' || kycStatus === 'approved') {
+        updateData.payment_status = 'pending';
+        updateData.payment_ready_at = new Date();
+        updateData.payment_ready_by = user?.id || 'demo-field-officer';
+      }
+      
       const response = await fetch(`${API_BASE_URL}/landowners/${selectedAssignment.id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({
-          kyc_status: kycStatus,
-          kyc_notes: kycNotes,
-          kyc_completed_at: kycStatus === 'completed' || kycStatus === 'approved' ? new Date() : null,
-          kyc_completed_by: user?.id || 'demo-field-officer'
-        })
+        body: JSON.stringify(updateData)
       });
 
       if (response.ok) {
-        toast.success('KYC status updated successfully');
+        const successMessage = kycStatus === 'completed' || kycStatus === 'approved' 
+          ? 'KYC completed successfully! Record is now ready for payment slip generation.'
+          : 'KYC status updated successfully';
+        toast.success(successMessage);
         setIsDetailsOpen(false);
         setKycNotes('');
         setKycStatus('in_progress');
@@ -210,7 +261,8 @@ const FieldOfficerDashboard: React.FC = () => {
         await recordBlockchainEvent(selectedAssignment.survey_number, 'KYC_STATUS_UPDATED', {
           new_status: kycStatus,
           notes: kycNotes,
-          field_officer_id: user?.id || 'demo-field-officer'
+          field_officer_id: user?.id || 'demo-field-officer',
+          payment_status: updateData.payment_status || 'not_ready'
         });
       } else {
         toast.error('Failed to update KYC status');
@@ -299,7 +351,15 @@ const FieldOfficerDashboard: React.FC = () => {
           <div className="space-y-4">
             <div>
               <Label htmlFor="project">Select Project</Label>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
+              <Select 
+                value={selectedProject} 
+                onValueChange={(value) => {
+                  console.log('🔍 Project selected:', value);
+                  console.log('🔍 Project type:', typeof value);
+                  console.log('🔍 Available projects:', projects);
+                  setSelectedProject(value);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
@@ -311,6 +371,34 @@ const FieldOfficerDashboard: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+              
+              {/* Debug info */}
+              {selectedProject && (
+                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                  <strong>Selected Project ID:</strong> {selectedProject}<br/>
+                  <strong>Type:</strong> {typeof selectedProject}<br/>
+                  <strong>Project Name:</strong> {projects.find(p => p.id === selectedProject)?.projectName}
+                  
+                  {/* Test button */}
+                  <div className="mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        console.log('🧪 Testing project ID:', selectedProject);
+                        console.log('🧪 Form data test:', {
+                          survey_number: 'TEST-001',
+                          document_type: 'test',
+                          project_id: selectedProject,
+                          notes: 'Test upload'
+                        });
+                      }}
+                    >
+                      Test Project ID
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -396,6 +484,9 @@ const FieldOfficerDashboard: React.FC = () => {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  console.log('🔍 Upload button clicked for assignment:', assignment);
+                                  console.log('🔍 Assignment project_id:', assignment.project_id);
+                                  console.log('🔍 Selected project:', selectedProject);
                                   setSelectedAssignment(assignment);
                                   setIsDocumentUploadOpen(true);
                                 }}
@@ -492,6 +583,19 @@ const FieldOfficerDashboard: React.FC = () => {
               Upload required documents for {selectedAssignment?.landowner_name} (Survey: {selectedAssignment?.survey_number})
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Debug info */}
+          {selectedAssignment && (
+            <div className="p-2 bg-yellow-50 rounded text-xs border">
+              <strong>Debug Info:</strong><br/>
+              Survey: {selectedAssignment.survey_number}<br/>
+              Assignment project_id: {selectedAssignment.project_id}<br/>
+              Assignment project_id type: {typeof selectedAssignment.project_id}<br/>
+              Selected project: {selectedProject}<br/>
+              Selected project type: {typeof selectedProject}
+            </div>
+          )}
+          
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

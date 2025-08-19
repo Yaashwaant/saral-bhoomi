@@ -11,6 +11,7 @@ import {
   MapPin, 
   IndianRupee, 
   CheckCircle, 
+  CheckCircle2,
   Clock,
   FileText,
   Users,
@@ -23,7 +24,10 @@ import {
   Award,
   Banknote,
   Hash,
-  Workflow
+  Workflow,
+  Plus,
+  Search,
+  BarChart3
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
@@ -39,6 +43,8 @@ import LandRecordsManager from './LandRecordsManager';
 import EnhancedPaymentManager from './EnhancedPaymentManager';
 import EnhancedDashboard from './EnhancedDashboard';
 import DocumentUploadPortal from './DocumentUploadPortal';
+import PaymentSlipGenerator from './PaymentSlipGenerator';
+import BlockchainDashboard from './BlockchainDashboard';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -59,6 +65,7 @@ const OfficerDashboard = () => {
       payments: 'पेमेंट इनिशिएशन',
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
+      paymentSlips: 'पेमेंट स्लिप्स',
       landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
       jmr: 'JMR',
       award: 'Award',
@@ -91,6 +98,7 @@ const OfficerDashboard = () => {
       payments: 'Payment Initiation',
       enhancedPayment: 'Enhanced Payment',
       documentUpload: 'Document Upload',
+      paymentSlips: 'Payment Slips',
       landRecordsManagement: 'Land Records Management',
       jmr: 'JMR',
       award: 'Award',
@@ -123,6 +131,7 @@ const OfficerDashboard = () => {
       payments: 'भुगतान शुरुआत',
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
+      paymentSlips: 'पेमेंट स्लिप्स',
       landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
       jmr: 'JMR',
       award: 'Award',
@@ -276,151 +285,103 @@ const OfficerDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full bg-blue-50 overflow-x-auto">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.projects}
-              </TabsTrigger>
-              <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <FileText className="h-4 w-4 mr-1" />
-                {t.landRecordsManagement}
-              </TabsTrigger>
-              <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Database className="h-4 w-4 mr-1" />
-                {t.jmr}
-              </TabsTrigger>
-              <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Award className="h-4 w-4 mr-1" />
-                {t.award}
-              </TabsTrigger>
-              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.notices}
-              </TabsTrigger>
-              <TabsTrigger value="villages" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.villages}
-              </TabsTrigger>
-              <TabsTrigger value="kyc" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.kycApproval}
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.payments}
-              </TabsTrigger>
-              <TabsTrigger value="enhancedPayment" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Banknote className="h-4 w-4 mr-1" />
-                {t.enhancedPayment}
-              </TabsTrigger>
-              <TabsTrigger value="documentUpload" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                <Workflow className="h-4 w-4 mr-1" />
-                {t.documentUpload}
-              </TabsTrigger>
-            </TabsList>
+                         <TabsList className="flex w-full bg-blue-50 overflow-x-auto">
+               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <BarChart3 className="h-4 w-4 mr-1" />
+                 Overview
+               </TabsTrigger>
+               <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Land Records Management
+               </TabsTrigger>
+               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Database className="h-4 w-4 mr-1" />
+                 JMR
+               </TabsTrigger>
+               <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Award className="h-4 w-4 mr-1" />
+                 Award Declaration
+               </TabsTrigger>
+               <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Award className="h-4 w-4 mr-1" />
+                 Award
+               </TabsTrigger>
+               <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Notice Generator
+               </TabsTrigger>
+               <TabsTrigger value="paymentSlips" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Payment Slips
+               </TabsTrigger>
+                               <TabsTrigger value="blockchain" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                  fontWeight: 500,
+                  letterSpacing: '0.2px'
+                }}>
+                  <Hash className="h-4 w-4 mr-1" />
+                  Blockchain
+                </TabsTrigger>
+             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6 mt-6">
-              <EnhancedDashboard />
-            </TabsContent>
+                         <TabsContent value="overview" className="space-y-6 mt-6">
+               <EnhancedDashboard />
+             </TabsContent>
 
-            <TabsContent value="projects" className="mt-6">
-              <ProjectManagement />
-            </TabsContent>
+             <TabsContent value="landRecords" className="mt-6">
+               <LandRecordsManager />
+             </TabsContent>
 
-            <TabsContent value="landRecords" className="mt-6">
-              <LandRecordsManager />
-            </TabsContent>
+             <TabsContent value="jmr" className="mt-6">
+               <EnhancedJMRManager />
+             </TabsContent>
 
-            <TabsContent value="jmr" className="mt-6">
-              <EnhancedJMRManager />
-            </TabsContent>
+             <TabsContent value="awardDeclaration" className="mt-6">
+               <EnhancedAwardManager />
+             </TabsContent>
 
-            <TabsContent value="award" className="mt-6">
-              <EnhancedAwardManager />
-            </TabsContent>
+             <TabsContent value="award" className="mt-6">
+               <EnhancedAwardManager />
+             </TabsContent>
 
-            <TabsContent value="notices" className="mt-6">
-              <NoticeGenerator />
-            </TabsContent>
+             <TabsContent value="notices" className="mt-6">
+               <NoticeGenerator />
+             </TabsContent>
 
-            <TabsContent value="villages" className="mt-6">
-              <VillageWiseReports />
-            </TabsContent>
-
-            <TabsContent value="kyc" className="mt-6">
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Field Officer Portal Access</CardTitle>
-                    <CardDescription>
-                      Field officers can access their dedicated portal to upload KYC documents and manage verification tasks.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => window.open('/field-officer', '_blank')}
-                      className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
-                    >
-                      Open Field Officer Portal
-                    </Button>
-                  </CardContent>
-                </Card>
-                <KYCAssignmentManager />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="payments" className="mt-6">
-              <PaymentInitiation />
-            </TabsContent>
-            <TabsContent value="enhancedPayment" className="mt-6">
-              <EnhancedPaymentManager />
-            </TabsContent>
-            <TabsContent value="documentUpload" className="mt-6">
-              <DocumentUploadPortal />
-            </TabsContent>
+             <TabsContent value="paymentSlips" className="mt-6">
+               <PaymentSlipGenerator />
+             </TabsContent>
+                         <TabsContent value="blockchain" className="mt-6">
+               <BlockchainDashboard />
+             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>

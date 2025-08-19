@@ -7,8 +7,12 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:mumbai": "hardhat run deploy.js --network mumbai",
+    "deploy:amoy": "hardhat run deploy.js --network amoy",
+    "deploy:amoy-alt": "hardhat run deploy.js --network amoy_alt",
+    "deploy:amoy-quick": "hardhat run deploy.js --network amoy_quick",
     "deploy:local": "hardhat run deploy.js --network hardhat",
     "verify:mumbai": "hardhat verify --network mumbai",
+    "verify:amoy": "hardhat verify --network amoy",
     "clean": "hardhat clean",
     "node": "hardhat node"
   },

@@ -1,3 +1,7 @@
+// Load environment variables FIRST
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -26,6 +30,7 @@ import jmrRoutes from './routes/jmr.js';
 import awardRoutes from './routes/awards.js';
 import blockchainRoutes from './routes/blockchain.js';
 import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
+import dataIntegrityRoutes from './routes/dataIntegrity.js';
 import workflowRoutes from './routes/workflow.js';
 import documentRoutes from './routes/documents.js';
 
@@ -55,10 +60,6 @@ const logsDir = join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
-
-// Load environment variables
-import dotenv from 'dotenv';
-dotenv.config({ path: './config.env' });
 // Initialize Firebase if env present
 try {
   const serviceJsonRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -276,6 +277,7 @@ app.use('/api/jmr', jmrRoutes);
 app.use('/api/awards', awardRoutes);
 app.use('/api/blockchain', blockchainRoutes);
 app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
+app.use('/api/data-integrity', dataIntegrityRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/documents', documentRoutes);
 

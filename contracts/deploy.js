@@ -1,71 +1,100 @@
+// saral-bhoomi/contracts/deploy.js
 const { ethers } = require("hardhat");
 
 async function main() {
-  console.log("🚀 Deploying LandRecordsContract to Polygon Mumbai testnet...");
+  console.log("🚀 Starting deployment of LandRecordsContract...");
 
-  // Get the contract factory
-  const LandRecordsContract = await ethers.getContractFactory("LandRecordsContract");
-
-  // Deploy the contract
-  const landRecordsContract = await LandRecordsContract.deploy();
-  await landRecordsContract.waitForDeployment();
-
-  const contractAddress = await landRecordsContract.getAddress();
-  console.log(`✅ LandRecordsContract deployed to: ${contractAddress}`);
-
-  // Verify the deployment
-  console.log("🔍 Verifying contract deployment...");
-  
   try {
-    await hre.run("verify:verify", {
-      address: contractAddress,
-      constructorArguments: [],
-    });
-    console.log("✅ Contract verified on PolygonScan");
+    // Get the contract factory
+    const LandRecordsContract = await ethers.getContractFactory("LandRecordsContract");
+    console.log("📜 Contract factory loaded");
+
+    // Deploy the contract
+    console.log("⛏️ Deploying contract...");
+    const landRecordsContract = await LandRecordsContract.deploy();
+    
+    // Wait for deployment to complete
+    await landRecordsContract.waitForDeployment();
+    
+    const contractAddress = await landRecordsContract.getAddress();
+    console.log("✅ LandRecordsContract deployed to:", contractAddress);
+
+    // Get deployment transaction details
+    const deploymentTx = landRecordsContract.deploymentTransaction();
+    if (deploymentTx) {
+      console.log("📋 Deployment transaction hash:", deploymentTx.hash);
+      console.log("💰 Gas used:", deploymentTx.gasLimit.toString());
+    }
+
+    // Verify the contract is working
+    console.log("�� Verifying contract functionality...");
+    
+    // Check if deployer is authorized officer
+    const [deployer] = await ethers.getSigners();
+    const deployerAddress = await deployer.getAddress();
+    
+    const isAuthorized = await landRecordsContract.isAuthorizedOfficer(deployerAddress);
+    console.log("👤 Deployer authorized status:", isAuthorized);
+
+    // Get network information
+    const network = await ethers.provider.getNetwork();
+    console.log("🌐 Network deployed to:", network.name);
+    console.log("🔗 Chain ID:", network.chainId);
+
+    // Save deployment info
+    const deploymentInfo = {
+      contractName: "LandRecordsContract",
+      contractAddress: contractAddress,
+      deployer: deployerAddress,
+      network: network.name,
+      chainId: network.chainId,
+      deploymentTime: new Date().toISOString(),
+      transactionHash: deploymentTx?.hash || "N/A",
+      gasUsed: deploymentTx?.gasLimit?.toString() || "N/A"
+    };
+
+    console.log("\n�� Deployment Summary:");
+    console.log("=========================");
+    console.log("Contract:", deploymentInfo.contractName);
+    console.log("Address:", deploymentInfo.contractAddress);
+    console.log("Network:", deploymentInfo.network);
+    console.log("Chain ID:", deploymentInfo.chainId);
+    console.log("Deployer:", deploymentInfo.deployer);
+    console.log("Deployment Time:", deploymentInfo.deploymentTime);
+    console.log("Transaction Hash:", deploymentInfo.transactionHash);
+    console.log("Gas Used:", deploymentInfo.gasUsed);
+
+    // Instructions for next steps
+    console.log("\n�� Next Steps:");
+    console.log("1. Save the contract address for frontend integration");
+    console.log("2. Update your .env file with CONTRACT_ADDRESS=" + contractAddress);
+    console.log("3. Verify the contract on OKLink (if on Amoy testnet)");
+    console.log("4. Test the contract functions");
+    
+    if (network.chainId === 80002) { // Amoy testnet
+      console.log("\n🔍 To verify on OKLink Amoy:");
+      console.log(`npx hardhat verify --network amoy ${contractAddress}`);
+      console.log("�� Explorer: https://www.oklink.com/amoy");
+    } else if (network.chainId === 137) { // Polygon mainnet
+      console.log("\n🔍 To verify on Polygon mainnet Polygonscan:");
+      console.log(`npx hardhat verify --network polygon ${contractAddress}`);
+    }
+
+    return deploymentInfo;
+
   } catch (error) {
-    console.log("⚠️ Contract verification failed:", error.message);
+    console.error("❌ Deployment failed:", error);
+    throw error;
   }
-
-  // Log deployment information
-  console.log("\n📋 Deployment Summary:");
-  console.log(`   Contract: LandRecordsContract`);
-  console.log(`   Network: Polygon Mumbai Testnet`);
-  console.log(`   Address: ${contractAddress}`);
-  console.log(`   Deployer: ${await landRecordsContract.signer.getAddress()}`);
-  
-  // Save deployment info to file
-  const deploymentInfo = {
-    contractName: "LandRecordsContract",
-    network: "Polygon Mumbai Testnet",
-    address: contractAddress,
-    deployer: await landRecordsContract.signer.getAddress(),
-    deploymentTime: new Date().toISOString(),
-    chainId: 80001,
-    rpcUrl: "https://rpc-mumbai.maticvigil.com",
-    explorer: "https://mumbai.polygonscan.com"
-  };
-
-  const fs = require('fs');
-  fs.writeFileSync(
-    './deployment-info.json',
-    JSON.stringify(deploymentInfo, null, 2)
-  );
-  
-  console.log("💾 Deployment info saved to deployment-info.json");
-  
-  // Instructions for next steps
-  console.log("\n📝 Next Steps:");
-  console.log("   1. Update your .env file with the contract address:");
-  console.log(`      CONTRACT_ADDRESS=${contractAddress}`);
-  console.log("   2. Fund the contract with some MATIC for gas fees");
-  console.log("   3. Test the contract functions on Mumbai testnet");
-  console.log("   4. View the contract on PolygonScan:");
-  console.log(`      https://mumbai.polygonscan.com/address/${contractAddress}`);
 }
 
+// Execute deployment
 main()
-  .then(() => process.exit(0))
+  .then((deploymentInfo) => {
+    console.log("\n🎉 Deployment completed successfully!");
+    process.exit(0);
+  })
   .catch((error) => {
-    console.error("❌ Deployment failed:", error);
+    console.error("\n💥 Deployment failed:", error);
     process.exit(1);
   });

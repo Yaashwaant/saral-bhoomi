@@ -148,29 +148,140 @@ const KYCAssignmentManager: React.FC = () => {
     setIsPreviewOpen(true);
   };
 
+  const generateNotice = async (record: KYCRecord) => {
+    setLoading(true);
+    try {
+      const noticeContent = generateNoticeContent(record);
+      const response = await fetch(`${API_BASE_URL}/landowners/generate-notice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: record.survey_number,
+          landowner_name: record.landowner_name,
+          area: record.area,
+          village: record.village,
+          taluka: record.taluka,
+          district: record.district,
+          total_compensation: record.total_compensation,
+          is_tribal: record.is_tribal,
+          tribal_certificate_no: record.tribal_certificate_no,
+          tribal_lag: record.tribal_lag,
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Notice generated successfully');
+        loadKYCRecords(); // Reload records to update notice_generated status
+        // Record blockchain event
+        await recordBlockchainEvent(record.survey_number, 'NOTICE_GENERATED', {
+          survey_number: record.survey_number,
+          landowner_name: record.landowner_name
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to generate notice');
+      }
+    } catch (error) {
+      console.error('Error generating notice:', error);
+      toast.error('Error generating notice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generateNoticeContent = (record: KYCRecord): string => {
+    const project = projects.find(p => p.id === selectedProject);
+    const today = new Date();
+    
     return `
-      <div class="notice-content">
-        <h2 class="text-xl font-bold mb-4">Land Acquisition Notice</h2>
-        <div class="space-y-3">
-          <div><strong>Notice Number:</strong> ${record.notice_number || 'NOTICE-' + record.survey_number}</div>
-          <div><strong>Survey Number:</strong> ${record.survey_number}</div>
-          <div><strong>Landowner Name:</strong> ${record.landowner_name}</div>
-          <div><strong>Village:</strong> ${record.village}</div>
-          <div><strong>Taluka:</strong> ${record.taluka}</div>
-          <div><strong>District:</strong> ${record.district}</div>
-          <div><strong>Area:</strong> ${record.area} Hectares</div>
-          <div><strong>Total Compensation:</strong> ₹${(record.total_compensation / 100000).toFixed(2)} Lakhs</div>
-          <div><strong>Tribal Status:</strong> ${record.is_tribal ? 'Yes' : 'No'}</div>
-          ${record.is_tribal && record.tribal_certificate_no ? `<div><strong>Tribal Certificate:</strong> ${record.tribal_certificate_no}</div>` : ''}
-        </div>
-        <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded">
-          <p class="text-sm text-yellow-800">
-            This notice is issued under the Land Acquisition Act. Please contact the concerned officer for further details.
-          </p>
-        </div>
+      <div style="text-align:center; font-weight:700;">महाराष्ट्र शासन</div>
+      <div style="text-align:center; margin-top:4px;">उपजिल्हाधिकारी (भूसंपादन) सुर्या प्रकल्प, नांदे यांचे कार्यालय</div>
+      <div style="text-align:center; font-size:12px;">पत्र व्यवहाराचा पत्ता: इराणी रोड, आय.डी.बी.आय. बँकेच्या समोर, ता. नांदे, जि. पालघर<br/>दूरध्वनी: ०२५२८-२२०१८० | Email: desplandacquisition@gmail.com</div>
+      <hr/>
+      <div style="display:flex; justify-content:space-between; font-size:13px;">
+        <div>जा.क्र./भूसंपादन/रेल्वे उड्डाणपूल प्रकल्प/कावि-${project?.pmisCode || 'PROJECT-001'}</div>
+        <div>दिनांक: ${today.toLocaleDateString('hi-IN')}</div>
+      </div>
+
+      <h3 style="text-align:center; margin:8px 0;">नोटीस</h3>
+
+      <div style="margin:12px 0;">
+        प्रति: <b>${record.landowner_name}</b><br/>
+        पत्ता: रा. ${record.village}, ता. ${record.taluka}, जि. ${record.district}
+      </div>
+
+      <div style="margin:12px 0;">
+        भूमिसंपादन, पुनर्वसन व पुनर्स्थापना करताना वाजवी भरपाई मिळण्याचा व पारदर्शकतेचा हक्क अधिनियम २०१३ च्या तरतुदीनुसार, ${project?.projectName || 'Railway Flyover Project'} प्रकल्पाकरिता नमूद जमीन संपादित करण्यात येत आहे. सदर प्रक्रियेत आवश्यक त्या कार्यवाहीसाठी आपणास सूचित करण्यात येत आहे.
+      </div>
+
+      <div style="margin:12px 0;">
+        मौजे ${record.village}, ता. ${record.taluka}, जि. ${record.district} येथील संयुक्त मोजणी पूर्ण झाली असून आपल्या स.नं./गट नंबरचे क्षेत्र संपादित होणार आहे. सदर संपादित जमिनीचा मोबदला देय असून आवश्यक कागदपत्रांच्या मुळ प्रती व साक्षांकित (Attested) प्रती <b>७ दिवसात</b> कार्यालयात जमा कराव्यात.
+      </div>
+
+      <h4 style="margin:12px 0 6px;">जमिनीचा तपशील</h4>
+      <table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:12px;">
+        <tr>
+          <th style="padding:8px;">सर्वे नंबर</th>
+          <th style="padding:8px;">क्षेत्र (हे.आर)</th>
+          <th style="padding:8px;">जमिनीचा प्रकार</th>
+          <th style="padding:8px;">एकूण मोबदला</th>
+        </tr>
+        <tr>
+          <td style="padding:8px; text-align:center;">${record.survey_number}</td>
+          <td style="padding:8px; text-align:center;">${record.area}</td>
+          <td style="padding:8px; text-align:center;">${record.is_tribal ? 'आदिवासी जमीन' : 'सामान्य जमीन'}</td>
+          <td style="padding:8px; text-align:center;">₹${(record.total_compensation / 100000).toFixed(1)}L</td>
+        </tr>
+      </table>
+
+      <div style="margin:12px 0;">
+        <div>संमतीपत्र सादर केल्यास खालील आवश्यक कागदपत्रे (मूळ व Attested):</div>
+        <ul>
+          <li>संबंधित जमिनीचा अद्ययावत ७/१२ उतारा</li>
+          <li>ओळखपत्र (रेशन/मतदार/आधार/पॅन/ड्रायव्हिंग लायसन्स इ.)</li>
+          <li>७/१२ वर बोजा असल्यास संबंधित नाहरकत दाखला/फेरफार आदेश</li>
+          <li>बिनशेती असल्यास बिनशेती आदेश व मंजुरी नकाशा</li>
+          <li>राष्ट्रीयकृत बँक पासबुक</li>
+          <li>प्रत्येकी दोन फोटो</li>
+          ${record.is_tribal ? '<li>आदिवासी प्रमाणपत्र</li>' : ''}
+        </ul>
+      </div>
+
+      <div style="margin-top:24px; text-align:right;">
+        <div>सही: ——————</div>
+        <div>(संजीव जाधवर) सक्षम प्राधिकारी</div>
+        <div>उपजिल्हाधिकारी (भूसंपादन) सुर्या प्रकल्प, नांदे</div>
       </div>
     `;
+  };
+
+  const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/blockchain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: surveyNumber,
+          event_type: eventType,
+          officer_id: user?.id || 'demo-officer',
+          metadata: metadata,
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        console.log('Blockchain event recorded successfully');
+      }
+    } catch (error) {
+      console.error('Error recording blockchain event:', error);
+    }
   };
 
   const downloadNoticeFromRecord = async (record: KYCRecord) => {
@@ -238,31 +349,6 @@ const KYCAssignmentManager: React.FC = () => {
       toast.error('Error assigning KYC');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/blockchain`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer demo-jwt-token`
-        },
-        body: JSON.stringify({
-          survey_number: surveyNumber,
-          event_type: eventType,
-          officer_id: user?.id || 'demo-officer',
-          metadata: metadata,
-          project_id: selectedProject
-        })
-      });
-
-      if (response.ok) {
-        loadBlockchainEntries();
-      }
-    } catch (error) {
-      console.error('Error recording blockchain event:', error);
     }
   };
 
@@ -440,35 +526,50 @@ const KYCAssignmentManager: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => previewNotice(record.id)}
-                              title="View Notice"
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => downloadNoticeFromRecord(record)}
-                              title="Download Notice"
-                            >
-                              <Download className="h-3 w-3" />
-                            </Button>
-                            {record.notice_generated && record.kyc_status === 'pending' && (
+                            {!record.notice_generated ? (
                               <Button
                                 variant="default"
                                 size="sm"
-                                onClick={() => {
-                                  setSelectedRecord(record);
-                                  setIsAssignmentOpen(true);
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700"
+                                onClick={() => generateNotice(record)}
+                                disabled={loading}
+                                className="bg-green-600 hover:bg-green-700"
                               >
-                                <UserCheck className="h-3 w-3 mr-1" />
-                                Assign KYC
+                                <FileText className="h-3 w-3 mr-1" />
+                                Generate Notice
                               </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => previewNotice(record.id)}
+                                  title="View Notice"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadNoticeFromRecord(record)}
+                                  title="Download Notice"
+                                >
+                                  <Download className="h-3 w-3" />
+                                </Button>
+                                {record.kyc_status === 'pending' && (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedRecord(record);
+                                      setIsAssignmentOpen(true);
+                                    }}
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                  >
+                                    <UserCheck className="h-3 w-3 mr-1" />
+                                    Assign KYC
+                                  </Button>
+                                )}
+                              </>
                             )}
                           </div>
                         </TableCell>

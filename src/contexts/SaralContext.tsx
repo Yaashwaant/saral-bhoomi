@@ -679,13 +679,9 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
 
   // Enhanced agent assignment with notice data
   const assignAgentWithNotice = async (
-    landownerId: string, 
-    agentId: string, 
-    noticeData: {
-      noticeNumber: string;
-      noticeDate: Date;
-      noticeContent: string;
-    },
+    landownerId: string,
+    agentId: string,
+    noticeData: any,
     extra?: { surveyNumber?: string; projectId?: string }
   ): Promise<boolean> => {
     try {
@@ -694,15 +690,14 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       
       console.log('Assigning agent with notice data:', { landownerId, agentId, noticeData });
 
-      // Make API call to assign agent
+      // Make API call to assign agent - using POST method and correct field names
       const response = await apiCall('/agents/assign', {
-        method: 'PUT',
+        method: 'POST',
         body: JSON.stringify({
-          landownerId: landownerId, // This should be the real database _id
-          agentId: agentId,
-          noticeData,
-          surveyNumber: extra?.surveyNumber,
-          projectId: extra?.projectId
+          landowner_id: landownerId, // Backend expects landowner_id
+          agent_id: agentId, // Backend expects agent_id
+          project_id: extra?.projectId, // Backend expects project_id
+          assignment_notes: `Notice generated: ${noticeData.noticeNumber}`
         })
       });
 

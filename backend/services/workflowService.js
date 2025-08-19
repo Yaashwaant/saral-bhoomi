@@ -1,5 +1,5 @@
 import { JMRRecord, Award, Notice, Payment, BlockchainLedger, Project, User } from '../models/index.js';
-import { createBlock } from './blockchainService.js';
+// import { createBlock } from './blockchainService.js';
 import { generateHashFromCloudinaryUrl } from './cloudinaryService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -70,7 +70,7 @@ class WorkflowService {
         remarks: `Award declared for survey ${jmrData.survey_number}`
       };
 
-      await createBlock(blockchainData);
+      // await createBlock(blockchainData);
 
       // Update JMR status
       await jmr.update({ status: 'Award_Generated' });
@@ -147,7 +147,7 @@ class WorkflowService {
         remarks: `Notice generated for survey ${awardData.survey_number}`
       };
 
-      await createBlock(blockchainData);
+      // await createBlock(blockchainData);
 
       // Update award status
       await award.update({ status: 'Notice_Generated' });
@@ -213,7 +213,7 @@ class WorkflowService {
         remarks: `Documents uploaded for notice ${notice.notice_id} with hash ${documentHash}`
       };
 
-      await createBlock(blockchainData);
+      // await createBlock(blockchainData);
 
       return {
         success: true,
@@ -284,7 +284,7 @@ class WorkflowService {
         remarks: `Payment slip created for survey ${paymentData.survey_number}`
       };
 
-      await createBlock(blockchainData);
+      // await createBlock(blockchainData);
 
       // Update notice status
       await notice.update({ status: 'Payment_Initiated' });
@@ -338,7 +338,7 @@ class WorkflowService {
         remarks: `Payment released for survey ${paymentData.survey_number}`
       };
 
-      await createBlock(blockchainData);
+      // await createBlock(blockchainData);
 
       // Update notice status
       const notice = await Notice.findOne({

@@ -111,6 +111,8 @@ const BlockchainDashboard: React.FC = () => {
   const [filterEventType, setFilterEventType] = useState('');
   const [filterOfficer, setFilterOfficer] = useState('');
   const [verifyingIntegrity, setVerifyingIntegrity] = useState(false);
+  const [timelineData, setTimelineData] = useState<any>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
   // Fetch blockchain statistics
   const fetchBlockchainStats = async () => {
@@ -227,6 +229,55 @@ const BlockchainDashboard: React.FC = () => {
     } catch (error) {
       console.error('Failed to export blockchain data:', error);
       toast.error('Failed to export blockchain data');
+    }
+  };
+
+  // Search for survey timeline
+  const handleTimelineSearch = async () => {
+    if (!searchTerm.trim()) return;
+
+    setTimelineLoading(true);
+    setTimelineData(null);
+    
+    try {
+      // First check if survey exists on blockchain
+      const ledgerResponse = await fetch(`/api/blockchain/ledger/${searchTerm}`);
+      const ledgerData = await ledgerResponse.json();
+      
+      // Get timeline events
+      const timelineResponse = await fetch(`/api/blockchain/timeline/${searchTerm}`);
+      const timelineData = await timelineResponse.json();
+      
+      // Combine the data
+      const combinedData = {
+        existsOnBlockchain: ledgerResponse.ok && ledgerData.data,
+        integrityStatus: ledgerResponse.ok && ledgerData.data?.is_valid,
+        events: timelineResponse.ok ? timelineData.data?.timeline || [] : [],
+        surveyNumber: searchTerm,
+        lastChecked: new Date().toISOString()
+      };
+      
+      setTimelineData(combinedData);
+      
+      if (combinedData.events.length > 0) {
+        toast.success(`Found ${combinedData.events.length} timeline events for survey ${searchTerm}`);
+      } else if (combinedData.existsOnBlockchain) {
+        toast.info(`Survey ${searchTerm} found on blockchain but has no timeline events`);
+      } else {
+        toast.warning(`Survey ${searchTerm} not found on blockchain`);
+      }
+    } catch (error) {
+      console.error('Failed to search timeline:', error);
+      toast.error('Failed to search survey timeline');
+      setTimelineData({
+        existsOnBlockchain: false,
+        integrityStatus: false,
+        events: [],
+        surveyNumber: searchTerm,
+        lastChecked: new Date().toISOString()
+      });
+    } finally {
+      setTimelineLoading(false);
     }
   };
 
@@ -362,10 +413,11 @@ const BlockchainDashboard: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ledger">Blockchain Ledger</TabsTrigger>
           <TabsTrigger value="jmr">JMR Records</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -648,6 +700,125 @@ const BlockchainDashboard: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Timeline Tab */}
+        <TabsContent value="timeline" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Survey Timeline</CardTitle>
+              <CardDescription>Search for a survey number to view its complete timeline</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Search Input for Timeline */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter Survey Number to view timeline"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleTimelineSearch} disabled={!searchTerm.trim() || timelineLoading}>
+                  {timelineLoading ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4 mr-2" />
+                  )}
+                  {timelineLoading ? 'Searching...' : 'Search Timeline'}
+                </Button>
+              </div>
+
+              {/* Timeline Results */}
+              {timelineData ? (
+                <div className="space-y-4">
+                  <div className="text-center py-4 text-green-600">
+                    <Clock className="h-8 w-8 mx-auto mb-2" />
+                    <p className="font-medium">Timeline Found</p>
+                    <p className="text-sm">{timelineData.events?.length || 0} events found for survey {searchTerm}</p>
+                  </div>
+                  
+                  {/* Survey Info Summary */}
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-600">Survey Number:</span>
+                          <p className="font-semibold">{searchTerm}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Blockchain Status:</span>
+                          <p className="font-semibold">
+                            {timelineData.existsOnBlockchain ? (
+                              <Badge variant="default" className="text-xs">Found</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">Not Found</Badge>
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Integrity Status:</span>
+                          <p className="font-semibold">
+                            {timelineData.integrityStatus ? (
+                              <Badge variant="default" className="text-xs">Valid</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">Compromised</Badge>
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Total Events:</span>
+                          <p className="font-semibold">{timelineData.events?.length || 0}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Timeline Events */}
+                  {timelineData.events && timelineData.events.length > 0 ? (
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-lg">Timeline Events</h3>
+                      <div className="space-y-3">
+                        {timelineData.events.map((event, index) => (
+                          <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            <div className="flex-1">
+                              <p className="font-medium">{event.eventType || `Event #${index + 1}`}</p>
+                              <p className="text-sm text-gray-600">{event.details || 'Event details'}</p>
+                              <p className="text-xs text-gray-500">
+                                {event.timestamp ? new Date(event.timestamp).toLocaleString() : 'Timestamp N/A'}
+                              </p>
+                            </div>
+                            <Badge variant="outline">{event.eventType || 'Event'}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-orange-500">
+                      <Clock className="h-12 w-12 mx-auto mb-4 text-orange-300" />
+                      <p className="text-lg font-medium">No Timeline Events Found</p>
+                      <p className="text-sm">Survey {searchTerm} exists but has no timeline events</p>
+                      <p className="text-xs text-gray-500 mt-2">This survey may be newly created or not yet processed</p>
+                    </div>
+                  )}
+                </div>
+              ) : searchTerm && !timelineLoading ? (
+                <div className="text-center py-8 text-red-500">
+                  <Clock className="h-12 w-12 mx-auto mb-4 text-red-300" />
+                  <p className="text-lg font-medium">Survey Not Found</p>
+                  <p className="text-sm">No survey found with number: {searchTerm}</p>
+                  <p className="text-xs text-gray-500 mt-2">Please check the survey number and try again</p>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg font-medium">No Timeline Events</p>
+                  <p className="text-sm">Search for a survey number to view its timeline</p>
+                  <p className="text-xs text-gray-500 mt-2">Enter a survey number above and click "Search Timeline"</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

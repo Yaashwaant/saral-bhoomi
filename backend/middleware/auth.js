@@ -145,18 +145,23 @@ export const authorize = (...roles) => {
       });
     }
 
-    console.log(`🔐 Authorizing user ${req.user.role} with required roles:`, roles);
+    // Flatten the roles array to handle both formats:
+    // authorize('officer', 'admin') -> ['officer', 'admin']
+    // authorize(['officer', 'admin']) -> ['officer', 'admin']
+    const flatRoles = roles.flat();
+
+    console.log(`🔐 Authorizing user ${req.user.role} with required roles:`, flatRoles);
     console.log(`👤 Full user object:`, req.user);
-    console.log(`📋 Required roles:`, roles);
-    console.log(`✅ User role in required roles:`, roles.includes(req.user.role));
+    console.log(`📋 Required roles:`, flatRoles);
+    console.log(`✅ User role in required roles:`, flatRoles.includes(req.user.role));
     
-    if (!roles.includes(req.user.role)) {
+    if (!flatRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `User role '${req.user.role}' is not authorized to access this route. Required roles: ${roles.join(', ')}`,
+        message: `User role '${req.user.role}' is not authorized to access this route. Required roles: ${flatRoles.join(', ')}`,
         code: 'INSUFFICIENT_PERMISSIONS',
         userRole: req.user.role,
-        requiredRoles: roles
+        requiredRoles: flatRoles
       });
     }
     next();

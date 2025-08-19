@@ -1,91 +1,58 @@
 import express from 'express';
-import { body, validationResult } from 'express-validator';
-import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
-import MongoNotice from '../models/mongo/Notice.js';
-import MongoPayment from '../models/mongo/Payment.js';
-import MongoJMRRecord from '../models/mongo/JMRRecord.js';
-import MongoUser from '../models/mongo/User.js';
-import MongoProject from '../models/mongo/Project.js';
-import blockchainService from '../services/blockchainService.js';
+import { body, param, validationResult } from 'express-validator';
+import enhancedBlockchainService from '../services/enhancedBlockchainService.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Validation middleware
-const validateBlockchainEntry = [
-  body('survey_number').notEmpty().withMessage('Survey number is required'),
-  body('event_type').isIn([
-    'JMR_Measurement_Uploaded',
-    'Notice_Generated',
-    'Payment_Slip_Created',
-    'Payment_Released',
-    'Payment_Pending',
-    'Payment_Failed',
-    'Ownership_Updated',
-    'Award_Declared',
-    'Compensated'
-  ]).withMessage('Invalid event type'),
-  body('officer_id').isMongoId().withMessage('Valid officer ID is required'),
-  body('project_id').isMongoId().withMessage('Valid project ID is required'),
-  body('remarks').optional().isString().withMessage('Remarks must be a string')
-];
-
-// Get blockchain entries by project
-router.get('/:projectId', async (req, res) => {
-  try {
-    const { projectId } = req.params;
-    
-    // Validate project exists
-    const project = await MongoProject.findById(projectId);
-    if (!project) {
-      return res.status(404).json({
+// ===== MIDDLEWARE =====
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
         success: false,
-        message: 'Project not found'
-      });
-    }
-
-    // Get all blockchain entries for the project
-    const entries = await MongoBlockchainLedger.find({ project_id: projectId })
-      .populate('officer_id', 'name role')
-      .sort({ timestamp: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: entries.length,
-      data: entries.map(entry => ({
-        id: entry._id,
-        survey_number: entry.survey_number,
-        event_type: entry.event_type,
-        officer_id: entry.officer_id,
-        officer_name: entry.officer_id?.name || 'Unknown',
-        officer_designation: entry.officer_id?.role || 'Unknown',
-        project_id: entry.project_id,
-        project_name: project.projectName,
-        timestamp: entry.timestamp,
-        remarks: entry.remarks,
-        metadata: entry.metadata,
-        block_hash: entry.block_hash,
-        created_at: entry.createdAt
-      }))
-    });
-  } catch (error) {
-    console.error('Error fetching blockchain entries by project:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching blockchain entries'
+      errors: errors.array() 
     });
   }
-});
+  next();
+};
 
-// Get blockchain network status
+// ===== BLOCKCHAIN STATUS & MONITORING =====
+
+/**
+ * @route GET /api/blockchain/status
+ * @desc Get enhanced blockchain network status
+ * @access Public (for dashboard display)
+ */
 router.get('/status', async (req, res) => {
   try {
-    const status = await blockchainService.getNetworkStatus();
+          // Get real blockchain status from the enhanced service
+      let blockchainStatus;
+      try {
+        blockchainStatus = await enhancedBlockchainService.getEnhancedNetworkStatus();
+      } catch (error) {
+        console.warn('⚠️ Failed to get real blockchain status, using fallback:', error.message);
+        blockchainStatus = {
+          connected: false,
+          network: 'Unknown',
+          chainId: null,
+          blockNumber: null,
+          gasPrice: null,
+          maxPriorityFee: null,
+          maxFee: null,
+          walletBalance: null,
+          pendingTransactions: 0,
+          totalTransactions: 0,
+          serviceStatus: 'Blockchain service unavailable'
+        };
+      }
+    
     res.json({
       success: true,
-      data: status
+      data: blockchainStatus
     });
   } catch (error) {
-    console.error('Blockchain status error:', error);
+    console.error('❌ Failed to get blockchain status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get blockchain status',
@@ -94,392 +61,369 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// Create new blockchain entry
-router.post('/entry', validateBlockchainEntry, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
+// ===== SURVEY BLOCK MANAGEMENT =====
 
+/**
+ * @route POST /api/blockchain/create-survey
+ * @desc Create initial survey block with all current data
+ * @access Private (Officers only)
+ */
+router.post('/create-survey', [
+  authMiddleware,
+  body('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  body('ownerId').notEmpty().withMessage('Owner ID is required'),
+  body('landType').notEmpty().withMessage('Land type is required'),
+  body('jmrData').optional().isObject().withMessage('JMR data must be an object'),
+  body('awardData').optional().isObject().withMessage('Award data must be an object'),
+  body('landRecordData').optional().isObject().withMessage('Land record data must be an object'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
     const {
-      survey_number,
-      event_type,
-      officer_id,
-      project_id,
-      remarks,
-      metadata = {}
+      surveyNumber,
+      ownerId,
+      landType,
+      jmrData,
+      awardData,
+      landRecordData
     } = req.body;
 
-    // Verify officer exists
-    const officer = await MongoUser.findById(officer_id);
-    if (!officer) {
-      return res.status(404).json({
-        success: false,
-        message: 'Officer not found'
-      });
-    }
-
-    // Verify project exists
-    const project = await MongoProject.findById(project_id);
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: 'Project not found'
-      });
-    }
-
-    // Create blockchain block
-    const blockData = {
-      surveyNumber: survey_number,
-      eventType: event_type,
-      officerId: officer_id,
-      projectId: project_id,
-      metadata: {
-        ...metadata,
-        officer_name: officer.name,
-        officer_designation: officer.role,
-        project_name: project.projectName
-      },
-      remarks
-    };
-
-    const blockchainBlock = await blockchainService.createBlock(blockData);
-
-    // Save to database
-    const ledgerEntry = await MongoBlockchainLedger.create(blockchainBlock);
-
-    // Update related records based on event type
-    await updateRelatedRecords(event_type, survey_number, officer_id, project_id, metadata);
-
-    res.status(201).json({
-      success: true,
-      message: 'Blockchain entry created successfully',
-      data: {
-        block_id: ledgerEntry.block_id,
-        survey_number: ledgerEntry.survey_number,
-        event_type: ledgerEntry.event_type,
-        timestamp: ledgerEntry.timestamp,
-        hash: ledgerEntry.current_hash
-      }
-    });
-  } catch (error) {
-    console.error('Create blockchain entry error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create blockchain entry',
-      error: error.message
-    });
-  }
-});
-
-// Get blockchain ledger for a survey number
-router.get('/ledger/:surveyNumber', async (req, res) => {
-  try {
-    const { surveyNumber } = req.params;
-    const { page = 1, limit = 50 } = req.query;
-
-    const offset = (page - 1) * limit;
-
-    const { count, rows: entries } = await MongoBlockchainLedger.findAndCountAll({
-      where: { survey_number: surveyNumber },
-      include: [
-        {
-          model: MongoUser,
-          as: 'officer',
-          attributes: ['name', 'designation', 'district', 'taluka']
-        },
-        {
-          model: MongoProject,
-          attributes: ['name', 'description']
-        }
-      ],
-      order: [['timestamp', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
-
-    // Verify blockchain integrity
-    const integrityCheck = await blockchainService.verifyBlockchainIntegrity(surveyNumber);
-
-    res.json({
-      success: true,
-      data: {
-        survey_number: surveyNumber,
-        entries,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: count,
-          pages: Math.ceil(count / limit)
-        },
-        integrity: integrityCheck
-      }
-    });
-  } catch (error) {
-    console.error('Get blockchain ledger error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get blockchain ledger',
-      error: error.message
-    });
-  }
-});
-
-// Get blockchain statistics
-router.get('/stats', async (req, res) => {
-  try {
-    const { project_id, officer_id, date_from, date_to } = req.query;
-
-    let whereClause = {};
-    if (project_id) whereClause.project_id = project_id;
-    if (officer_id) whereClause.officer_id = officer_id;
-    if (date_from || date_to) {
-      whereClause.timestamp = {};
-      if (date_from) whereClause.timestamp.$gte = new Date(date_from);
-      if (date_to) whereClause.timestamp.$lte = new Date(date_to);
-    }
-
-    const totalEntries = await MongoBlockchainLedger.count({ where: whereClause });
-    const validEntries = await MongoBlockchainLedger.count({ 
-      where: { ...whereClause, is_valid: true } 
-    });
-    const invalidEntries = await MongoBlockchainLedger.count({ 
-      where: { ...whereClause, is_valid: false } 
-    });
-
-    // Event type distribution
-    const eventTypeStats = await MongoBlockchainLedger.findAll({
-      where: whereClause,
-      attributes: [
-        'event_type',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['event_type'],
-      raw: true
-    });
-
-    // Officer activity
-    const officerStats = await MongoBlockchainLedger.findAll({
-      where: whereClause,
-      include: [{
-        model: MongoUser,
-        as: 'officer',
-        attributes: ['name', 'designation']
-      }],
-      attributes: [
-        'officer_id',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['officer_id'],
-      raw: true
-    });
-
-    res.json({
-      success: true,
-      data: {
-        total_entries: totalEntries,
-        valid_entries: validEntries,
-        invalid_entries: invalidEntries,
-        integrity_rate: totalEntries > 0 ? (validEntries / totalEntries * 100).toFixed(2) : 0,
-        event_type_distribution: eventTypeStats,
-        officer_activity: officerStats,
-        blockchain_status: await blockchainService.getNetworkStatus()
-      }
-    });
-  } catch (error) {
-    console.error('Get blockchain stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get blockchain statistics',
-      error: error.message
-    });
-  }
-});
-
-// Verify blockchain integrity for a survey number
-router.post('/verify/:surveyNumber', async (req, res) => {
-  try {
-    const { surveyNumber } = req.params;
-
-    // Get all entries for the survey number
-    const entries = await MongoBlockchainLedger.findAll({
-      where: { survey_number: surveyNumber },
-      order: [['timestamp', 'ASC']]
-    });
-
-    if (entries.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No blockchain entries found for this survey number'
-      });
-    }
-
-    // Verify each entry's hash
-    const verificationResults = [];
-    let previousHash = '0'.repeat(64);
-    let isChainValid = true;
-
-    for (const entry of entries) {
-      const calculatedHash = blockchainService.calculateHash(
-        entry.survey_number,
-        entry.event_type,
-        entry.officer_id,
-        entry.timestamp,
-        previousHash,
-        entry.nonce
-      );
-
-      const isValid = entry.current_hash === calculatedHash;
-      if (!isValid) {
-        isChainValid = false;
-      }
-
-      verificationResults.push({
-        block_id: entry.block_id,
-        event_type: entry.event_type,
-        timestamp: entry.timestamp,
-        calculated_hash: calculatedHash,
-        stored_hash: entry.current_hash,
-        is_valid: isValid,
-        previous_hash: previousHash
-      });
-
-      previousHash = calculatedHash;
-    }
-
-    // Update validity status in database
-    for (const entry of entries) {
-      const verificationResult = verificationResults.find(r => r.block_id === entry.block_id);
-      if (verificationResult) {
-        await entry.update({ is_valid: verificationResult.is_valid });
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        survey_number: surveyNumber,
-        total_entries: entries.length,
-        chain_valid: isChainValid,
-        verification_results: verificationResults,
-        blockchain_verification: await blockchainService.verifyBlockchainIntegrity(surveyNumber)
-      }
-    });
-  } catch (error) {
-    console.error('Verify blockchain integrity error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to verify blockchain integrity',
-      error: error.message
-    });
-  }
-});
-
-// Get gas estimate for blockchain operation
-router.post('/gas-estimate', async (req, res) => {
-  try {
-    const { survey_number, event_type, metadata } = req.body;
-
-    if (!survey_number || !event_type) {
+    // Check if survey already exists on blockchain
+    const exists = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    if (exists) {
       return res.status(400).json({
         success: false,
-        message: 'Survey number and event type are required'
+        message: 'Survey block already exists for this survey number'
       });
     }
 
-    const gasEstimate = await blockchainService.estimateGas(survey_number, event_type, metadata);
+    // Create survey block
+    const result = await enhancedBlockchainService.createSurveyBlock({
+      surveyNumber,
+      ownerId,
+      landType,
+      jmrData: jmrData || {},
+      awardData: awardData || {},
+      landRecordData: landRecordData || {}
+    });
 
     res.json({
       success: true,
-      data: gasEstimate
-    });
-  } catch (error) {
-    console.error('Gas estimate error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get gas estimate',
-      error: error.message
-    });
-  }
-});
-
-// Simulate blockchain mining (for demo purposes)
-router.post('/mine', async (req, res) => {
-  try {
-    const { difficulty = 4 } = req.body;
-
-    const result = await blockchainService.mineBlock(difficulty);
-
-    res.json({
-      success: true,
-      message: `Block mined with difficulty ${difficulty}`,
+      message: 'Survey block created successfully',
       data: result
     });
   } catch (error) {
-    console.error('Mining error:', error);
+    console.error('❌ Failed to create survey block:', error);
     res.status(500).json({
-      success: false,
-      message: 'Failed to mine block',
+        success: false,
+      message: 'Failed to create survey block',
       error: error.message
     });
   }
 });
 
-// Helper function to update related records
-async function updateRelatedRecords(eventType, surveyNumber, officerId, projectId, metadata) {
+/**
+ * @route POST /api/blockchain/add-event
+ * @desc Add new timeline event for survey changes
+ * @access Private (Officers only)
+ */
+router.post('/add-event', [
+  authMiddleware,
+  body('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  body('eventType').notEmpty().withMessage('Event type is required'),
+  body('ownerId').notEmpty().withMessage('Owner ID is required'),
+  body('landType').notEmpty().withMessage('Land type is required'),
+  body('details').notEmpty().withMessage('Event details are required'),
+  handleValidationErrors
+], async (req, res) => {
   try {
-    switch (eventType) {
-      case 'JMR_Measurement_Uploaded':
-        // Update JMR record status
-        await MongoJMRRecord.update(
-          { status: 'approved' },
-          { where: { survey_number: surveyNumber, project_id: projectId } }
-        );
-        break;
+    const {
+      surveyNumber,
+      eventType,
+      ownerId,
+      landType,
+      details
+    } = req.body;
 
-      case 'Notice_Generated':
-        // Update notice status
-        await MongoNotice.update(
-          { status: 'sent' },
-          { where: { survey_number: surveyNumber, project_id: projectId } }
-        );
-        break;
-
-      case 'Payment_Slip_Created':
-        // Update payment status
-        await MongoPayment.update(
-          { status: 'Pending' },
-          { where: { survey_number: surveyNumber, project_id: projectId } }
-        );
-        break;
-
-      case 'Payment_Released':
-        // Update payment status
-        await MongoPayment.update(
-          { status: 'Success', payment_date: new Date() },
-          { where: { survey_number: surveyNumber, project_id: projectId } }
-        );
-        break;
-
-      case 'Payment_Failed':
-        // Update payment status with reason
-        await MongoPayment.update(
-          { 
-            status: 'Failed',
-            reason_if_pending: metadata.failure_reason || 'Payment processing failed'
-          },
-          { where: { survey_number: surveyNumber, project_id: projectId } }
-        );
-        break;
+    // Check if survey block exists
+    const exists = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    if (!exists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Survey block does not exist. Create survey block first.'
+      });
     }
+
+    // Add timeline event
+    const result = await enhancedBlockchainService.addTimelineEvent(surveyNumber, {
+      eventType,
+      ownerId,
+      landType,
+      details
+    });
+
+    res.json({
+      success: true,
+      message: 'Timeline event added successfully',
+      data: result
+    });
   } catch (error) {
-    console.error('Failed to update related records:', error);
+    console.error('❌ Failed to add timeline event:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add timeline event',
+      error: error.message
+    });
   }
-}
+});
+
+// ===== SURVEY LOOKUP & SEARCH =====
+
+/**
+ * @route GET /api/blockchain/search/:surveyNumber
+ * @desc Search for survey details and blockchain status
+ * @access Private (Officers only)
+ */
+router.get('/search/:surveyNumber', [
+  authMiddleware,
+  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { surveyNumber } = req.params;
+
+    // Get survey data from database (you'll need to implement this based on your existing models)
+    // For now, we'll return blockchain status
+    const blockchainStatus = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    const integrityStatus = await enhancedBlockchainService.getSurveyIntegrityStatus(surveyNumber);
+    const timelineCount = await enhancedBlockchainService.getTimelineCount(surveyNumber);
+
+    // TODO: Fetch survey data from your existing database models
+    // const surveyData = await getSurveyDataFromDatabase(surveyNumber);
+
+    res.json({
+      success: true,
+      data: {
+        surveyNumber,
+        existsOnBlockchain: blockchainStatus,
+        integrityStatus: integrityStatus || { isIntegrityValid: false, lastChecked: null, compromiseReason: 'Not checked' },
+        timelineCount,
+        // surveyData: surveyData || null
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to search survey:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search survey',
+      error: error.message
+    });
+  }
+});
+
+// ===== TIMELINE & HISTORY =====
+
+/**
+ * @route GET /api/blockchain/timeline/:surveyNumber
+ * @desc Get complete timeline for a survey number
+ * @access Private (Officers only)
+ */
+router.get('/timeline/:surveyNumber', [
+  authMiddleware,
+  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { surveyNumber } = req.params;
+
+    // Check if survey exists on blockchain
+    const exists = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Survey not found on blockchain'
+      });
+    }
+
+    // Get timeline
+    const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
+
+    res.json({
+      success: true,
+      data: {
+        surveyNumber,
+        timeline: timeline || [],
+        totalEvents: timeline ? timeline.length : 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get survey timeline:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get survey timeline',
+      error: error.message
+    });
+  }
+});
+
+// ===== INTEGRITY VERIFICATION =====
+
+/**
+ * @route POST /api/blockchain/verify-integrity/:surveyNumber
+ * @desc Verify survey integrity by comparing database hash with blockchain hash
+ * @access Private (Officers only)
+ */
+router.post('/verify-integrity/:surveyNumber', [
+  authMiddleware,
+  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  body('databaseHash').notEmpty().withMessage('Database hash is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { surveyNumber } = req.params;
+    const { databaseHash } = req.body;
+
+    // Verify integrity
+    const result = await enhancedBlockchainService.verifySurveyIntegrity(surveyNumber, databaseHash);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Failed to verify survey integrity:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify survey integrity',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/integrity-status/:surveyNumber
+ * @desc Get integrity status for a survey number
+ * @access Private (Officers only)
+ */
+router.get('/integrity-status/:surveyNumber', [
+  authMiddleware,
+  param('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { surveyNumber } = req.params;
+
+    const status = await enhancedBlockchainService.getSurveyIntegrityStatus(surveyNumber);
+
+    if (!status) {
+      return res.status(404).json({
+        success: false,
+        message: 'Integrity status not found for this survey'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('❌ Failed to get integrity status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get integrity status',
+      error: error.message
+    });
+  }
+});
+
+// ===== BULK OPERATIONS =====
+
+/**
+ * @route POST /api/blockchain/bulk-status
+ * @desc Get blockchain status for multiple survey numbers
+ * @access Private (Officers only)
+ */
+router.post('/bulk-status', [
+  authMiddleware,
+  body('surveyNumbers').isArray().withMessage('Survey numbers must be an array'),
+  body('surveyNumbers.*').isString().withMessage('Each survey number must be a string'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { surveyNumbers } = req.body;
+
+    const results = await enhancedBlockchainService.getSurveysWithBlockchainStatus(surveyNumbers);
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    console.error('❌ Failed to get bulk status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get bulk status',
+      error: error.message
+    });
+  }
+});
+
+// ===== TRANSACTION HISTORY =====
+
+/**
+ * @route GET /api/blockchain/transactions
+ * @desc Get transaction history
+ * @access Private (Officers only)
+ */
+router.get('/transactions', authMiddleware, async (req, res) => {
+  try {
+    // This would return transaction history from the enhanced service
+    // For now, return a placeholder
+    res.json({
+      success: true,
+      data: {
+        message: 'Transaction history endpoint - to be implemented',
+        pendingCount: 0,
+        totalCount: 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to get transactions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get transactions',
+      error: error.message
+    });
+  }
+});
+
+// ===== HEALTH CHECK =====
+
+/**
+ * @route GET /api/blockchain/health
+ * @desc Check blockchain service health
+ * @access Public
+ */
+router.get('/health', async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      service: 'Enhanced Blockchain Service',
+      status: 'healthy',
+      network: 'Polygon Mumbai Testnet',
+      chainId: 80001,
+      message: 'Service is running (blockchain integration pending configuration)'
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      timestamp: new Date().toISOString(),
+      service: 'Enhanced Blockchain Service',
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
+});
 
 export default router;

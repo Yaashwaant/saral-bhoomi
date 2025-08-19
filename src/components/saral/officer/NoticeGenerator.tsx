@@ -41,13 +41,7 @@ const NoticeGenerator: React.FC = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isKycAssignmentOpen, setIsKycAssignmentOpen] = useState(false);
   const [selectedNoticeForKyc, setSelectedNoticeForKyc] = useState<GeneratedNotice | null>(null);
-  const [availableAgents] = useState([
-    { id: '4', name: 'राजेश पाटील', phone: '+91 9876543210', area: 'उंबरपाडा तालुका' },
-    { id: '5', name: 'सुनील कांबळे', phone: '+91 9876543211', area: 'उंबरपाडा तालुका' },
-    { id: '6', name: 'महेश देशमुख', phone: '+91 9876543212', area: 'उंबरपाडा तालुका' },
-    { id: '7', name: 'विठ्ठल जाधव', phone: '+91 9876543213', area: 'उंबरपाडा तालुका' },
-    { id: '8', name: 'रामराव पवार', phone: '+91 9876543214', area: 'उंबरपाडा तालुका' }
-  ]);
+  const [availableAgents, setAvailableAgents] = useState<any[]>([]);
 
   const API_BASE_URL = config.API_BASE_URL;
   const ENABLE_SMS = config.ENABLE_SMS;
@@ -101,6 +95,7 @@ const NoticeGenerator: React.FC = () => {
   });
   const [jmrCount, setJmrCount] = useState<number>(0);
   const [awardCount, setAwardCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
     setHearingRecipients(prev => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
@@ -259,49 +254,49 @@ const NoticeGenerator: React.FC = () => {
   }, [selectedProject]);
 
   // Load land records from the new API
-  useEffect(() => {
-    const loadLandRecords = async () => {
-      if (!selectedProject) return;
-      
-      try {
-        const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.data) {
-            // Transform the land records to match the expected format
-            const transformedRecords = data.data.map((record: any) => ({
-              id: record._id || record.id,
-              'स.नं./हि.नं./ग.नं.': record.survey_number,
-              'खातेदाराचे_नांव': record.landowner_name,
-              'गांव': record.village,
-              'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
-              'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
-              isTribal: record.is_tribal,
-              tribalCertificateNo: record.tribal_certificate_no,
-              tribalLag: record.tribal_lag,
-              noticeGenerated: record.notice_generated,
-              projectId: selectedProject
-            }));
-            setFilteredRecords(transformedRecords);
-          }
-        } else {
-          console.log('No land records found, falling back to landowner records');
-          // Fallback to existing landowner records
-          const projectRecords = landownerRecords.filter(r => 
-            String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
-          );
-          setFilteredRecords(projectRecords);
+  const loadLandRecords = async () => {
+    if (!selectedProject) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data) {
+          // Transform the land records to match the expected format
+          const transformedRecords = data.data.map((record: any) => ({
+            id: record._id || record.id,
+            'स.नं./हि.नं./ग.नं.': record.survey_number,
+            'खातेदाराचे_नांव': record.landowner_name,
+            'गांव': record.village,
+            'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
+            'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
+            isTribal: record.is_tribal,
+            tribalCertificateNo: record.tribal_certificate_no,
+            tribalLag: record.tribal_lag,
+            noticeGenerated: record.notice_generated,
+            projectId: selectedProject
+          }));
+          setFilteredRecords(transformedRecords);
         }
-      } catch (error) {
-        console.error('Error loading land records:', error);
+      } else {
+        console.log('No land records found, falling back to landowner records');
         // Fallback to existing landowner records
         const projectRecords = landownerRecords.filter(r => 
           String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
         );
         setFilteredRecords(projectRecords);
       }
-    };
+    } catch (error) {
+      console.error('Error loading land records:', error);
+      // Fallback to existing landowner records
+      const projectRecords = landownerRecords.filter(r => 
+        String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
+      );
+      setFilteredRecords(projectRecords);
+    }
+  };
 
+  useEffect(() => {
     loadLandRecords();
   }, [selectedProject, landownerRecords]);
 
@@ -492,10 +487,9 @@ const NoticeGenerator: React.FC = () => {
     // Debug specific field values
     console.log('Field values check:');
     console.log('खातेदाराचे_नांव:', record['खातेदाराचे_नांव']);
-    console.log('स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
-    console.log('गांव:', record['गांव']);
-    console.log('मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
-    console.log('सोलेशियम_100:', record['सोलेशियम_100']);
+    console.log('- स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
+    console.log('- मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
+    console.log('- सोलेशियम_100:', record['सोलेशियम_100']);
     
     const project = projects.find(p => p.id === record.projectId);
     const today = new Date();
@@ -671,15 +665,37 @@ const NoticeGenerator: React.FC = () => {
     }
   };
 
-  const proceedToKycFromRecord = async (record: any) => {
+  const assignToKycFromRecord = async (record: any) => {
     try {
-      // Demo: always assign to agent@saral.gov.in
-      const listRes = await fetch(`${API_BASE_URL}/agents/list`);
-      const list = await listRes.json();
-      const demoAgent = (list.agents || []).find((a: any) => a.email === 'agent@saral.gov.in');
-      const agentId = demoAgent?.id || demoAgent?._id;
+      // Demo: always assign to rajesh patil (field officer)
+      let fieldOfficer;
+      let apiAgents = [];
+      
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/agents/list`);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          apiAgents = list.agents || [];
+          fieldOfficer = apiAgents.find((a: any) => 
+            a.name === 'Rajesh Patil - Field Officer'
+          );
+        }
+      } catch (apiError) {
+        console.warn('API call failed, using local agents:', apiError);
+      }
+      
+      // Fallback to local availableAgents if API failed or agent not found
+      if (!fieldOfficer) {
+        fieldOfficer = availableAgents.find(a => 
+          a.name === 'Rajesh Patil - Field Officer'
+        );
+      }
+      
+      const agentId = fieldOfficer?.id || fieldOfficer?._id;
       if (!agentId) {
-        toast.error('Demo agent not found (agent@saral.gov.in)');
+        console.error('Available agents from API:', apiAgents);
+        console.error('Available agents from local:', availableAgents);
+        toast.error('Field officer Rajesh Patil - Field Officer not found in any source');
         return;
       }
 
@@ -696,13 +712,21 @@ const NoticeGenerator: React.FC = () => {
       }, { surveyNumber, projectId });
 
       if (success) {
-        toast.success('Assigned for KYC');
+        toast.success('Notice assigned to Rajesh Patil - Field Officer for KYC');
+        // Update the record status to show it's assigned
+        record.kycStatus = 'assigned';
+        record.assignedAgent = {
+          id: agentId,
+          name: 'Rajesh Patil - Field Officer',
+          phone: fieldOfficer.phone || '+91 9876543216',
+          assignedAt: new Date()
+        };
       } else {
-        toast.error('Failed to assign for KYC');
+        toast.error('Failed to assign notice for KYC');
       }
     } catch (e) {
-      console.error('Auto-assign KYC failed', e);
-      toast.error('Failed to assign for KYC');
+      console.error('KYC assignment failed', e);
+      toast.error('Failed to assign notice for KYC');
     }
   };
 
@@ -807,6 +831,8 @@ const NoticeGenerator: React.FC = () => {
         noticeNumber: selectedNoticeForKyc.noticeNumber,
         noticeDate: selectedNoticeForKyc.noticeDate,
         noticeContent: selectedNoticeForKyc.content
+      }, { 
+        projectId: selectedProject 
       });
 
       if (success) {
@@ -848,6 +874,190 @@ const NoticeGenerator: React.FC = () => {
       toast.error('Failed to assign agent for KYC processing');
     }
   };
+
+  const assignToKyc = async (notice: GeneratedNotice) => {
+    try {
+      // Demo: directly assign to rajesh patil (field officer)
+      let fieldOfficer;
+      let apiAgents = [];
+      
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/agents/list`);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          apiAgents = list.agents || [];
+          fieldOfficer = apiAgents.find((a: any) => 
+            a.name === 'Rajesh Patil - Field Officer'
+          );
+        }
+      } catch (apiError) {
+        console.warn('API call failed, using local agents:', apiError);
+      }
+      
+      // Fallback to local availableAgents if API failed or agent not found
+      if (!fieldOfficer) {
+        fieldOfficer = availableAgents.find(a => 
+          a.name === 'Rajesh Patil - Field Officer'
+        );
+      }
+      
+      const agentId = fieldOfficer?.id || fieldOfficer?._id;
+      if (!agentId) {
+        console.error('Available agents from API:', apiAgents);
+        console.error('Available agents from local:', availableAgents);
+        toast.error('Field officer Rajesh Patil - Field Officer not found in any source');
+        return;
+      }
+
+      console.log('🔄 Assigning notice to Rajesh Patil - Field Officer for KYC:', {
+        landownerId: notice.landownerId,
+        agentId: agentId,
+        agentName: 'Rajesh Patil - Field Officer',
+        noticeNumber: notice.noticeNumber
+      });
+
+      // Use the enhanced agent assignment with notice data
+      const success = await assignAgentWithNotice(notice.landownerId, agentId, {
+        noticeNumber: notice.noticeNumber,
+        noticeDate: notice.noticeDate,
+        noticeContent: notice.content
+      }, { 
+        projectId: selectedProject 
+      });
+
+      if (success) {
+        // Update the notice with agent assignment in local state
+        const updatedNotice = {
+          ...notice,
+          status: 'assigned_for_kyc' as const,
+          kycStatus: 'assigned' as const,
+          assignedAgent: {
+            id: agentId,
+            name: 'Rajesh Patil - Field Officer',
+            phone: fieldOfficer.phone || '+91 9876543210',
+            assignedAt: new Date()
+          }
+        };
+
+        // Update the generated notices list
+        setGeneratedNotices(prev => prev.map(n => 
+          n.id === notice.id ? updatedNotice : n
+        ));
+
+        // Also update the landowner record locally
+        await updateLandownerRecord(notice.landownerId, {
+          kycStatus: 'in_progress',
+          assignedAgent: agentId,
+          assignedAt: new Date()
+        });
+
+        toast.success('✅ Notice successfully assigned to Rajesh Patil - Field Officer for KYC processing');
+        console.log('✅ KYC assignment completed successfully');
+      } else {
+        throw new Error('Assignment API call failed');
+      }
+    } catch (error) {
+      console.error('❌ Failed to assign notice for KYC:', error);
+      toast.error('Failed to assign notice for KYC processing');
+    }
+  };
+
+  const generateNoticeFromRecord = async (record: any) => {
+    setLoading(true);
+    try {
+      const noticeContent = generateNoticeContent(record);
+      const response = await fetch(`${API_BASE_URL}/landowners/generate-notice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
+          area: parseFloat(safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र') || '0'),
+          village: safeField(record, 'गांव'),
+          taluka: 'नागपूर', // Default taluka
+          district: 'नागपूर', // Default district
+          total_compensation: parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') || '0'),
+          is_tribal: record.isTribal || false,
+          tribal_certificate_no: (record as any).tribalCertificateNo || '',
+          tribal_lag: (record as any).tribalLag || '',
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success('Notice generated successfully');
+        
+        // Update the record locally to show the change
+        record.noticeGenerated = true;
+        record.noticeNumber = data.data.notice_number;
+        record.noticeDate = data.data.notice_date;
+        
+        // Reload the records to update the UI
+        loadLandRecords();
+        
+        // Record blockchain event
+        await recordBlockchainEvent(safeField(record, 'स.नं./हि.नं./ग.नं.'), 'NOTICE_GENERATED', {
+          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
+          notice_number: data.data.notice_number
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to generate notice');
+      }
+    } catch (error) {
+      console.error('Error generating notice:', error);
+      toast.error('Error generating notice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/blockchain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: surveyNumber,
+          event_type: eventType,
+          officer_id: 'demo-officer',
+          metadata: metadata,
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        console.log('Blockchain event recorded successfully');
+      }
+    } catch (error) {
+      console.error('Error recording blockchain event:', error);
+    }
+  };
+
+  // Load agents from API
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/agents/list`);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableAgents(data.agents || []);
+        }
+      } catch (error) {
+        console.error('Error loading agents:', error);
+      }
+    };
+
+    loadAgents();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -1254,32 +1464,55 @@ const NoticeGenerator: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => previewNotice(record.id)}
-                        title="View Notice"
-                      >
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadNoticeFromRecord(record)}
-                        title="Download Notice"
-                      >
-                        <Download className="h-3 w-3" />
-                      </Button>
-                      {record.noticeGenerated && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => proceedToKycFromRecord(record)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Proceed to KYC
-                        </Button>
+                      {!record.noticeGenerated ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => previewNotice(record.id)}
+                            title="Preview Notice"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => generateNoticeFromRecord(record)}
+                            disabled={loading}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Generate Notice
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => previewNotice(record.id)}
+                            title="View Notice"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadNoticeFromRecord(record)}
+                            title="Download Notice"
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => assignToKycFromRecord(record)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Assign to KYC
+                          </Button>
+                        </>
                       )}
                     </div>
                   </TableCell>
@@ -1416,11 +1649,11 @@ const NoticeGenerator: React.FC = () => {
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => proceedToKyc(notice)}
+                              onClick={() => assignToKyc(notice)}
                               className="bg-blue-600 hover:bg-blue-700"
                             >
                               <UserCheck className="h-3 w-3 mr-1" />
-                              Proceed to KYC
+                              Assign to KYC
                             </Button>
                           )}
                         </div>

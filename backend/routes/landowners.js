@@ -457,11 +457,106 @@ router.put('/:id', async (req, res) => {
     const updates = {};
     updatable.forEach(k => { if (body[k] !== undefined) updates[k] = body[k]; });
 
-    await record.update(updates);
-    res.status(200).json({ success: true, record });
+    // Use Mongoose updateOne instead of Sequelize-style record.update
+    const updateResult = await MongoLandownerRecord.updateOne(
+      { _id: req.params.id },
+      { $set: updates }
+    );
+
+    if (updateResult.modifiedCount > 0) {
+      // Fetch the updated record
+      const updatedRecord = await MongoLandownerRecord.findById(req.params.id);
+      res.status(200).json({ success: true, record: updatedRecord });
+    } else {
+      res.status(200).json({ success: true, message: 'No changes made', record });
+    }
   } catch (error) {
     console.error('Update landowner error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Generate notice for landowner
+// @route   POST /api/landowners/generate-notice
+// @access  Private (Officer, Admin)
+router.post('/generate-notice', async (req, res) => {
+  try {
+    const {
+      survey_number,
+      landowner_name,
+      area,
+      village,
+      taluka,
+      district,
+      total_compensation,
+      is_tribal,
+      tribal_certificate_no,
+      tribal_lag,
+      project_id
+    } = req.body;
+
+    if (!survey_number || !landowner_name || !project_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: survey_number, landowner_name, project_id'
+      });
+    }
+
+    // Find the landowner record
+    const landownerRecord = await MongoLandownerRecord.findOne({
+      survey_number,
+      project_id,
+      is_active: true
+    });
+
+    if (!landownerRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Landowner record not found'
+      });
+    }
+
+    // Generate notice number
+    const noticeNumber = `NOTICE-${survey_number.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+    const noticeDate = new Date();
+
+    // Generate notice content (this will be enhanced by the frontend)
+    const noticeContent = `Notice for ${landowner_name} - Survey ${survey_number}`;
+
+    // Update the landowner record with notice information
+    await MongoLandownerRecord.updateOne(
+      { _id: landownerRecord._id },
+      {
+        $set: {
+          notice_generated: true,
+          notice_number: noticeNumber,
+          notice_date: noticeDate,
+          notice_content: noticeContent,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    // Fetch the updated record
+    const updatedRecord = await MongoLandownerRecord.findById(landownerRecord._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Notice generated successfully',
+      data: {
+        notice_number: noticeNumber,
+        notice_date: noticeDate,
+        landowner_id: landownerRecord._id,
+        survey_number,
+        landowner_name
+      }
+    });
+  } catch (error) {
+    console.error('Error generating notice:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating notice'
+    });
   }
 });
 

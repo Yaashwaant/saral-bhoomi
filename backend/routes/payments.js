@@ -695,4 +695,264 @@ router.post('/bulk', authorize(['officer', 'admin']), async (req, res) => {
   }
 });
 
+// @desc    Generate payment slip for KYC completed landowners
+// @route   GET /api/payments/slip/:recordId
+// @access  Private (officer, admin)
+router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) => {
+  try {
+    const { recordId } = req.params;
+    
+    // Find the landowner record with KYC completed
+    const landownerRecord = await MongoLandownerRecord.findById(recordId)
+      .populate('project_id', 'projectName village taluka district')
+      .populate('created_by', 'name email');
+    
+    if (!landownerRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'Landowner record not found'
+      });
+    }
+    
+    // Check if KYC is completed
+    if (landownerRecord.kyc_status !== 'completed' && landownerRecord.kyc_status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'KYC must be completed before generating payment slip',
+        current_status: landownerRecord.kyc_status
+      });
+    }
+    
+    // Generate payment slip data
+    const paymentSlip = {
+      slip_number: `PS-${landownerRecord.survey_number}-${Date.now()}`,
+      generated_date: new Date(),
+      landowner_details: {
+        name: landownerRecord.landowner_name,
+        survey_number: landownerRecord.survey_number,
+        village: landownerRecord.village,
+        taluka: landownerRecord.taluka,
+        district: landownerRecord.district,
+        contact_phone: landownerRecord.contact_phone,
+        contact_email: landownerRecord.contact_email
+      },
+      land_details: {
+        area: landownerRecord.area,
+        acquired_area: landownerRecord.acquired_area,
+        rate_per_hectare: landownerRecord.rate,
+        structure_trees_wells_amount: landownerRecord.structure_trees_wells_amount
+      },
+      compensation_details: {
+        land_compensation: (landownerRecord.area * landownerRecord.rate) || 0,
+        structure_compensation: landownerRecord.structure_trees_wells_amount || 0,
+        solatium: landownerRecord.solatium || 0,
+        total_compensation: landownerRecord.total_compensation || 0,
+        final_amount: landownerRecord.final_amount || 0
+      },
+      project_details: landownerRecord.project_id ? {
+        name: landownerRecord.project_id.projectName,
+        village: landownerRecord.project_id.village,
+        taluka: landownerRecord.project_id.taluka,
+        district: landownerRecord.project_id.district
+      } : null,
+      kyc_details: {
+        status: landownerRecord.kyc_status,
+        completed_at: landownerRecord.kyc_completed_at,
+        completed_by: landownerRecord.kyc_completed_by,
+        notes: landownerRecord.kyc_notes
+      },
+      bank_details: {
+        account_number: landownerRecord.bank_account_number,
+        ifsc_code: landownerRecord.bank_ifsc_code,
+        bank_name: landownerRecord.bank_name,
+        branch_name: landownerRecord.bank_branch_name,
+        account_holder: landownerRecord.bank_account_holder_name
+      },
+      tribal_details: {
+        is_tribal: landownerRecord.is_tribal,
+        certificate_no: landownerRecord.tribal_certificate_no,
+        lag: landownerRecord.tribal_lag
+      },
+      documents: landownerRecord.documents || [],
+      notes: landownerRecord.notes,
+      generated_by: req.user.name,
+      generated_at: new Date()
+    };
+    
+    // Update payment status to initiated
+    await MongoLandownerRecord.updateOne(
+      { _id: recordId },
+      { 
+        $set: { 
+          payment_status: 'initiated',
+          payment_initiated_at: new Date(),
+          payment_slip_number: paymentSlip.slip_number
+        }
+      }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Payment slip generated successfully',
+      data: paymentSlip
+    });
+    
+  } catch (error) {
+    console.error('Payment slip generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating payment slip'
+    });
+  }
+});
+
+// @desc    Get all payment slips
+// @route   GET /api/payments/slips
+// @access  Private (officer, admin)
+router.get('/slips', authorize('officer', 'admin'), async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      projectId,
+      village,
+      taluka,
+      district,
+      payment_status
+    } = req.query;
+    
+    const filter = { 
+      payment_status: { $in: ['initiated', 'completed'] },
+      is_active: true
+    };
+    
+    if (projectId) filter.project_id = projectId;
+    if (village) filter.village = village;
+    if (taluka) filter.taluka = taluka;
+    if (district) filter.district = district;
+    if (payment_status) filter.payment_status = payment_status;
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const records = await MongoLandownerRecord.find(filter)
+      .populate('project_id', 'projectName')
+      .populate('created_by', 'name email')
+      .sort({ payment_initiated_at: -1, updatedAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await MongoLandownerRecord.countDocuments(filter);
+    
+    const paymentSlips = records.map(record => ({
+      id: record._id,
+      slip_number: record.payment_slip_number,
+      survey_number: record.survey_number,
+      landowner_name: record.landowner_name,
+      village: record.village,
+      taluka: record.taluka,
+      district: record.district,
+      total_compensation: record.total_compensation,
+      payment_status: record.payment_status,
+      payment_initiated_at: record.payment_initiated_at,
+      payment_completed_at: record.payment_completed_at,
+      project: record.project_id ? {
+        id: record.project_id._id,
+        name: record.project_id.projectName
+      } : null,
+      kyc_status: record.kyc_status,
+      kyc_completed_at: record.kyc_completed_at,
+      bank_details: {
+        account_number: record.bank_account_number,
+        ifsc_code: record.bank_ifsc_code,
+        bank_name: record.bank_name,
+        account_holder: record.bank_account_holder_name
+      }
+    }));
+    
+    res.status(200).json({
+      success: true,
+      count: paymentSlips.length,
+      total,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit))
+      },
+      data: paymentSlips
+    });
+    
+  } catch (error) {
+    console.error('Get payment slips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payment slips'
+    });
+  }
+});
+
+// @desc    Mark payment as completed
+// @route   PUT /api/payments/complete/:recordId
+// @access  Private (officer, admin)
+router.put('/complete/:recordId', authorize('officer', 'admin'), async (req, res) => {
+  try {
+    const { recordId } = req.params;
+    const { bank_reference, payment_notes } = req.body;
+    
+    if (!bank_reference) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bank reference number is required'
+      });
+    }
+    
+    const record = await MongoLandownerRecord.findById(recordId);
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'Landowner record not found'
+      });
+    }
+    
+    if (record.payment_status !== 'initiated') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment must be initiated before marking as completed'
+      });
+    }
+    
+    // Update payment status
+    await MongoLandownerRecord.updateOne(
+      { _id: recordId },
+      { 
+        $set: { 
+          payment_status: 'completed',
+          payment_completed_at: new Date(),
+          bank_reference: bank_reference,
+          notes: (record.notes || '') + `\n[${new Date().toISOString()}] Payment Completed: ${payment_notes || 'Payment processed successfully'}`
+        }
+      }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Payment marked as completed successfully',
+      data: {
+        recordId: record._id,
+        surveyNumber: record.survey_number,
+        landownerName: record.landowner_name,
+        paymentStatus: 'completed',
+        bankReference: bank_reference,
+        completedAt: new Date()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Mark payment complete error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error marking payment as completed'
+    });
+  }
+});
+
 export default router; 

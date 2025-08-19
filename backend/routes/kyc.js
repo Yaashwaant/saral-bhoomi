@@ -151,7 +151,11 @@ router.put('/approve/:recordId', async (req, res) => {
       updateData.notes = (record.notes || '') + `\n[${new Date().toISOString()}] Officer Approval: ${approvalNotes}`;
     }
 
-    await record.update(updateData);
+    // Use Mongoose updateOne instead of Sequelize-style record.update
+    await MongoLandownerRecord.updateOne(
+      { _id: record._id },
+      { $set: updateData }
+    );
 
     res.status(200).json({
       success: true,
@@ -199,12 +203,16 @@ router.put('/reject/:recordId', async (req, res) => {
     }
 
     const rejectionNote = `[${new Date().toISOString()}] Officer Rejection: ${rejectionReason}`;
-    await record.update({
-      kyc_status: 'rejected',
-      kyc_completed_at: new Date(),
-      kyc_completed_by: req.user.id,
-      notes: (record.notes || '') + '\n' + rejectionNote
-    });
+    // Use Mongoose updateOne instead of Sequelize-style record.update
+    await MongoLandownerRecord.updateOne(
+      { _id: record._id },
+      { $set: {
+        kyc_status: 'rejected',
+        kyc_completed_at: new Date(),
+        kyc_completed_by: req.user.id,
+        notes: (record.notes || '') + '\n' + rejectionNote
+      }}
+    );
 
     res.status(200).json({
       success: true,
@@ -292,11 +300,15 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
 
     const updatedDocuments = [...currentDocuments, newDocument];
 
-    await record.update({
-      documents: updatedDocuments,
-      kyc_status: record.kyc_status === 'pending' ? 'in_progress' : record.kyc_status,
-      updatedAt: new Date()
-    });
+         // Use Mongoose updateOne instead of Sequelize-style record.update
+     await MongoLandownerRecord.updateOne(
+       { _id: record._id },
+       { $set: {
+         documents: updatedDocuments,
+         kyc_status: record.kyc_status === 'pending' ? 'in_progress' : record.kyc_status,
+         updatedAt: new Date()
+       }}
+     );
 
     return res.status(200).json({ success: true, message: 'Document uploaded', data: { document: newDocument } });
   } catch (error) {
