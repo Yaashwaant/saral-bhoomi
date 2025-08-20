@@ -129,13 +129,30 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-demo-role']
 }));
 
-// Rate limiting
+// Rate limiting - More generous for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 1000, // Increased to 1000 requests per windowMs for development
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks and test endpoints
+    return req.path === '/health' || req.path === '/api/test' || req.path === '/api/test-token';
+  }
 });
 app.use('/api/', limiter);
+
+// Special rate limiter for blockchain endpoints (more generous)
+const blockchainLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 2000, // Very generous for blockchain operations
+  message: 'Blockchain API rate limit exceeded. Please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/blockchain', blockchainLimiter);
+app.use('/api/jmr-blockchain', blockchainLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
