@@ -19,6 +19,52 @@ class LedgerV2Service {
 		return result;
 	};
 
+	// Append a timeline event by creating a new block chained to the latest one
+	appendTimelineEvent = async (surveyNumber, officerId, action, metadata = {}, remarks = '', projectId = null) => {
+		// Find latest block; if none, create from live first
+		let latest = await MongoBlockchainLedger.findOne({ survey_number: surveyNumber }).sort({ timestamp: -1 });
+		if (!latest) {
+			await this.createOrUpdateFromLive(surveyNumber, officerId, projectId, 'auto_create_for_timeline');
+			latest = await MongoBlockchainLedger.findOne({ survey_number: surveyNumber }).sort({ timestamp: -1 });
+		}
+
+		const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+		const sectionHashes = {};
+		// Keep existing data_root if survey_data unchanged
+		const data_root = latest?.data_root || this.computeDataRoot(this.buildSectionHashes(latest?.survey_data || {}));
+
+		const newEvent = {
+			action,
+			timestamp: new Date(),
+			officer_id: officerId,
+			data_hash: hashJsonStable({ action, metadata }),
+			previous_hash: previousHash,
+			metadata,
+			remarks
+		};
+
+		const block = new MongoBlockchainLedger({
+			block_id: `BLOCK_${surveyNumber}_${Date.now()}`,
+			survey_number: surveyNumber,
+			event_type: action,
+			officer_id: officerId,
+			project_id: projectId || latest?.project_id || null,
+			survey_data: latest?.survey_data || {},
+			hash_version: HASH_VERSION,
+			data_root,
+			timeline_history: [ ...(latest?.timeline_history || []), newEvent ],
+			metadata: { ...(latest?.metadata || {}), source: 'ledger_v2_timeline' },
+			remarks,
+			timestamp: new Date(),
+			previous_hash: previousHash,
+			nonce: Math.floor(Math.random() * 1_000_000),
+		});
+
+		block.current_hash = this.computeBlockHash(block);
+		const saved = await block.save();
+		return { success: true, block_id: saved.block_id, hash: saved.current_hash, total_events: saved.timeline_history?.length || 0 };
+	};
+
 	// Root over sorted section hashes (present sections only)
 	computeDataRoot = (sectionHashMap) => {
 		const mapForRoot = {};

@@ -475,9 +475,32 @@ router.get('/survey-timeline/*', [
     const surveyNumber = req.params[0];
     const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
 
+    // Normalize and ensure first creation event exists
+    const normalized = (timeline || []).map((e) => ({
+      event_type: e.event_type || e.action || 'EVENT',
+      timestamp: e.timestamp,
+      remarks: e.remarks,
+      details: e.metadata || {}
+    }));
+
+    const latest = await MongoBlockchainLedger.findOne({ survey_number: surveyNumber }).sort({ timestamp: -1 });
+    if (latest) {
+      const firstEvent = {
+        event_type: 'SURVEY_CREATED_ON_BLOCKCHAIN',
+        timestamp: latest.createdAt || latest.timestamp,
+        remarks: latest.remarks || 'Survey registered on blockchain',
+        details: { block_id: latest.block_id }
+      };
+      if (!normalized.find(ev => ev.event_type === 'SURVEY_CREATED_ON_BLOCKCHAIN')) {
+        normalized.unshift(firstEvent);
+      }
+    }
+
     res.json({
       success: true,
-      data: timeline
+      survey_number: surveyNumber,
+      timeline: normalized,
+      totalEvents: normalized.length
     });
   } catch (error) {
     console.error('❌ Failed to get survey timeline:', error);

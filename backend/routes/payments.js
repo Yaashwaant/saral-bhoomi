@@ -6,6 +6,7 @@ import { authorize } from '../middleware/auth.js';
 import rtgsService from '../services/rtgsService.js';
 import receiptService from '../services/receiptService.js';
 import paymentValidationService from '../services/paymentValidation.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const router = express.Router();
 
@@ -779,6 +780,17 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
       generated_at: new Date()
     };
     
+    // Append timeline event for ownership transfer (on slip generation)
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(landownerRecord.survey_number, req.user.id, 'OWNERSHIP_TRANSFER', {
+        slip_number: paymentSlip.slip_number,
+        amount: paymentSlip.compensation_details?.final_amount || paymentSlip.compensation_details?.total_compensation || 0
+      }, 'Payment slip generated and ownership transfer recorded', landownerRecord.project_id?.toString() || null);
+    } catch (e) {
+      console.warn('⚠️ Could not append timeline event for payment slip:', e.message);
+    }
+
     // Update payment status to initiated
     await MongoLandownerRecord.updateOne(
       { _id: recordId },
