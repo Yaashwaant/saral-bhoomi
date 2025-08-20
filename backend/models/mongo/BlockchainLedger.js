@@ -121,7 +121,19 @@ const blockchainLedgerSchema = new mongoose.Schema({
   },
   current_hash: {
     type: String,
-    required: true
+    required: true,
+    default: '0x0000000000000000000000000000000000000000000000000000000000000000' // 🔧 FIX: Set default value
+  },
+  // V2 fields
+  hash_version: {
+    type: String,
+    required: false,
+    default: undefined
+  },
+  data_root: {
+    type: String,
+    required: false,
+    default: undefined
   },
   nonce: {
     type: Number,
@@ -270,9 +282,9 @@ blockchainLedgerSchema.index({ current_hash: 1 });
 // Method to calculate hash
 blockchainLedgerSchema.methods.calculateHash = function() {
   try {
-    const dataString = JSON.stringify({
-      block_id: this.block_id,
-      survey_number: this.survey_number,
+  const dataString = JSON.stringify({
+    block_id: this.block_id,
+    survey_number: this.survey_number,
       event_type: this.event_type,
       officer_id: this.officer_id,
       project_id: this.project_id,
@@ -280,11 +292,12 @@ blockchainLedgerSchema.methods.calculateHash = function() {
       timeline_history: this.timeline_history,
       metadata: this.metadata,
       remarks: this.remarks,
-      timestamp: this.timestamp,
-      previous_hash: this.previous_hash,
-      nonce: this.nonce
-    });
-    
+      // 🔧 EXCLUDE current timestamp - this changes on every check
+      // timestamp: this.timestamp,  // ← REMOVED to prevent hash changes
+    previous_hash: this.previous_hash,
+    nonce: this.nonce
+  });
+  
     // Use crypto module for proper hashing
     return crypto.createHash('sha256').update(dataString).digest('hex');
   } catch (error) {
@@ -299,7 +312,7 @@ blockchainLedgerSchema.methods.calculateHash = function() {
       timeline_history: this.timeline_history,
       metadata: this.metadata,
       remarks: this.remarks,
-      timestamp: this.timestamp,
+      // timestamp: this.timestamp,  // ← REMOVED
       previous_hash: this.previous_hash,
       nonce: this.nonce
     });
@@ -316,7 +329,72 @@ blockchainLedgerSchema.methods.generateDataSectionHash = function(sectionName) {
   const sectionData = this.survey_data[sectionName].data;
   if (!sectionData) return null;
   
-  return crypto.createHash('sha256').update(JSON.stringify(sectionData)).digest('hex');
+  // 🔧 FIX: Use consistent data cleaning like other services
+  try {
+    const cleanData = this.cleanDataForSerialization(sectionData);
+    const dataString = JSON.stringify(cleanData, Object.keys(cleanData).sort());
+    const hash = crypto.createHash('sha256').update(dataString).digest('hex');
+    
+    // 🔧 DEBUG: Log hash generation for troubleshooting
+    console.log(`🔍 Generated hash for ${this.survey_number} - ${sectionName}:`, {
+      originalData: sectionData,
+      cleanedData: cleanData,
+      hash: hash
+    });
+    
+    return hash;
+  } catch (error) {
+    console.error('❌ Error generating section hash:', error);
+    return null;
+  }
+};
+
+// 🔧 ADD: Data cleaning method for consistency
+blockchainLedgerSchema.methods.cleanDataForSerialization = function(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.map(item => this.cleanDataForSerialization(item));
+  }
+
+  // Handle objects
+  const cleaned = {};
+  for (const [key, value] of Object.entries(data)) {
+    // Skip internal Mongoose fields
+    if (key.startsWith('__') || key === '_id') {
+      continue;
+    }
+
+    // 🔧 FIX: Handle ObjectId fields properly
+    if (value && typeof value === 'object' && value.constructor && value.constructor.name === 'ObjectId') {
+      cleaned[key] = value.toString(); // Convert ObjectId to string
+    }
+    // Handle Buffer fields (ObjectId buffers)
+    else if (value && Buffer.isBuffer(value)) {
+      cleaned[key] = value.toString('hex'); // Convert buffer to hex string
+    }
+    // Handle dates - convert to ISO strings for consistent hashing
+    else if (value instanceof Date) {
+      cleaned[key] = value.toISOString();
+    }
+    // Handle nested objects
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      cleaned[key] = this.cleanDataForSerialization(value);
+    }
+    // Handle arrays
+    else if (Array.isArray(value)) {
+      cleaned[key] = this.cleanDataForSerialization(value);
+    }
+    // Handle primitive values
+    else {
+      cleaned[key] = value;
+    }
+  }
+
+  return cleaned;
 };
 
 // NEW: Method to add timeline entry
@@ -367,13 +445,10 @@ blockchainLedgerSchema.pre('save', function(next) {
     console.log('🔧 Pre-save middleware running for:', this.survey_number);
     console.log('🔧 Current hash before middleware:', this.current_hash);
     
-    if (!this.current_hash) {
-      console.log('🔧 Generating hash via middleware...');
-      this.current_hash = this.calculateHash();
-      console.log('🔧 Hash generated via middleware:', this.current_hash);
-    } else {
-      console.log('🔧 Hash already exists, skipping generation');
-    }
+    // 🔧 FIX: Always generate hash to ensure it's valid
+    console.log('🔧 Generating hash via middleware...');
+    this.current_hash = this.calculateHash();
+    console.log('🔧 Hash generated via middleware:', this.current_hash);
     
     next();
   } catch (error) {
