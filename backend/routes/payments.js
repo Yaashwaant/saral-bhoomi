@@ -802,6 +802,19 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
         }
       }
     );
+
+    // Roll-forward ledger block to include latest live data so integrity remains verified
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.createOrUpdateFromLive(
+        landownerRecord.survey_number,
+        req.user.id,
+        landownerRecord.project_id?.toString() || null,
+        'payment_slip_generated'
+      );
+    } catch (e) {
+      console.warn('⚠️ Could not update ledger from live after slip generation:', e.message);
+    }
     
     res.status(200).json({
       success: true,
