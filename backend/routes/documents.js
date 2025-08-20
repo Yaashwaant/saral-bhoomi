@@ -5,6 +5,7 @@ import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import { uploadFileBuffer } from '../services/cloudinaryService.js';
 import { validateProjectId } from '../middleware/validation.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const router = express.Router();
 
@@ -320,6 +321,35 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
     );
 
     console.log('💾 Field Officer document saved to MongoDB for survey:', survey_number);
+
+    // Append DOCUMENT_UPLOADED timeline event and roll-forward ledger to keep hashes in sync
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(
+        survey_number,
+        req.user.id,
+        'DOCUMENT_UPLOADED',
+        {
+          name: newDocument.name,
+          type: newDocument.type,
+          url: newDocument.url,
+          cloudinary_id: newDocument.cloudinary_id,
+          category: newDocument.category,
+          upload_source: newDocument.upload_source
+        },
+        'Field officer uploaded document',
+        project_id
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        survey_number,
+        req.user.id,
+        project_id,
+        'document_uploaded'
+      );
+    } catch (e) {
+      console.warn('⚠️ Could not update timeline/ledger after field document upload:', e.message);
+    }
 
     res.status(201).json({
       success: true,
