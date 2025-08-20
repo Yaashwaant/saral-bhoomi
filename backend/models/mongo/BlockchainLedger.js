@@ -27,6 +27,7 @@ const blockchainLedgerSchema = new mongoose.Schema({
       
       // Survey Events
       'SURVEY_CREATED_ON_BLOCKCHAIN',
+      'SURVEY_DATA_UPDATED',
       'LAND_RECORD_CREATED',
       'LAND_RECORD_UPDATED',
       'LAND_RECORD_DELETED',
@@ -41,6 +42,7 @@ const blockchainLedgerSchema = new mongoose.Schema({
       'PAYMENT_PROCESSED',
       'PAYMENT_VERIFIED',
       'PAYMENT_FAILED',
+      'OWNERSHIP_TRANSFER',
       
       // Award Events
       'AWARD_PUBLISHED',
@@ -279,6 +281,11 @@ blockchainLedgerSchema.index({ officer_id: 1 });
 blockchainLedgerSchema.index({ project_id: 1 });
 blockchainLedgerSchema.index({ timestamp: 1 });
 blockchainLedgerSchema.index({ current_hash: 1 });
+// Ensure only one OWNERSHIP_TRANSFER per survey_number (idempotent slip event)
+blockchainLedgerSchema.index(
+  { survey_number: 1, event_type: 1 },
+  { unique: true, partialFilterExpression: { event_type: 'OWNERSHIP_TRANSFER' } }
+);
 
 // Method to calculate hash
 blockchainLedgerSchema.methods.calculateHash = function() {

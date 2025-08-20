@@ -92,8 +92,8 @@ class LedgerV2Service {
 		return hashJsonStable(header);
 	};
 
-	// Create or update from LIVE DB
-	createOrUpdateFromLive = async (surveyNumber, officerId, projectId = null, remarks = '') => {
+	// Create or update from LIVE DB. If explicitEventType is provided, use it for the new block/timeline.
+	createOrUpdateFromLive = async (surveyNumber, officerId, projectId = null, remarks = '', explicitEventType = null) => {
 		// Fetch latest block for prev hash reference
 		const existing = await MongoBlockchainLedger.findOne({ survey_number: surveyNumber }).sort({ timestamp: -1 });
 		const previousHash = existing?.current_hash || '0x' + '0'.repeat(64);
@@ -114,10 +114,11 @@ class LedgerV2Service {
 			}
 		}
 
+		const eventType = explicitEventType || (existing ? 'SURVEY_DATA_UPDATED' : 'SURVEY_CREATED_ON_BLOCKCHAIN');
 		const block = new MongoBlockchainLedger({
 			block_id: `BLOCK_${surveyNumber}_${Date.now()}`,
 			survey_number: surveyNumber,
-			event_type: existing ? 'SURVEY_DATA_UPDATED' : 'SURVEY_CREATED_ON_BLOCKCHAIN',
+			event_type: eventType,
 			officer_id: officerId,
 			project_id: projectId,
 			survey_data: normalizedSurveyData,
@@ -125,7 +126,7 @@ class LedgerV2Service {
 			data_root,
 			timeline_history: [
 				...(existing?.timeline_history || []),
-				{ action: existing ? 'SURVEY_DATA_UPDATED' : 'SURVEY_CREATED_ON_BLOCKCHAIN', timestamp: new Date(), officer_id: officerId, data_hash: data_root, previous_hash: previousHash, metadata: { source: 'ledger_v2' }, remarks },
+				{ action: eventType, timestamp: new Date(), officer_id: officerId, data_hash: data_root, previous_hash: previousHash, metadata: { source: 'ledger_v2' }, remarks },
 			],
 			metadata: { ...existing?.metadata, source: 'ledger_v2' },
 			remarks,

@@ -780,15 +780,24 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
       generated_at: new Date()
     };
     
-    // Append timeline event for ownership transfer (on slip generation)
+    // Append timeline event for ownership transfer (on slip generation), idempotent per survey
     try {
       const ledgerV2 = new LedgerV2Service();
-      await ledgerV2.appendTimelineEvent(landownerRecord.survey_number, req.user.id, 'OWNERSHIP_TRANSFER', {
-        slip_number: paymentSlip.slip_number,
-        amount: paymentSlip.compensation_details?.final_amount || paymentSlip.compensation_details?.total_compensation || 0
-      }, 'Payment slip generated and ownership transfer recorded', landownerRecord.project_id?.toString() || null);
+      const safeProjectId = landownerRecord.project_id && (landownerRecord.project_id._id ? landownerRecord.project_id._id : landownerRecord.project_id);
+      // Create a block using explicit event type to align with enum and idempotent index
+      await ledgerV2.createOrUpdateFromLive(
+        landownerRecord.survey_number,
+        req.user.id,
+        safeProjectId ? safeProjectId.toString() : null,
+        'ownership_transfer_slip_generated',
+        'OWNERSHIP_TRANSFER'
+      );
     } catch (e) {
-      console.warn('⚠️ Could not append timeline event for payment slip:', e.message);
+      if (e && e.code === 11000) {
+        console.log('ℹ️ OWNERSHIP_TRANSFER already exists for survey; skipping duplicate');
+      } else {
+        console.warn('⚠️ Could not add ownership transfer block:', e.message);
+      }
     }
 
     // Update payment status to initiated
@@ -806,10 +815,11 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
     // Roll-forward ledger block to include latest live data so integrity remains verified
     try {
       const ledgerV2 = new LedgerV2Service();
+      const safeProjectId = landownerRecord.project_id && (landownerRecord.project_id._id ? landownerRecord.project_id._id : landownerRecord.project_id);
       await ledgerV2.createOrUpdateFromLive(
         landownerRecord.survey_number,
         req.user.id,
-        landownerRecord.project_id?.toString() || null,
+        safeProjectId ? safeProjectId.toString() : null,
         'payment_slip_generated'
       );
     } catch (e) {
