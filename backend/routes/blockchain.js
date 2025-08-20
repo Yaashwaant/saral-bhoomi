@@ -147,6 +147,16 @@ router.post('/', [
       timestamp: new Date().toISOString()
     });
 
+    // If KYC status updated, append a normalized timeline event and roll-forward ledger
+    if (event_type === 'KYC_STATUS_UPDATED') {
+      try {
+        await ledgerV2.appendTimelineEvent(survey_number, officer_id, 'KYC_STATUS_UPDATED', metadata || {}, 'KYC status updated', project_id || null);
+        await ledgerV2.createOrUpdateFromLive(survey_number, officer_id, project_id || null, 'kyc_status_updated');
+      } catch (e) {
+        console.warn('⚠️ KYC timeline/ledger update failed:', e.message);
+      }
+    }
+
     res.json({
       success: true,
       message: 'Blockchain event recorded successfully',

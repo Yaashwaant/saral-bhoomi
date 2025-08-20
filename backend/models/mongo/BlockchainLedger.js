@@ -50,6 +50,7 @@ const blockchainLedgerSchema = new mongoose.Schema({
       // Status Events
       'STATUS_CHANGED',
       'STATUS_UPDATED',
+      'KYC_STATUS_UPDATED',
       
       // Document Events
       'DOCUMENT_UPLOADED',
