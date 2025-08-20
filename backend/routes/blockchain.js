@@ -184,15 +184,19 @@ router.get('/search/*', [
       });
     }
 
-    // Import JMR model to check database
+    // Import models/services
     const MongoJMRRecord = (await import('../models/mongo/JMRRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const surveyService = new SurveyDataAggregationService();
 
-    // Check if survey exists in database
-    const dbRecord = await MongoJMRRecord.findOne({
-      survey_number: surveyNumber,
-      is_active: true
-    });
+    // Aggregate across all relevant collections to determine DB presence
+    const surveyData = await surveyService.getCompleteSurveyData(surveyNumber);
+    const summary = surveyService.getSurveyDataSummary(surveyData);
+    // Consider record present in DB if ANY section has data (robust against partial sections)
+    let existsInDatabase = Object.values(summary || {}).some((s) => s && s.has_data === true);
+
+    // Keep legacy JMR lookup for backward-compatible summary (optional)
+    const dbRecord = await MongoJMRRecord.findOne({ survey_number: surveyNumber, is_active: true });
 
     // Check if survey exists on blockchain
     const blockchainStatus = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
@@ -208,17 +212,25 @@ router.get('/search/*', [
       ]
     }).sort({ timestamp: -1 });
 
-    // Determine overall status
+    // Determine overall status using aggregated DB presence
     let overallStatus = 'unknown';
     let statusMessage = '';
 
-    if (dbRecord && localBlockchainEntry) {
+    // Treat presence of a local ledger entry as on-chain presence (more reliable than network probe for UI)
+    const existsOnChain = !!localBlockchainEntry || !!blockchainStatus;
+    if (!existsInDatabase) {
+      // If summary says false but any section actually has data in surveyData (defensive), flip to true
+      const fallbackDb = Object.values(surveyData || {}).some((section) => section && section.data && Object.keys(section.data).length > 0);
+      if (fallbackDb) existsInDatabase = true;
+    }
+
+    if (existsInDatabase && existsOnChain) {
       overallStatus = 'synced';
       statusMessage = 'Record exists in database and on blockchain';
-    } else if (dbRecord && !localBlockchainEntry) {
+    } else if (existsInDatabase && !existsOnChain) {
       overallStatus = 'database_only';
       statusMessage = 'Record exists in database but not on blockchain';
-    } else if (!dbRecord && localBlockchainEntry) {
+    } else if (!existsInDatabase && existsOnChain) {
       overallStatus = 'blockchain_only';
       statusMessage = 'Record exists on blockchain but not in database';
     } else {
@@ -226,13 +238,27 @@ router.get('/search/*', [
       statusMessage = 'Record not found in database or on blockchain';
     }
 
+    // Optional: include quick integrity (v2) for the landowner section if requested
+    let quickIntegrity = null;
+    if (String(req.query.includeIntegrity || '').toLowerCase() === 'true') {
+      try {
+        const ver = await ledgerV2.verify(surveyNumber);
+        quickIntegrity = {
+          isValid: !!ver?.isValid,
+          landowner: ver?.data_integrity?.landowner || null,
+        };
+      } catch (e) {
+        quickIntegrity = { isValid: false, error: 'integrity_unavailable' };
+      }
+    }
+
     // 🔧 FIX: Return data in expected format for frontend
     res.json({
       success: true,
-      found: !!dbRecord,
+      found: existsInDatabase,
       survey_number: surveyNumber,
-      existsInDatabase: !!dbRecord,
-      existsOnBlockchain: blockchainStatus,
+      existsInDatabase,
+      existsOnBlockchain: existsOnChain,
       localBlockchainEntry: !!localBlockchainEntry,
       overallStatus,
       statusMessage,
@@ -246,6 +272,8 @@ router.get('/search/*', [
         district: dbRecord.district,
         status: dbRecord.is_active ? 'active' : 'inactive'
       } : null,
+      survey_data_summary: summary,
+      quickIntegrity,
       block: localBlockchainEntry ? {
         block_id: localBlockchainEntry.block_id,
         current_hash: localBlockchainEntry.current_hash,
