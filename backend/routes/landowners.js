@@ -6,6 +6,7 @@ import { authorize } from '../middleware/auth.js';
 import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const router = express.Router();
 
@@ -546,9 +547,29 @@ router.post('/generate-notice', async (req, res) => {
     // Fetch the updated record
     const updatedRecord = await MongoLandownerRecord.findById(landownerRecord._id);
 
+    // 🔗 Update blockchain with the new landowner data including notice information
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      const officerId = req.user?.id || 'system';
+      
+      // Update blockchain with the updated landowner record
+      await ledgerV2.createOrUpdateFromLive(
+        survey_number,
+        officerId,
+        project_id,
+        `Notice generated: ${noticeNumber}`,
+        'NOTICE_GENERATED'
+      );
+      
+      console.log(`✅ Blockchain updated for survey ${survey_number} after notice generation`);
+    } catch (blockchainError) {
+      console.error('⚠️ Failed to update blockchain after notice generation:', blockchainError);
+      // Don't fail the entire operation if blockchain update fails
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Notice generated successfully',
+      message: 'Notice generated successfully and recorded on blockchain',
       data: {
         notice_number: noticeNumber,
         notice_date: noticeDate,

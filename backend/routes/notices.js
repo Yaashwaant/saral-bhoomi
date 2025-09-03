@@ -8,6 +8,7 @@ import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 // SMS support is optional; only load Twilio when explicitly enabled
 
 const __filename = fileURLToPath(import.meta.url);
@@ -103,6 +104,26 @@ router.post('/generate/:projectId', async (req, res) => {
           notice_date: noticeDate,
           notice_content: noticeContent
         });
+
+        // 🔗 Update blockchain with the new landowner data including notice information
+        try {
+          const ledgerV2 = new LedgerV2Service();
+          const officerId = req.user?.id || 'system';
+          
+          // Update blockchain with the updated landowner record
+          await ledgerV2.createOrUpdateFromLive(
+            record.survey_number,
+            officerId,
+            projectId,
+            `Bulk notice generated: ${noticeNumber}`,
+            'NOTICE_GENERATED'
+          );
+          
+          console.log(`✅ Blockchain updated for survey ${record.survey_number} after bulk notice generation`);
+        } catch (blockchainError) {
+          console.error(`⚠️ Failed to update blockchain for survey ${record.survey_number}:`, blockchainError);
+          // Don't fail the entire operation if blockchain update fails
+        }
 
         generatedNotices.push({
           recordId: record._id,
@@ -423,6 +444,26 @@ router.post('/save-custom', async (req, res) => {
             notice_date: noticeDate ? new Date(noticeDate) : new Date(),
             notice_content: html
           });
+
+          // 🔗 Update blockchain with the new landowner data including notice information
+          try {
+            const ledgerV2 = new LedgerV2Service();
+            const officerId = req.user?.id || 'system';
+            
+            // Update blockchain with the updated landowner record
+            await ledgerV2.createOrUpdateFromLive(
+              record.survey_number,
+              officerId,
+              record.project_id,
+              `Custom notice generated: ${noticeNumber || record.notice_number}`,
+              'NOTICE_GENERATED'
+            );
+            
+            console.log(`✅ Blockchain updated for survey ${record.survey_number} after custom notice generation`);
+          } catch (blockchainError) {
+            console.error(`⚠️ Failed to update blockchain for survey ${record.survey_number}:`, blockchainError);
+            // Don't fail the entire operation if blockchain update fails
+          }
         }
       } catch (e) {
         // Log but do not fail the request
