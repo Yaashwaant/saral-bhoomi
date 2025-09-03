@@ -566,7 +566,7 @@ const DocumentUploadPortal: React.FC = () => {
                             <SelectValue placeholder="All types" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All types</SelectItem>
+                            <SelectItem value="all">All types</SelectItem>
                             <SelectItem value="jmr">JMR</SelectItem>
                             <SelectItem value="award">Award</SelectItem>
                             <SelectItem value="notice">Notice</SelectItem>
@@ -581,7 +581,7 @@ const DocumentUploadPortal: React.FC = () => {
                             <SelectValue placeholder="All statuses" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All statuses</SelectItem>
+                            <SelectItem value="all">All statuses</SelectItem>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="verified">Verified</SelectItem>
                             <SelectItem value="rejected">Rejected</SelectItem>

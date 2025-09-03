@@ -307,8 +307,22 @@ class SurveyDataAggregationService {
         continue;
       }
 
+      // 🔧 EXCLUDE current timestamps that change on every check
+      // But KEEP stored timestamps that are part of the data
+      if (key === 'timestamp' && value instanceof Date) {
+        // Skip current timestamp - this changes on every integrity check
+        continue;
+      }
+
+      // 🔧 Handle ObjectId and Buffer consistently with verification service
+      if (value && typeof value === 'object' && value.constructor && value.constructor.name === 'ObjectId') {
+        cleaned[key] = value.toString();
+      }
+      else if (value && Buffer.isBuffer(value)) {
+        cleaned[key] = value.toString('hex');
+      }
       // Handle dates
-      if (value instanceof Date) {
+      else if (value instanceof Date) {
         cleaned[key] = value.toISOString();
       }
       // Handle nested objects
@@ -335,7 +349,11 @@ class SurveyDataAggregationService {
     if (!data) return null;
     try {
       const cleanData = this.cleanDataForSerialization(data);
-      return crypto.createHash('sha256').update(JSON.stringify(cleanData)).digest('hex');
+      // 🔧 Use stable ordering of keys to match verification logic
+      return crypto
+        .createHash('sha256')
+        .update(JSON.stringify(cleanData, Object.keys(cleanData).sort()))
+        .digest('hex');
     } catch (error) {
       console.error('❌ Failed to generate data hash:', error);
       return null;

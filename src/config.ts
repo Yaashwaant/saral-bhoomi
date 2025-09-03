@@ -3,7 +3,7 @@
 
 export const config = {
   // API Base URL for MongoDB Backend
-  API_BASE_URL: 'http://localhost:5000/api',
+  API_BASE_URL: '/api',
   
   // Development Settings
   DEV_MODE: true,
@@ -13,6 +13,7 @@ export const config = {
   ENABLE_BLOCKCHAIN: true,
   ENABLE_ANALYTICS: true,
   ENABLE_SMS: true,
+  ENABLE_DEMO_PENDING_REASON: true,
   
   // External Services (if needed)
   FIREBASE_CONFIG: 'your_firebase_config_here',

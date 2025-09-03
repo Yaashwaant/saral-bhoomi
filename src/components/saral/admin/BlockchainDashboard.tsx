@@ -580,7 +580,7 @@ const BlockchainDashboard: React.FC = () => {
                       <SelectValue placeholder="All projects" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All projects</SelectItem>
+                      <SelectItem value="all">All projects</SelectItem>
                       {/* Add project options here */}
                     </SelectContent>
                   </Select>
@@ -592,7 +592,7 @@ const BlockchainDashboard: React.FC = () => {
                       <SelectValue placeholder="All events" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All events</SelectItem>
+                      <SelectItem value="all">All events</SelectItem>
                       <SelectItem value="JMR_Measurement_Uploaded">JMR Measurement</SelectItem>
                       <SelectItem value="Notice_Generated">Notice Generated</SelectItem>
                       <SelectItem value="Payment_Slip_Created">Payment Slip</SelectItem>
@@ -611,7 +611,7 @@ const BlockchainDashboard: React.FC = () => {
                       <SelectValue placeholder="All officers" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All officers</SelectItem>
+                      <SelectItem value="all">All officers</SelectItem>
                       {/* Add officer options here */}
                     </SelectContent>
                   </Select>

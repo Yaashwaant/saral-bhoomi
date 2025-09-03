@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-// Removed demo-data dependency; use live API and safe fallbacks
+import { demoLandownerRecords, demoProjects } from '@/utils/demo-data';
 
 // API Base URL
 import { config } from '../config';
@@ -14,16 +14,32 @@ export interface Project {
   landRequired: number; // in hectares
   landAvailable: number;
   landToBeAcquired: number;
-  type: 'greenfield' | 'brownfield';
+  type: 'greenfield' | 'brownfield' | 'road' | 'railway' | 'irrigation' | 'industrial' | 'residential' | 'other';
   indexMap?: File;
   videoUrl?: string;
   description?: string;
+  descriptionDetails?: {
+    billPassedDate?: Date | string;
+    ministry?: string;
+    applicableLaws?: string[];
+    projectAim?: string;
+  };
+  district?: string;
+  taluka?: string;
+  villages?: string[];
+  estimatedCost?: number;
+  allocatedBudget?: number;
+  currency?: string;
   status: {
     stage3A: 'pending' | 'approved' | 'rejected';
     stage3D: 'pending' | 'approved' | 'rejected';
     corrigendum: 'pending' | 'approved' | 'rejected';
     award: 'pending' | 'approved' | 'rejected';
   };
+  stakeholders?: string[];
+  isActive?: boolean;
+  assignedOfficers?: string[];
+  assignedAgents?: string[];
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -157,6 +173,12 @@ interface SaralContextType {
     pendingPayments: number;
     totalCompensation: number;
   };
+  // Insights
+  getOverviewKpis: (filters: { projectId?: string; district?: string; taluka?: string; village?: string; paymentStatus?: string; isTribal?: boolean; from?: string; to?: string }) => Promise<any>;
+  // AI Assistant
+  askOfficerAI: (payload: { question: string; projectId?: string; district?: string; taluka?: string; from?: string; to?: string }) => Promise<{ answer: string; aggregates: any }>;
+  // Filter options
+  getLocationOptions: (filters: { projectId?: string; district?: string; taluka?: string }) => Promise<{ districts: string[]; talukas: string[]; villages: string[] }>;
   // Utilities
   reloadLandowners: () => Promise<void>;
   
@@ -224,10 +246,19 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       const response = await apiCall('/projects');
-      setProjects(Array.isArray(response.data) ? response.data : []);
+      const apiProjects = Array.isArray(response.data) ? response.data : [];
+      if (apiProjects.length === 0 && import.meta.env.DEV) {
+        setProjects(demoProjects as any);
+      } else {
+        setProjects(apiProjects);
+      }
     } catch (err) {
-      console.warn('Projects API failed; falling back to empty list');
-      setProjects([]);
+      console.warn('Projects API failed; seeding demo projects for development');
+      if (import.meta.env.DEV) {
+        setProjects(demoProjects as any);
+      } else {
+        setProjects([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -240,6 +271,11 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       
       const response = await apiCall('/landowners/list');
       const rows: any[] = Array.isArray(response.records) ? response.records : [];
+      if (rows.length === 0 && import.meta.env.DEV) {
+        // Seed demo landowners when API has no data
+        setLandownerRecords(demoLandownerRecords as any);
+        return;
+      }
       const parseIsTribal = (rec: any): boolean => {
         // Strictly use Marathi column when present
         const raw = rec?.['आदिवासी'] ?? rec?.isTribal ?? rec?.is_tribal;
@@ -284,8 +320,12 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       });
       setLandownerRecords(normalized);
     } catch (err) {
-      console.warn('Landowners API failed; falling back to empty list');
-      setLandownerRecords([]);
+      console.warn('Landowners API failed; seeding demo landowners for development');
+      if (import.meta.env.DEV) {
+        setLandownerRecords(demoLandownerRecords as any);
+      } else {
+        setLandownerRecords([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -320,12 +360,15 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      await apiCall(`/projects/${id}`, {
+      const response = await apiCall(`/projects/${id}`, {
         method: 'PUT',
         body: JSON.stringify(projectData),
       });
-      
-      setProjects(prev => prev.map(p => p.id === id ? { ...p, ...projectData } : p));
+      const updated = (response as any)?.data || null;
+      if (updated) {
+        setProjects(prev => prev.map(p => String(p.id) === String(id) ? { ...p, ...updated } as any : p));
+        return true;
+      }
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update project');
@@ -819,6 +862,69 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     return { totalProjects, activeProjects, completedKYC, pendingPayments, totalCompensation };
   };
 
+  const getOverviewKpis = async (filters: { projectId?: string; district?: string; taluka?: string; village?: string; paymentStatus?: string; isTribal?: boolean; from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (filters.projectId) params.set('projectId', String(filters.projectId));
+    if (filters.district) params.set('district', String(filters.district));
+    if (filters.taluka) params.set('taluka', String(filters.taluka));
+    if (filters.village) params.set('village', String(filters.village));
+    if (filters.from) params.set('from', String(filters.from));
+    if (filters.to) params.set('to', String(filters.to));
+    if (filters.paymentStatus) params.set('paymentStatus', String(filters.paymentStatus));
+    if (typeof filters.isTribal === 'boolean') params.set('isTribal', String(filters.isTribal));
+    try {
+      const res = await apiCall(`/insights/overview-kpis?${params.toString()}`);
+      if (res?.data && Object.keys(res.data).length > 0) return res.data;
+    } catch (e) {
+      // ignore; we'll fallback below
+    }
+    // Fallback: compute KPIs locally from loaded records (which may be demo in dev)
+    const records = landownerRecords.filter(r => !filters.projectId || String(r.projectId) === String(filters.projectId));
+    const withinDate = (d?: any) => {
+      if (!filters.from && !filters.to) return true;
+      const t = new Date(d || new Date()).getTime();
+      const from = filters.from ? new Date(filters.from).getTime() : undefined;
+      const to = filters.to ? new Date(filters.to).getTime() : undefined;
+      if (from && t < from) return false;
+      if (to && t > to) return false;
+      return true;
+    };
+    const filtered = records.filter(r => {
+      if (filters.district && r.district !== filters.district) return false;
+      if (filters.taluka && r.taluka !== filters.taluka) return false;
+      if (filters.village && r.village !== filters.village) return false;
+      if (typeof filters.isTribal === 'boolean' && (r as any).isTribal !== filters.isTribal) return false;
+      if (filters.paymentStatus && r.paymentStatus !== (filters.paymentStatus as any)) return false;
+      return withinDate((r as any).paymentDate || (r as any).noticeDate);
+    });
+    const toNum = (v: any) => parseFloat(String(v || 0)) || 0;
+    const totalAreaLoaded = filtered.reduce((s, r) => s + toNum((r as any).क्षेत्र), 0);
+    const totalAcquiredArea = filtered.reduce((s, r) => s + toNum((r as any).संपादित_क्षेत्र), 0);
+    const paymentsCompletedCount = filtered.filter(r => r.paymentStatus === 'success').length;
+    const budgetSpentToDate = filtered
+      .filter(r => r.paymentStatus === 'success')
+      .reduce((s, r) => s + toNum((r as any).अंतिम_रक्कम), 0);
+    const noticesIssued = filtered.filter(r => r.noticeGenerated).length;
+    return { totalAreaLoaded, totalAcquiredArea, paymentsCompletedCount, budgetSpentToDate, noticesIssued } as any;
+  };
+
+  const askOfficerAI = async (payload: { question: string; projectId?: string; district?: string; taluka?: string; from?: string; to?: string }): Promise<{ answer: string; aggregates: any }> => {
+    const res = await apiCall('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    return { answer: res?.answer ?? '', aggregates: res?.aggregates ?? {} };
+  };
+
+  const getLocationOptions = async (filters: { projectId?: string; district?: string; taluka?: string }) => {
+    const params = new URLSearchParams();
+    if (filters.projectId) params.set('projectId', String(filters.projectId));
+    if (filters.district) params.set('district', String(filters.district));
+    if (filters.taluka) params.set('taluka', String(filters.taluka));
+    const res = await apiCall(`/filters/locations?${params.toString()}`);
+    return (res?.data || { districts: [], talukas: [], villages: [] }) as { districts: string[]; talukas: string[]; villages: string[] };
+  };
+
   const value: SaralContextType = {
     projects,
     createProject,
@@ -845,6 +951,9 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     getAssignedRecords,
     getAssignedRecordsWithNotices,
     getProjectStats,
+    getOverviewKpis,
+    askOfficerAI,
+    getLocationOptions,
     reloadLandowners,
     loading,
     error

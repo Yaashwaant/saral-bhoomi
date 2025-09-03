@@ -33,6 +33,10 @@ interface ProjectFormData {
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
   description?: string;
+  billPassedDate?: string;
+  ministry?: string;
+  applicableLaws?: string; // comma-separated input
+  projectAim?: string;
 }
 
 const ProjectManagement = () => {
@@ -51,7 +55,11 @@ const ProjectManagement = () => {
     landToBeAcquired: '',
     type: 'greenfield',
     videoUrl: '',
-    description: ''
+    description: '',
+    billPassedDate: '',
+    ministry: '',
+    applicableLaws: '',
+    projectAim: ''
   });
 
   const translations = {
@@ -71,6 +79,11 @@ const ProjectManagement = () => {
       save: 'जतन करा',
       cancel: 'रद्द करा',
       description: 'प्रकल्पाचे वर्णन',
+      descriptionDetails: 'सविस्तर माहिती',
+      billPassedDate: 'बिल मंजुरीची तारीख',
+      ministry: 'मंत्रालय',
+      applicableLaws: 'लागू कायदे (स्वल्पविरामाने वेगळे करा)',
+      projectAim: 'प्रकल्पाचा उद्देश',
       edit: 'संपादन करा',
       delete: 'हटवा',
       view: 'पाहा',
@@ -104,6 +117,11 @@ const ProjectManagement = () => {
       save: 'Save',
       cancel: 'Cancel',
       description: 'Project Description',
+      descriptionDetails: 'Description Details',
+      billPassedDate: 'Date of Bill Passing',
+      ministry: 'Ministry',
+      applicableLaws: 'Applicable Laws (comma-separated)',
+      projectAim: 'Project Aim',
       edit: 'Edit',
       delete: 'Delete',
       view: 'View',
@@ -137,6 +155,11 @@ const ProjectManagement = () => {
       save: 'सहेजें',
       cancel: 'रद्द करें',
       description: 'परियोजना विवरण',
+      descriptionDetails: 'विवरण विवरण',
+      billPassedDate: 'विधेयक पारित होने की तिथि',
+      ministry: 'मंत्रालय',
+      applicableLaws: 'लागू कानून (अल्पविराम से अलग)',
+      projectAim: 'परियोजना का उद्देश्य',
       edit: 'संपादित करें',
       delete: 'हटाएं',
       view: 'देखें',
@@ -194,12 +217,21 @@ const ProjectManagement = () => {
         type: formData.type,
         videoUrl: formData.videoUrl,
         description: formData.description,
+        descriptionDetails: {
+          billPassedDate: formData.billPassedDate || undefined,
+          ministry: formData.ministry || undefined,
+          applicableLaws: (formData.applicableLaws || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
+          projectAim: formData.projectAim || undefined,
+        },
         status: {
           stage3A: 'pending',
           stage3D: 'pending',
           corrigendum: 'pending',
           award: 'pending'
-        },
+        } as const,
         createdBy: user?.email || ''
       };
 
@@ -222,7 +254,11 @@ const ProjectManagement = () => {
         landToBeAcquired: '',
         type: 'greenfield',
         videoUrl: '',
-        description: ''
+        description: '',
+        billPassedDate: '',
+        ministry: '',
+        applicableLaws: '',
+        projectAim: ''
       });
     } catch (error) {
       toast.error('Failed to save project');
@@ -240,7 +276,11 @@ const ProjectManagement = () => {
       landToBeAcquired: project.landToBeAcquired.toString(),
       type: project.type,
       videoUrl: project.videoUrl || '',
-      description: project.description || ''
+      description: project.description || '',
+      billPassedDate: project.descriptionDetails?.billPassedDate ? String(project.descriptionDetails.billPassedDate).slice(0,10) : '',
+      ministry: project.descriptionDetails?.ministry || '',
+      applicableLaws: (project.descriptionDetails?.applicableLaws || []).join(', '),
+      projectAim: project.descriptionDetails?.projectAim || ''
     });
     setIsDialogOpen(true);
   };
@@ -370,6 +410,45 @@ const ProjectManagement = () => {
                     rows={4}
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>{t.descriptionDetails}</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="billPassedDate">{t.billPassedDate}</Label>
+                      <Input
+                        id="billPassedDate"
+                        type="date"
+                        value={formData.billPassedDate}
+                        onChange={(e) => setFormData({ ...formData, billPassedDate: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ministry">{t.ministry}</Label>
+                      <Input
+                        id="ministry"
+                        value={formData.ministry}
+                        onChange={(e) => setFormData({ ...formData, ministry: e.target.value })}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="applicableLaws">{t.applicableLaws}</Label>
+                      <Input
+                        id="applicableLaws"
+                        value={formData.applicableLaws}
+                        onChange={(e) => setFormData({ ...formData, applicableLaws: e.target.value })}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="projectAim">{t.projectAim}</Label>
+                      <Textarea
+                        id="projectAim"
+                        value={formData.projectAim}
+                        onChange={(e) => setFormData({ ...formData, projectAim: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -488,6 +567,17 @@ const ProjectManagement = () => {
                 <Label>{t.description}</Label>
                 <div className="p-3 rounded border bg-gray-50 whitespace-pre-wrap text-sm">
                   {viewingProject.description || '—'}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>{t.descriptionDetails}</Label>
+                <div className="p-3 rounded border bg-gray-50 text-sm">
+                  <div className="grid md:grid-cols-2 gap-2">
+                    <div><span className="text-gray-600">{t.billPassedDate}:</span> <span className="font-medium">{viewingProject.descriptionDetails?.billPassedDate ? String(viewingProject.descriptionDetails.billPassedDate).slice(0,10) : '—'}</span></div>
+                    <div><span className="text-gray-600">{t.ministry}:</span> <span className="font-medium">{viewingProject.descriptionDetails?.ministry || '—'}</span></div>
+                    <div className="md:col-span-2"><span className="text-gray-600">{t.applicableLaws}:</span> <span className="font-medium">{(viewingProject.descriptionDetails?.applicableLaws || []).join(', ') || '—'}</span></div>
+                    <div className="md:col-span-2"><span className="text-gray-600">{t.projectAim}:</span> <span className="font-medium whitespace-pre-wrap">{viewingProject.descriptionDetails?.projectAim || '—'}</span></div>
+                  </div>
                 </div>
               </div>
             </div>

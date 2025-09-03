@@ -6,6 +6,11 @@ const projectSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  pmisCode: {
+    type: String,
+    required: false,
+    trim: true
+  },
   schemeName: {
     type: String,
     required: true
@@ -25,35 +30,39 @@ const projectSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['road', 'railway', 'irrigation', 'industrial', 'residential', 'other']
+    enum: ['road', 'railway', 'irrigation', 'industrial', 'residential', 'other', 'greenfield', 'brownfield']
   },
   district: {
     type: String,
-    required: true
+    required: false
   },
   taluka: {
     type: String,
-    required: true
+    required: false
   },
   villages: [{
     type: String,
-    required: true
+    required: false
   }],
   estimatedCost: {
     type: Number,
-    required: true
+    required: false
   },
   allocatedBudget: {
     type: Number,
-    required: true
+    required: false
+  },
+  currency: {
+    type: String,
+    required: false
   },
   startDate: {
     type: Date,
-    required: true
+    required: false
   },
   expectedCompletion: {
     type: Date,
-    required: true
+    required: false
   },
   status: {
     type: String,
@@ -66,6 +75,17 @@ const projectSchema = new mongoose.Schema({
     required: false
   },
   description: String,
+  descriptionDetails: {
+    billPassedDate: { type: Date },
+    ministry: { type: String, trim: true },
+    applicableLaws: [{ type: String, trim: true }],
+    projectAim: { type: String }
+  },
+  videoUrl: { type: String, trim: true },
+  stakeholders: [{ type: String, trim: true }],
+  isActive: { type: Boolean, default: true },
+  assignedOfficers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  assignedAgents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   documents: [{
     name: String,
     url: String,
@@ -84,6 +104,7 @@ const projectSchema = new mongoose.Schema({
 
 // Indexes
 projectSchema.index({ projectName: 1 });
+projectSchema.index({ pmisCode: 1 });
 projectSchema.index({ district: 1, taluka: 1 });
 projectSchema.index({ status: 1 });
 projectSchema.index({ createdBy: 1 });

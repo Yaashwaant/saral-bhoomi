@@ -33,6 +33,9 @@ import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
 import dataIntegrityRoutes from './routes/dataIntegrity.js';
 import workflowRoutes from './routes/workflow.js';
 import documentRoutes from './routes/documents.js';
+import insightsRoutes from './routes/insights.js';
+import aiRoutes from './routes/ai.js';
+import filtersRoutes from './routes/filters.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -297,6 +300,9 @@ app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
 app.use('/api/data-integrity', dataIntegrityRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/insights', insightsRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/filters', filtersRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');

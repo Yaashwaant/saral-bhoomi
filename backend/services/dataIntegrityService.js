@@ -71,8 +71,8 @@ class DataIntegrityService {
         survey_number: surveyData.survey_number,
         jmr_data: surveyData.jmr || {},
         award_data: surveyData.award || {},
-        land_record_data: surveyData.landRecord || {},
-        timestamp: new Date().toISOString()
+        land_record_data: surveyData.landRecord || {}
+        // 🔧 REMOVED: timestamp: new Date().toISOString() - causes hash changes
       });
 
       // Generate SHA-256 hash
@@ -93,8 +93,8 @@ class DataIntegrityService {
         payment_id: paymentData.payment_id,
         amount: paymentData.amount,
         payment_date: paymentData.payment_date,
-        utr_number: paymentData.utr_number,
-        timestamp: new Date().toISOString()
+        utr_number: paymentData.utr_number
+        // 🔧 REMOVED: timestamp: new Date().toISOString() - causes hash changes
       });
 
       return crypto.createHash('sha256').update(dataString).digest('hex');
@@ -114,14 +114,14 @@ class DataIntegrityService {
         project_name: ownershipData.project_name,
         previous_owner: ownershipData.previous_owner,
         new_owner: ownershipData.new_owner,
-        transfer_date: ownershipData.transfer_date,
-        timestamp: new Date().toISOString()
+        transfer_date: ownershipData.transfer_date
+        // 🔧 REMOVED: timestamp: new Date().toISOString() - causes hash changes
       });
 
       return crypto.createHash('sha256').update(dataString).digest('hex');
     } catch (error) {
       console.error('❌ Error generating ownership hash:', error);
-      throw new Error('Failed to generate ownership hash');
+      throw new Error('Failed to generate payment hash');
     }
   }
 

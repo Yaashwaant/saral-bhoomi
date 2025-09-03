@@ -50,6 +50,7 @@ router.get('/', async (req, res) => {
       data: projects.map(project => ({
         id: project._id,
         projectName: project.projectName,
+        pmisCode: project.pmisCode,
         schemeName: project.schemeName,
         landRequired: project.landRequired,
         landAvailable: project.landAvailable,
@@ -60,6 +61,7 @@ router.get('/', async (req, res) => {
         villages: project.villages,
         estimatedCost: project.estimatedCost,
         allocatedBudget: project.allocatedBudget,
+        currency: project.currency,
         startDate: project.startDate,
         expectedCompletion: project.expectedCompletion,
         status: project.status,
@@ -69,7 +71,13 @@ router.get('/', async (req, res) => {
           email: project.createdBy.email
         } : null,
         description: project.description,
+        descriptionDetails: project.descriptionDetails,
+        videoUrl: project.videoUrl,
+        stakeholders: project.stakeholders,
         progress: project.progress,
+        isActive: project.isActive,
+        assignedOfficers: project.assignedOfficers,
+        assignedAgents: project.assignedAgents,
         created_at: project.createdAt,
         updated_at: project.updatedAt
       }))
@@ -103,6 +111,7 @@ router.get('/:id', async (req, res) => {
       data: {
         id: project._id,
         projectName: project.projectName,
+        pmisCode: project.pmisCode,
         schemeName: project.schemeName,
         landRequired: project.landRequired,
         landAvailable: project.landAvailable,
@@ -113,6 +122,7 @@ router.get('/:id', async (req, res) => {
         villages: project.villages,
         estimatedCost: project.estimatedCost,
         allocatedBudget: project.allocatedBudget,
+        currency: project.currency,
         startDate: project.startDate,
         expectedCompletion: project.expectedCompletion,
         status: project.status,
@@ -122,6 +132,12 @@ router.get('/:id', async (req, res) => {
           email: project.createdBy.email
         } : null,
         description: project.description,
+        descriptionDetails: project.descriptionDetails,
+        videoUrl: project.videoUrl,
+        stakeholders: project.stakeholders,
+        isActive: project.isActive,
+        assignedOfficers: project.assignedOfficers,
+        assignedAgents: project.assignedAgents,
         progress: project.progress,
         created_at: project.createdAt,
         updated_at: project.updatedAt
@@ -138,8 +154,8 @@ router.get('/:id', async (req, res) => {
 
 // @desc    Create project
 // @route   POST /api/projects
-// @access  Public (temporarily)
-router.post('/', async (req, res) => {
+// @access  Private (Officer/Admin)
+router.post('/', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const {
       projectName,
@@ -150,6 +166,7 @@ router.post('/', async (req, res) => {
       landToBeAcquired,
       type,
       description,
+      descriptionDetails,
       location,
       budget,
       timeline,
@@ -176,6 +193,7 @@ router.post('/', async (req, res) => {
       landToBeAcquired,
       type,
       description,
+      descriptionDetails,
       district: location?.district,
       taluka: location?.taluka,
       villages: location?.villages,
@@ -194,7 +212,40 @@ router.post('/', async (req, res) => {
     
     res.status(201).json({
       success: true,
-      data: populatedProject
+      data: {
+        id: populatedProject._id,
+        projectName: populatedProject.projectName,
+        pmisCode: populatedProject.pmisCode,
+        schemeName: populatedProject.schemeName,
+        landRequired: populatedProject.landRequired,
+        landAvailable: populatedProject.landAvailable,
+        landToBeAcquired: populatedProject.landToBeAcquired,
+        type: populatedProject.type,
+        district: populatedProject.district,
+        taluka: populatedProject.taluka,
+        villages: populatedProject.villages,
+        estimatedCost: populatedProject.estimatedCost,
+        allocatedBudget: populatedProject.allocatedBudget,
+        currency: populatedProject.currency,
+        startDate: populatedProject.startDate,
+        expectedCompletion: populatedProject.expectedCompletion,
+        status: populatedProject.status,
+        createdBy: populatedProject.createdBy ? {
+          id: populatedProject.createdBy._id,
+          name: populatedProject.createdBy.name,
+          email: populatedProject.createdBy.email
+        } : null,
+        description: populatedProject.description,
+        descriptionDetails: populatedProject.descriptionDetails,
+        videoUrl: populatedProject.videoUrl,
+        stakeholders: populatedProject.stakeholders,
+        progress: populatedProject.progress,
+        isActive: populatedProject.isActive,
+        assignedOfficers: populatedProject.assignedOfficers,
+        assignedAgents: populatedProject.assignedAgents,
+        created_at: populatedProject.createdAt,
+        updated_at: populatedProject.updatedAt
+      }
     });
   } catch (error) {
     console.error('Create project error:', error);
@@ -207,8 +258,8 @@ router.post('/', async (req, res) => {
 
 // @desc    Update project
 // @route   PUT /api/projects/:id
-// @access  Public (temporarily)
-router.put('/:id', async (req, res) => {
+// @access  Private (Officer/Admin)
+router.put('/:id', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const project = await MongoProject.findById(req.params.id);
     
@@ -223,8 +274,8 @@ router.put('/:id', async (req, res) => {
     const updateData = {};
     const updateFields = [
       'projectName', 'schemeName', 'landRequired', 'landAvailable', 
-      'landToBeAcquired', 'type', 'description', 'stakeholders', 
-      'videoUrl', 'isActive'
+      'landToBeAcquired', 'type', 'description', 'descriptionDetails', 'stakeholders', 
+      'videoUrl', 'isActive', 'pmisCode'
     ];
     
     updateFields.forEach(field => {
@@ -263,13 +314,43 @@ router.put('/:id', async (req, res) => {
     }
     
     await project.update(updateData);
-    
-        const updatedProject = await MongoProject.findById(project._id)
-      .populate('createdBy', 'name email');
-    
+    const updatedProject = await MongoProject.findById(project._id).populate('createdBy', 'name email');
     res.status(200).json({
       success: true,
-      data: updatedProject
+      data: {
+        id: updatedProject._id,
+        projectName: updatedProject.projectName,
+        pmisCode: updatedProject.pmisCode,
+        schemeName: updatedProject.schemeName,
+        landRequired: updatedProject.landRequired,
+        landAvailable: updatedProject.landAvailable,
+        landToBeAcquired: updatedProject.landToBeAcquired,
+        type: updatedProject.type,
+        district: updatedProject.district,
+        taluka: updatedProject.taluka,
+        villages: updatedProject.villages,
+        estimatedCost: updatedProject.estimatedCost,
+        allocatedBudget: updatedProject.allocatedBudget,
+        currency: updatedProject.currency,
+        startDate: updatedProject.startDate,
+        expectedCompletion: updatedProject.expectedCompletion,
+        status: updatedProject.status,
+        createdBy: updatedProject.createdBy ? {
+          id: updatedProject.createdBy._id,
+          name: updatedProject.createdBy.name,
+          email: updatedProject.createdBy.email
+        } : null,
+        description: updatedProject.description,
+        descriptionDetails: updatedProject.descriptionDetails,
+        videoUrl: updatedProject.videoUrl,
+        stakeholders: updatedProject.stakeholders,
+        progress: updatedProject.progress,
+        isActive: updatedProject.isActive,
+        assignedOfficers: updatedProject.assignedOfficers,
+        assignedAgents: updatedProject.assignedAgents,
+        created_at: updatedProject.createdAt,
+        updated_at: updatedProject.updatedAt
+      }
     });
   } catch (error) {
     console.error('Update project error:', error);
@@ -282,8 +363,8 @@ router.put('/:id', async (req, res) => {
 
 // @desc    Delete project
 // @route   DELETE /api/projects/:id
-// @access  Public (temporarily)
-router.delete('/:id', async (req, res) => {
+// @access  Private (Officer/Admin)
+router.delete('/:id', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const project = await MongoProject.findById(req.params.id);
     
@@ -377,8 +458,8 @@ router.get('/stats/overview', async (req, res) => {
 
 // @desc    Assign officers to project
 // @route   PUT /api/projects/:id/assign-officers
-// @access  Public (temporarily)
-router.put('/:id/assign-officers', async (req, res) => {
+// @access  Private (Officer/Admin)
+router.put('/:id/assign-officers', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const { officerIds } = req.body;
     
@@ -409,8 +490,8 @@ router.put('/:id/assign-officers', async (req, res) => {
 
 // @desc    Assign agents to project
 // @route   PUT /api/projects/:id/assign-agents
-// @access  Public (temporarily)
-router.put('/:id/assign-agents', async (req, res) => {
+// @access  Private (Officer/Admin)
+router.put('/:id/assign-agents', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const { agentIds } = req.body;
     

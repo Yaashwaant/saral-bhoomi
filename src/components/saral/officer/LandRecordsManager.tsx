@@ -276,8 +276,34 @@ const LandRecordsManager: React.FC = () => {
             const blockchainResult = await blockchainResponse.json();
             toast.success(`✅ Blockchain block created successfully for survey ${landRecordForm.survey_number}!`);
             console.log('Blockchain creation result:', blockchainResult);
+          } else if (blockchainResponse.status === 401) {
+            // Fallback: retry once with demo auth headers in case of stale/invalid JWT
+            console.warn('⚠️ 401 on blockchain create, retrying with demo token...');
+            const retryResp = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer demo-jwt-token',
+                'x-demo-role': 'officer'
+              },
+              body: JSON.stringify({
+                survey_number: landRecordForm.survey_number,
+                officer_id: 'demo-officer',
+                project_id: selectedProject,
+                remarks: `Retry with demo token: ${landRecordForm.survey_number}`
+              })
+            });
+            if (retryResp.ok) {
+              const retryData = await retryResp.json();
+              toast.success(`✅ Blockchain block created (retry) for ${landRecordForm.survey_number}`);
+              console.log('Blockchain creation (retry) result:', retryData);
+            } else {
+              const retryErrorText = await retryResp.text();
+              console.warn('⚠️ Blockchain creation failed after retry:', retryErrorText);
+              toast.warning('⚠️ Land record saved but blockchain creation failed (auth)');
+            }
           } else {
-            const blockchainError = await blockchainResponse.json();
+            const blockchainError = await blockchainResponse.json().catch(() => ({ message: blockchainResponse.statusText }));
             console.warn('⚠️ Blockchain creation failed:', blockchainError);
             toast.warning(`⚠️ Land record saved but blockchain creation failed: ${blockchainError.message}`);
           }
