@@ -202,9 +202,41 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
 
     console.log('💾 Document saved to MongoDB for survey:', survey_number);
 
+    // 🔗 Update blockchain with the new document data
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(
+        survey_number,
+        req.user.id,
+        'DOCUMENT_UPLOADED',
+        {
+          name: newDocument.name,
+          type: newDocument.type,
+          url: newDocument.url,
+          cloudinary_id: newDocument.cloudinary_id,
+          category: newDocument.category,
+          upload_source: 'officer'
+        },
+        'Officer uploaded document',
+        project_id
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        survey_number,
+        req.user.id,
+        project_id,
+        'document_uploaded'
+      );
+      
+      console.log(`✅ Blockchain updated for survey ${survey_number} after document upload`);
+    } catch (blockchainError) {
+      console.error('⚠️ Failed to update blockchain after document upload:', blockchainError);
+      // Don't fail the entire operation if blockchain update fails
+    }
+
     res.status(201).json({
       success: true,
-      message: 'Document uploaded successfully to Cloudinary',
+      message: 'Document uploaded successfully to Cloudinary and recorded on blockchain',
       data: {
         id: newDocument.name,
         name: newDocument.name,
@@ -424,6 +456,36 @@ router.delete('/:documentId', authorize('officer', 'admin'), async (req, res) =>
     await MongoLandownerRecord.findByIdAndUpdate(record_id, {
       documents: updatedDocuments
     });
+
+    // 🔗 Update blockchain with the document deletion
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(
+        landownerRecord.survey_number,
+        req.user?.id || 'officer',
+        'DOCUMENT_DELETED',
+        {
+          name: removedDocument.name,
+          type: removedDocument.type,
+          url: removedDocument.url,
+          upload_source: 'officer'
+        },
+        'Officer deleted document',
+        landownerRecord.project_id
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        landownerRecord.survey_number,
+        req.user?.id || 'officer',
+        landownerRecord.project_id,
+        'document_deleted'
+      );
+      
+      console.log(`✅ Blockchain updated for survey ${landownerRecord.survey_number} after document deletion`);
+    } catch (blockchainError) {
+      console.error('⚠️ Failed to update blockchain after document deletion:', blockchainError);
+      // Don't fail the entire operation if blockchain update fails
+    }
 
     // Delete the physical file if it exists
     if (removedDocument.url && removedDocument.url.startsWith('/uploads/')) {

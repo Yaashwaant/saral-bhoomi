@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { getCloudinary } from '../services/cloudinaryService.js';
 import { authorize } from '../middleware/auth.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const router = express.Router();
 
@@ -462,6 +463,38 @@ router.post('/upload-document/:recordId', async (req, res) => {
       updated_at: new Date()
     });
 
+    // 🔗 Update blockchain with the new document data
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(
+        record.survey_number,
+        req.user?.id || 'agent',
+        'DOCUMENT_UPLOADED',
+        {
+          name: newDocument.fileName,
+          type: newDocument.type,
+          url: newDocument.fileUrl,
+          file_size: newDocument.fileSize,
+          mime_type: newDocument.mimeType,
+          upload_source: 'agent'
+        },
+        'Agent uploaded KYC document',
+        record.project_id
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        record.survey_number,
+        req.user?.id || 'agent',
+        record.project_id,
+        'agent_document_uploaded'
+      );
+      
+      console.log(`✅ Blockchain updated for survey ${record.survey_number} after agent document upload`);
+    } catch (blockchainError) {
+      console.error('⚠️ Failed to update blockchain after agent document upload:', blockchainError);
+      // Don't fail the entire operation if blockchain update fails
+    }
+
     try {
       if (admin.apps.length) {
         const db = admin.firestore();
@@ -482,7 +515,7 @@ router.post('/upload-document/:recordId', async (req, res) => {
       console.warn('Failed to mirror document to Firestore:', e.message);
     }
 
-    return res.status(200).json({ success: true, message: 'Document uploaded', data: { document: newDocument } });
+    return res.status(200).json({ success: true, message: 'Document uploaded and recorded on blockchain', data: { document: newDocument } });
   } catch (error) {
     console.error('Error uploading document:', error);
     return res.status(500).json({ success: false, message: 'Failed to upload document' });

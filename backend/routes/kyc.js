@@ -8,6 +8,7 @@ import MongoUser from '../models/mongo/User.js';
 import MongoProject from '../models/mongo/Project.js';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -310,7 +311,39 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
        }}
      );
 
-    return res.status(200).json({ success: true, message: 'Document uploaded', data: { document: newDocument } });
+    // 🔗 Update blockchain with the new document data
+    try {
+      const ledgerV2 = new LedgerV2Service();
+      await ledgerV2.appendTimelineEvent(
+        record.survey_number,
+        req.user?.id || 'kyc-user',
+        'DOCUMENT_UPLOADED',
+        {
+          name: newDocument.fileName,
+          type: newDocument.type,
+          url: newDocument.fileUrl,
+          file_size: newDocument.fileSize,
+          mime_type: newDocument.mimeType,
+          upload_source: 'kyc'
+        },
+        'KYC document uploaded',
+        record.project_id
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        record.survey_number,
+        req.user?.id || 'kyc-user',
+        record.project_id,
+        'kyc_document_uploaded'
+      );
+      
+      console.log(`✅ Blockchain updated for survey ${record.survey_number} after KYC document upload`);
+    } catch (blockchainError) {
+      console.error('⚠️ Failed to update blockchain after KYC document upload:', blockchainError);
+      // Don't fail the entire operation if blockchain update fails
+    }
+
+    return res.status(200).json({ success: true, message: 'Document uploaded and recorded on blockchain', data: { document: newDocument } });
   } catch (error) {
     console.error('KYC multipart upload error:', error);
     return res.status(500).json({ success: false, message: 'Failed to upload document' });
