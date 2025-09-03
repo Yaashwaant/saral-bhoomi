@@ -184,8 +184,8 @@ router.get('/search/*', [
   handleValidationErrors
 ], async (req, res) => {
   try {
-    // Extract survey number from the wildcard path
-    const surveyNumber = req.params[0]; // This captures everything after /search/
+    // Extract survey number from the wildcard path and trim whitespace
+    const surveyNumber = req.params[0]?.trim(); // This captures everything after /search/
     
     if (!surveyNumber) {
       return res.status(400).json({
@@ -437,8 +437,8 @@ router.get('/verify-integrity/*', [
   handleValidationErrors
 ], async (req, res) => {
   try {
-    // Extract survey number from the wildcard path
-    const surveyNumber = req.params[0]; // This captures everything after /verify-integrity/
+    // Extract survey number from the wildcard path and trim whitespace
+    const surveyNumber = req.params[0]?.trim(); // This captures everything after /verify-integrity/
     
     if (!surveyNumber) {
       return res.status(400).json({
@@ -482,7 +482,7 @@ router.get('/survey-timeline/*', [
   handleValidationErrors
 ], async (req, res) => {
   try {
-    const surveyNumber = req.params[0];
+    const surveyNumber = req.params[0]?.trim();
     const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
 
     // Normalize and ensure first creation event exists

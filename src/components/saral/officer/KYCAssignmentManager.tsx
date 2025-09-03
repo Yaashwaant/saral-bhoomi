@@ -176,11 +176,7 @@ const KYCAssignmentManager: React.FC = () => {
       if (response.ok) {
         toast.success('Notice generated successfully');
         loadKYCRecords(); // Reload records to update notice_generated status
-        // Record blockchain event
-        await recordBlockchainEvent(record.survey_number, 'NOTICE_GENERATED', {
-          survey_number: record.survey_number,
-          landowner_name: record.landowner_name
-        });
+        // Note: Blockchain update is handled automatically by the notice generation endpoint
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || 'Failed to generate notice');

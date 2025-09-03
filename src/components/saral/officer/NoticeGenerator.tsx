@@ -999,12 +999,7 @@ const NoticeGenerator: React.FC = () => {
         // Reload the records to update the UI
         loadLandRecords();
         
-        // Record blockchain event
-        await recordBlockchainEvent(safeField(record, 'स.नं./हि.नं./ग.नं.'), 'NOTICE_GENERATED', {
-          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
-          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
-          notice_number: data.data.notice_number
-        });
+        // Note: Blockchain update is handled automatically by the notice generation endpoint
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || 'Failed to generate notice');
@@ -1017,30 +1012,7 @@ const NoticeGenerator: React.FC = () => {
     }
   };
 
-  const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/blockchain`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer demo-jwt-token`
-        },
-        body: JSON.stringify({
-          survey_number: surveyNumber,
-          event_type: eventType,
-          officer_id: 'demo-officer',
-          metadata: metadata,
-          project_id: selectedProject
-        })
-      });
-
-      if (response.ok) {
-        console.log('Blockchain event recorded successfully');
-      }
-    } catch (error) {
-      console.error('Error recording blockchain event:', error);
-    }
-  };
+  // Note: Blockchain events are now handled automatically by the backend endpoints
 
   // Load agents from API
   useEffect(() => {
