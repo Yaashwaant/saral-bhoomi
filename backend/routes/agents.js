@@ -79,18 +79,32 @@ router.get('/assigned', async (req, res) => {
     let agentId;
     const agentEmail = (req.query.agentEmail || '').toString().trim();
     if (agentEmail) {
-      const byEmail = await MongoUser.findOne({ email: agentEmail, role: 'agent', is_active: true });
+      const byEmail = await MongoUser.findOne({ 
+        email: agentEmail, 
+        role: { $in: ['agent', 'field_officer'] }, 
+        is_active: true 
+      });
       if (byEmail) agentId = byEmail._id;
     }
     if (!agentId) {
-      const queryId = req.query.agentId;
-      const queryParsed = parseInt(queryId, 10);
-      const userParsed = parseInt(req.user?.id, 10);
-      agentId = Number.isInteger(queryParsed)
-        ? queryParsed
-        : Number.isInteger(userParsed)
-          ? userParsed
-          : 4;
+      // Try to use req.user.id if it's a valid ObjectId or demo identifier
+      if (req.user?.id && (req.user.id === 'demo-agent-id' || req.user.id.match(/^[0-9a-fA-F]{24}$/))) {
+        agentId = req.user.id;
+      } else {
+        // Fallback: find the first active agent or field officer
+        const firstAgent = await MongoUser.findOne({ 
+          role: { $in: ['agent', 'field_officer'] }, 
+          is_active: true 
+        }).sort({ createdAt: 1 });
+        if (firstAgent) {
+          agentId = firstAgent._id;
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: 'No active agents or field officers found'
+          });
+        }
+      }
     }
     
     console.log('Fetching assigned records for agent:', agentId);

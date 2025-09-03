@@ -261,9 +261,9 @@ app.use('/api', async (req, res, next) => {
 app.get('/api/agents/list-all', async (req, res) => {
   try {
     const agents = await MongoUser.find({
-      role: 'agent',
+      role: { $in: ['agent', 'field_officer'] },
       is_active: true
-    }).select('_id name email phone department').sort({ name: 1 });
+    }).select('_id name email phone department role').sort({ name: 1 });
     
     res.status(200).json({ 
       success: true, 
@@ -273,7 +273,8 @@ app.get('/api/agents/list-all', async (req, res) => {
         name: agent.name,
         email: agent.email,
         phone: agent.phone,
-        department: agent.department
+        department: agent.department,
+        role: agent.role
       }))
     });
   } catch (error) {
