@@ -465,29 +465,24 @@ const LandRecordsManager: React.FC = () => {
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = [
-      'survey_number',
-      'landowner_name',
-      'area',
-      'village',
-      'taluka',
-      'district',
-      'contact_phone',
-      'contact_email',
-      'is_tribal',
-      'rate',
-      'total_compensation'
-    ];
-
-    const csvContent = headers.join(',') + '\n';
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'land_records_template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const downloadTemplate = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/csv/template`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'parishisht-k-template.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else {
+        toast.error('Failed to download template');
+      }
+    } catch (error) {
+      console.error('Template download error:', error);
+      toast.error('Failed to download template');
+    }
   };
 
   const handleBulkBlockchainSync = async () => {
@@ -859,15 +854,17 @@ const LandRecordsManager: React.FC = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <Label htmlFor="csv-file">Select CSV File</Label>
+                    <Label htmlFor="csv-file">Select CSV or Excel File</Label>
                     <Input
                       id="csv-file"
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls"
                       onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
                     />
                     <p className="text-sm text-gray-600">
-                      Upload CSV file with land records for bulk processing
+                      Upload CSV or Excel file with land records for bulk processing. 
+                      <br />
+                      <strong>Supported formats:</strong> परिशिष्ट - क format with Marathi column headers (.csv, .xlsx, .xls)
                     </p>
                   </div>
 

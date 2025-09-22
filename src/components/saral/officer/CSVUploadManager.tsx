@@ -78,7 +78,7 @@ const CSVUploadManager = () => {
       selectProject: 'प्रकल्प निवडा',
       uploadFile: 'फाईल अपलोड करा',
       dragDrop: 'फाईल ड्रॅग करा किंवा क्लिक करा',
-      supportedFormats: 'समर्थित फॉर्मेट्स: .csv, .xlsx',
+      supportedFormats: 'समर्थित फॉर्मेट्स: .csv, .xlsx, .xls',
       maxSize: 'कमाल आकार: 10MB',
       downloadTemplate: 'टेम्पलेट डाउनलोड करा',
       generateNotices: 'नोटीस तयार करा',
@@ -98,7 +98,7 @@ const CSVUploadManager = () => {
       selectProject: 'Select Project',
       uploadFile: 'Upload File',
       dragDrop: 'Drag and drop file or click to browse',
-      supportedFormats: 'Supported formats: .csv, .xlsx',
+      supportedFormats: 'Supported formats: .csv, .xlsx, .xls',
       maxSize: 'Max size: 10MB',
       downloadTemplate: 'Download Template',
       generateNotices: 'Generate Notices',
@@ -139,11 +139,11 @@ const CSVUploadManager = () => {
         return;
       }
       
-      const validExtensions = ['.csv'];
+      const validExtensions = ['.csv', '.xlsx', '.xls'];
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       
       if (!validExtensions.includes(fileExtension)) {
-        toast.error('Invalid file format. Please upload a .csv file');
+        toast.error('Invalid file format. Please upload a .csv, .xlsx, or .xls file');
         return;
       }
       
@@ -206,18 +206,20 @@ const CSVUploadManager = () => {
     setIsProcessing(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/csv/ingest/${selectedProject}`, {
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      formData.append('overwrite', 'true');
+      if (selectedAgent) {
+        formData.append('assignToAgent', 'true');
+        formData.append('agentId', selectedAgent);
+      }
+      if (generateNotices) {
+        formData.append('generateNotice', 'true');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/csv/upload/${selectedProject}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          // Send both; server will pick whichever is available/valid
-          rows: csvData,
-          csvContent: csvRawText,
-          assignToAgent: !!selectedAgent,
-          agentId: selectedAgent || undefined,
-          generateNotice: !!generateNotices,
-          overwrite: true
-        })
+        body: formData
       });
 
       let data: any = { success: false };
@@ -369,8 +371,8 @@ const CSVUploadManager = () => {
                   <SelectContent>
                     {(projects || []).map((project, index) => (
                       <SelectItem 
-                        key={project?.id || project?._id || `project-${index}`} 
-                        value={String(project?.id || project?._id || index)}
+                        key={project?.id || `project-${index}`} 
+                        value={String(project?.id || index)}
                       >
                         {project?.projectName || 'Unknown Project'}
                       </SelectItem>
@@ -390,11 +392,11 @@ const CSVUploadManager = () => {
               <Input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileSelect}
                 className="cursor-pointer"
               />
-              <p className="text-sm text-gray-500">Supported format: .csv</p>
+              <p className="text-sm text-gray-500">Supported formats: .csv, .xlsx, .xls</p>
               <p className="text-sm text-gray-500">{t.maxSize}</p>
             </div>
 
@@ -421,8 +423,8 @@ const CSVUploadManager = () => {
                   <SelectContent>
                     {(agents || []).map((agent, index) => (
                       <SelectItem 
-                        key={agent?._id || agent?.id || `agent-${index}`} 
-                        value={String(agent?._id || agent?.id || index)}
+                        key={agent?.id || `agent-${index}`} 
+                        value={String(agent?.id || index)}
                       >
                         {agent?.name || 'Unknown Agent'}
                       </SelectItem>

@@ -97,7 +97,9 @@ const landownerRecordSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-landownerRecordSchema.index({ project_id: 1, survey_number: 1 }, { unique: true });
+// Allow multiple landowners per survey number - use composite unique key
+landownerRecordSchema.index({ project_id: 1, survey_number: 1, landowner_name: 1 }, { unique: true });
+landownerRecordSchema.index({ project_id: 1, survey_number: 1 }); // Non-unique index for queries
 landownerRecordSchema.index({ village: 1, taluka: 1, district: 1 });
 landownerRecordSchema.index({ kyc_status: 1 });
 landownerRecordSchema.index({ payment_status: 1 });

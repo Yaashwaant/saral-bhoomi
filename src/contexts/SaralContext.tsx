@@ -404,24 +404,26 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      // Read file text and send to ingest endpoint (no multipart upload)
-      const csvText = await file.text();
-      const res = await fetch(`${API_BASE_URL}/csv/ingest/${projectId}`, {
+      
+      // Use FormData for proper file upload to preserve Unicode characters
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('overwrite', 'true');
+      formData.append('assignToAgent', 'false');
+      formData.append('generateNotice', 'true');
+      
+      const res = await fetch(`${API_BASE_URL}/csv/upload/${projectId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          csvContent: csvText,
-          assignToAgent: false,
-          generateNotice: true,
-          overwrite: true
-        })
+        body: formData
       });
+      
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'CSV ingest failed');
+      if (!res.ok || !data.success) throw new Error(data.message || 'CSV upload failed');
+      
       await loadLandownerRecords();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to ingest CSV');
+      setError(err instanceof Error ? err.message : 'Failed to upload CSV');
       return false;
     } finally {
       setLoading(false);
