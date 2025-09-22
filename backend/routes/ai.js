@@ -1,25 +1,57 @@
 import express from 'express';
-import { authorize } from '../middleware/auth.js';
-import { getOverviewKPIs } from '../services/insightsService.js';
-import { chatUsingLiveInsights } from '../services/openaiService.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Privacy-safe AI: only uses aggregates from insightsService
-router.post('/chat', authorize(['officer', 'admin']), async (req, res) => {
+// @desc    Get AI-powered insights for land records
+// @route   GET /api/ai/insights
+// @access  Private
+router.get('/insights', authMiddleware, async (req, res) => {
   try {
-    const { question, projectId, district, taluka, from, to } = req.body || {};
-    if (!question || typeof question !== 'string') {
-      return res.status(400).json({ success: false, message: 'question is required' });
-    }
-    const { answer, aggregates, filters } = await chatUsingLiveInsights(question, { projectId, district, taluka, from, to }, getOverviewKPIs);
-    res.json({ success: true, answer, aggregates, filters });
-  } catch (e) {
-    console.error('AI chat error:', e);
-    res.status(500).json({ success: false, message: 'Server error' });
+    // Basic AI insights endpoint
+    const insights = {
+      success: true,
+      message: 'AI insights functionality coming soon',
+      data: {
+        totalRecords: 0,
+        processingStatus: 'ready',
+        suggestedActions: []
+      }
+    };
+
+    res.json(insights);
+  } catch (error) {
+    console.error('AI insights error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate AI insights',
+      error: error.message
+    });
+  }
+});
+
+// @desc    Get AI-powered document analysis
+// @route   POST /api/ai/analyze-document
+// @access  Private
+router.post('/analyze-document', authMiddleware, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Document analysis functionality coming soon',
+      data: {
+        status: 'pending',
+        confidence: 0,
+        extractedData: {}
+      }
+    });
+  } catch (error) {
+    console.error('AI document analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to analyze document',
+      error: error.message
+    });
   }
 });
 
 export default router;
-
-

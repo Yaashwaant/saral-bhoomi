@@ -1,112 +1,71 @@
 import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema({
-  projectName: {
+  name: {
     type: String,
     required: true,
     trim: true
   },
-  pmisCode: {
+  description: {
     type: String,
-    required: false,
     trim: true
   },
-  schemeName: {
+  location: {
     type: String,
-    required: true
-  },
-  landRequired: {
-    type: Number,
-    required: true
-  },
-  landAvailable: {
-    type: Number,
-    required: true
-  },
-  landToBeAcquired: {
-    type: Number,
-    required: true
-  },
-  type: {
-    type: String,
-    required: true,
-    enum: ['road', 'railway', 'irrigation', 'industrial', 'residential', 'other', 'greenfield', 'brownfield']
-  },
-  district: {
-    type: String,
-    required: false
-  },
-  taluka: {
-    type: String,
-    required: false
-  },
-  villages: [{
-    type: String,
-    required: false
-  }],
-  estimatedCost: {
-    type: Number,
-    required: false
-  },
-  allocatedBudget: {
-    type: Number,
-    required: false
-  },
-  currency: {
-    type: String,
-    required: false
-  },
-  startDate: {
-    type: Date,
-    required: false
-  },
-  expectedCompletion: {
-    type: Date,
-    required: false
+    trim: true
   },
   status: {
     type: String,
-    enum: ['planning', 'active', 'completed', 'on-hold', 'cancelled'],
+    enum: ['planning', 'active', 'completed', 'suspended'],
     default: 'planning'
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: false
+  start_date: {
+    type: Date
   },
-  description: String,
-  descriptionDetails: {
-    billPassedDate: { type: Date },
-    ministry: { type: String, trim: true },
-    applicableLaws: [{ type: String, trim: true }],
-    projectAim: { type: String }
+  estimated_end_date: {
+    type: Date
   },
-  videoUrl: { type: String, trim: true },
-  stakeholders: [{ type: String, trim: true }],
-  isActive: { type: Boolean, default: true },
-  assignedOfficers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  assignedAgents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  documents: [{
-    name: String,
-    url: String,
-    type: String,
-    uploaded_at: Date
-  }],
-  progress: {
+  actual_end_date: {
+    type: Date
+  },
+  budget: {
     type: Number,
-    min: 0,
-    max: 100,
     default: 0
+  },
+  total_land_area: {
+    type: Number,
+    default: 0
+  },
+  total_compensation: {
+    type: Number,
+    default: 0
+  },
+  total_landowners: {
+    type: Number,
+    default: 0
+  },
+  created_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  assigned_officers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  documents: [{
+    type: String
+  }],
+  is_active: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true
 });
 
 // Indexes
-projectSchema.index({ projectName: 1 });
-projectSchema.index({ pmisCode: 1 });
-projectSchema.index({ district: 1, taluka: 1 });
+projectSchema.index({ name: 1 });
 projectSchema.index({ status: 1 });
-projectSchema.index({ createdBy: 1 });
+projectSchema.index({ is_active: 1 });
 
 export default mongoose.model('Project', projectSchema);
