@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:check": "node deploy-helper.js",
+    "deploy:frontend": "npm run build && echo 'Frontend built successfully. Deploy to Vercel now.'",
+    "deploy:backend": "cd backend && npm ci && echo 'Backend dependencies installed. Deploy to Render now.'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

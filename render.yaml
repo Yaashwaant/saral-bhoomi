@@ -2,29 +2,35 @@ services:
   - type: web
     name: saral-bhoomi-backend
     env: node
-    buildCommand: cd backend && npm ci
-    startCommand: cd backend && npm start
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
+    plan: free
     envVars:
       - key: NODE_ENV
         value: production
-      # Render will inject PORT automatically; no need to hardcode
-      - key: CORS_ORIGIN
-        value: https://your-frontend-domain
-      - key: DATABASE_URL
-        value: postgres://user:password@host:5432/dbname?sslmode=require
+      # MongoDB Atlas connection - UPDATE WITH YOUR ACTUAL CONNECTION STRING
+      - key: MONGODB_URI
+        value: mongodb+srv://username:password@cluster.mongodb.net/saral_bhoomi?retryWrites=true&w=majority
+      # JWT Secret - UPDATE WITH YOUR SECURE SECRET
       - key: JWT_SECRET
-        value: change-me
-      # Cloudinary (optional but recommended for files)
+        value: your-super-secret-jwt-key-minimum-32-characters-long-random-string
+      # Frontend CORS origin - UPDATE WITH YOUR VERCEL URL
+      - key: CORS_ORIGIN
+        value: https://your-app.vercel.app
+      # Cloudinary Configuration - UPDATE WITH YOUR VALUES
       - key: CLOUDINARY_CLOUD_NAME
-        value: dmytltj0w
+        value: your_cloud_name
       - key: CLOUDINARY_API_KEY
-        value: 269548842743513
+        value: your_api_key
       - key: CLOUDINARY_API_SECRET
         sync: false
-      # Firebase (optional)
+      # Optional: Firebase Configuration
+      - key: FIREBASE_PROJECT_ID
+        value: your-project-id
       - key: FIREBASE_SERVICE_ACCOUNT_B64
         sync: false
       - key: FIREBASE_STORAGE_BUCKET
-        value: ''
+        value: your-project-id.appspot.com
