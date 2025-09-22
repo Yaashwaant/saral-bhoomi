@@ -1,6 +1,6 @@
 import express from 'express';
 import { authorize } from '../middleware/auth.js';
-import { upload } from '../middleware/upload.js';
+import upload from '../middleware/upload.js';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import { uploadFileBuffer } from '../services/cloudinaryService.js';
