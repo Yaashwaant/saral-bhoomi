@@ -1,14 +1,14 @@
-import User from './User.js';
-import Project from './Project.js';
-import LandownerRecord from './LandownerRecord.js';
-import NoticeAssignment from './NoticeAssignment.js';
-import PaymentRecord from './PaymentRecord.js';
-import JMRRecord from './JMRRecord.js';
-import Award from './Award.js';
-import Notice from './Notice.js';
-import Payment from './Payment.js';
-import BlockchainLedger from './BlockchainLedger.js';
-import Officer from './Officer.js';
+import User from './mongo/User.js';
+import Project from './mongo/Project.js';
+import LandownerRecord from './mongo/LandownerRecord.js';
+import NoticeAssignment from './mongo/NoticeAssignment.js';
+import PaymentRecord from './mongo/PaymentRecord.js';
+import JMRRecord from './mongo/JMRRecord.js';
+import Award from './mongo/Award.js';
+import Notice from './mongo/Notice.js';
+import Payment from './mongo/Payment.js';
+import BlockchainLedger from './mongo/BlockchainLedger.js';
+import Officer from './mongo/Officer.js';
 
 // Define associations
 Project.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
