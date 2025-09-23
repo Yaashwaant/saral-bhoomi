@@ -22,7 +22,18 @@ const LoginPage = () => {
   // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated && user) {
-      navigate('/saral/dashboard');
+      // Route users based on their role
+      switch (user.role) {
+        case 'field_officer':
+          navigate('/field-officer');
+          break;
+        case 'admin':
+        case 'officer':
+        case 'agent':
+        default:
+          navigate('/saral/dashboard');
+          break;
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -114,7 +125,8 @@ const LoginPage = () => {
       const success = await login(email, password);
       if (success) {
         toast.success('Login successful');
-        navigate('/saral/dashboard');
+        // The useEffect will handle the role-based redirect
+        // No need to navigate here as it will be handled automatically
       } else {
         toast.error('Invalid credentials');
       }

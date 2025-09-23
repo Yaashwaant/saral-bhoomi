@@ -83,13 +83,21 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
 
       console.log('🔄 Loading assigned records for agent (by email):', currentAgentEmail);
       
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'agent';
+      }
+      
       // Call the API with agent email parameter for stable matching
       const response = await fetch(`/api/agents/assigned-with-notices?agentEmail=${encodeURIComponent(currentAgentEmail)}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+        headers
       });
 
       const result = await response.json();
@@ -151,8 +159,7 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
           
           bankDetailsCollected: record.bankDetails?.accountNumber ? true : false,
           currentStep: 'document_collection',
-        
-        createdAt: record.createdAt || new Date(),
+          createdAt: record.createdAt || new Date(),
         updatedAt: record.updatedAt || new Date(),
         createdBy: record.createdBy || 'system',
         updatedBy: record.updatedBy || 'system'
@@ -193,13 +200,21 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
       });
 
       // Send JSON metadata to backend (MVP, not storing binary)
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      // Add demo role header if using demo token
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'agent';
+      }
+      
       const objectUrl = URL.createObjectURL(file);
       const response = await fetch(`/api/agents/upload-document/${selectedRecord.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
+        headers,
         body: JSON.stringify({
           documentType: selectedDocumentType,
           fileName: file.name,

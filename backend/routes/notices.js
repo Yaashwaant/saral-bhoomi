@@ -3,11 +3,9 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import LandownerRecord from '../models/LandownerRecord.js';
-import Project from '../models/Project.js';
-import User from '../models/User.js';
-import sequelize from '../config/database.js';
-import { Op } from 'sequelize';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
 import { getCloudinary } from '../services/cloudinaryService.js';
 // SMS support is optional; only load Twilio when explicitly enabled
@@ -49,7 +47,7 @@ router.post('/generate/:projectId', async (req, res) => {
     } = req.body;
 
     // Validate project exists
-    const project = await Project.findByPk(projectId);
+    const project = await MongoProject.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -58,17 +56,17 @@ router.post('/generate/:projectId', async (req, res) => {
     }
 
     // Build query for landowner records
-    let where = { project_id: projectId };
+    let filter = { project_id: projectId };
     if (targetRecords && targetRecords.length > 0) {
-      where.id = targetRecords;
+      filter._id = { $in: targetRecords };
     }
     
     // If not overwriting, only target records without notices
     if (!overwrite) {
-      where.noticeGenerated = { [Op.ne]: true };
+      filter.notice_generated = { $ne: true };
     }
 
-    const records = await LandownerRecord.findAll({ where });
+    const records = await MongoLandownerRecord.find(filter);
 
     if (records.length === 0) {
       return res.status(400).json({
@@ -84,7 +82,7 @@ router.post('/generate/:projectId', async (req, res) => {
     // Generate notices for each record
     for (const record of records) {
       try {
-        const noticeNumber = `${project.pmisCode}/NOTICE/${new Date().getFullYear()}/${String(noticeCounter).padStart(4, '0')}`;
+        const noticeNumber = `${project.projectName}/NOTICE/${new Date().getFullYear()}/${String(noticeCounter).padStart(4, '0')}`;
         const noticeDate = new Date();
 
         // Generate notice content based on template
@@ -99,17 +97,17 @@ router.post('/generate/:projectId', async (req, res) => {
         }
 
         // Update the record with notice information
-        await record.update({
-          noticeGenerated: true,
-          noticeNumber,
-          noticeDate,
-          noticeContent
+        await record.updateOne({
+          notice_generated: true,
+          notice_number: noticeNumber,
+          notice_date: noticeDate,
+          notice_content: noticeContent
         });
 
         generatedNotices.push({
-          recordId: record.id,
-          landownerName: record.खातेदाराचे_नांव,
-          surveyNumber: record.सर्वे_नं,
+          recordId: record._id,
+          landownerName: record.landowner_name,
+          surveyNumber: record.survey_number,
           noticeNumber,
           noticeDate,
           village: record.village
@@ -118,8 +116,8 @@ router.post('/generate/:projectId', async (req, res) => {
         noticeCounter++;
       } catch (error) {
         errors.push({
-          recordId: record.id,
-          landownerName: record.खातेदाराचे_नांव,
+          recordId: record._id,
+          landownerName: record.landowner_name,
           error: error.message
         });
       }
@@ -160,17 +158,17 @@ router.get('/project/:projectId', async (req, res) => {
     } = req.query;
 
     // Build filter
-    const where = { 
+    const filter = { 
       project_id: projectId,
-      noticeGenerated: noticeGenerated === 'true'
+      notice_generated: noticeGenerated === 'true'
     };
-    if (village) where.village = village;
+    if (village) filter.village = village;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await LandownerRecord.findAll({ where, offset, limit: parseInt(limit), order: [['noticeDate', 'DESC']] });
+    const records = await MongoLandownerRecord.find(filter).skip(offset).limit(parseInt(limit)).sort({ notice_date: -1 });
 
-    const total = await LandownerRecord.count({ where });
+    const total = await MongoLandownerRecord.countDocuments(filter);
 
     res.status(200).json({
       success: true,
@@ -200,14 +198,22 @@ router.get('/:recordId', async (req, res) => {
   try {
     const { recordId } = req.params;
 
-    const record = await LandownerRecord.findByPk(recordId, {
-      include: [
-        { model: Project, attributes: ['projectName', 'pmisCode'] },
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email', 'phone'] }
-      ]
+    const record = await MongoLandownerRecord.findById(recordId, {
+      project: 1,
+      assigned_agent: 1,
+      notice_number: 1,
+      notice_date: 1,
+      notice_content: 1,
+      landowner_name: 1,
+      survey_number: 1,
+      area: 1,
+      compensation: 1,
+      village: 1,
+      taluka: 1,
+      district: 1
     });
 
-    if (!record || !record.noticeGenerated) {
+    if (!record || !record.notice_generated) {
       return res.status(404).json({
         success: false,
         message: 'Notice not found'
@@ -217,18 +223,18 @@ router.get('/:recordId', async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        noticeNumber: record.noticeNumber,
-        noticeDate: record.noticeDate,
-        noticeContent: record.noticeContent,
-        landownerName: record.खातेदाराचे_नांव,
-        surveyNumber: record.सर्वे_नं,
-        area: record.क्षेत्र,
-        compensation: record.अंतिम_रक्कम,
+        noticeNumber: record.notice_number,
+        noticeDate: record.notice_date,
+        noticeContent: record.notice_content,
+        landownerName: record.landowner_name,
+        surveyNumber: record.survey_number,
+        area: record.area,
+        compensation: record.compensation,
         village: record.village,
         taluka: record.taluka,
         district: record.district,
-        project: record.Project,
-        assignedAgent: record.assignedAgentUser
+        project: record.project,
+        assignedAgent: record.assigned_agent
       }
     });
 
@@ -322,12 +328,12 @@ router.get('/stats/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await LandownerRecord.findAll({ where: { project_id: projectId } });
+    const records = await MongoLandownerRecord.find({ project_id: projectId });
 
     const stats = {
       totalRecords: records.length,
-      noticesGenerated: records.filter(r => r.noticeGenerated).length,
-      noticesPending: records.filter(r => !r.noticeGenerated).length
+      noticesGenerated: records.filter(r => r.notice_generated).length,
+      noticesPending: records.filter(r => !r.notice_generated).length
     };
 
     // Group by village
@@ -341,7 +347,7 @@ router.get('/stats/:projectId', async (req, res) => {
         };
       }
       villageMap[village].totalRecords++;
-      if (record.noticeGenerated) {
+      if (record.notice_generated) {
         villageMap[village].noticesGenerated++;
       }
     });
@@ -409,13 +415,13 @@ router.post('/save-custom', async (req, res) => {
     // Optionally update an existing landowner record
     if (landownerId) {
       try {
-        const record = await LandownerRecord.findByPk(landownerId);
+        const record = await MongoLandownerRecord.findById(landownerId);
         if (record) {
-          await record.update({
-            noticeGenerated: true,
-            noticeNumber: noticeNumber || record.noticeNumber || `NOTICE-${Date.now()}`,
-            noticeDate: noticeDate ? new Date(noticeDate) : new Date(),
-            noticeContent: html
+          await record.updateOne({
+            notice_generated: true,
+            notice_number: noticeNumber || record.notice_number || `NOTICE-${Date.now()}`,
+            notice_date: noticeDate ? new Date(noticeDate) : new Date(),
+            notice_content: html
           });
         }
       } catch (e) {
@@ -488,11 +494,11 @@ function generateStandardNoticeContent(record, project, headerContent = '') {
   
   return `${headerContent}
 
-नोटीस क्रमांक: ${record.noticeNumber || 'TBG'}
+नोटीस क्रमांक: ${record.notice_number || 'TBG'}
 दिनांक: ${currentDate}
 
 प्रति,
-श्री/श्रीमती ${record.खातेदाराचे_नांव}
+श्री/श्रीमती ${record.landowner_name}
 गाव: ${record.village}
 तालुका: ${record.taluka}
 जिल्हा: ${record.district}
@@ -503,10 +509,10 @@ function generateStandardNoticeContent(record, project, headerContent = '') {
 
 आपल्याला कळवण्यात येत आहे की, ${project.projectName} या प्रकल्पासाठी आपली खालील जमीन संपादनासाठी निवडण्यात आली आहे:
 
-सर्वे नंबर: ${record.सर्वे_नं}
-क्षेत्रफळ: ${record.क्षेत्र}
-संपादित क्षेत्रफळ: ${record.संपादित_क्षेत्र}
-मोबदला: ₹${record.अंतिम_रक्कम}
+सर्वे नंबर: ${record.survey_number}
+क्षेत्रफळ: ${record.area}
+संपादित क्षेत्रफळ: ${record.acquired_area}
+मोबदला: ₹${record.compensation}
 
 कृपया आवश्यक कागदपत्रे घेऊन नजीकच्या कार्यालयात संपर्क साधावा.
 
@@ -526,11 +532,11 @@ ${project.location?.district || ''} जिल्हा
 // Helper function to generate custom notice content
 function generateCustomNoticeContent(record, project, customTemplate) {
   return customTemplate
-    .replace(/\{landowner_name\}/g, record.खातेदाराचे_नांव)
-    .replace(/\{survey_number\}/g, record.सर्वे_नं)
-    .replace(/\{area\}/g, record.क्षेत्र)
-    .replace(/\{acquired_area\}/g, record.संपादित_क्षेत्र)
-    .replace(/\{compensation\}/g, record.अंतिम_रक्कम)
+    .replace(/\{landowner_name\}/g, record.landowner_name)
+    .replace(/\{survey_number\}/g, record.survey_number)
+    .replace(/\{area\}/g, record.area)
+    .replace(/\{acquired_area\}/g, record.acquired_area)
+    .replace(/\{compensation\}/g, record.compensation)
     .replace(/\{village\}/g, record.village)
     .replace(/\{taluka\}/g, record.taluka)
     .replace(/\{district\}/g, record.district)

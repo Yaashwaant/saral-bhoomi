@@ -1,0 +1,1068 @@
+import { ethers } from 'ethers';
+import crypto from 'crypto';
+import BlockchainConfig from '../config/blockchain.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+
+class EnhancedBlockchainService {
+  constructor() {
+    this.config = new BlockchainConfig();
+    this.provider = null;
+    this.wallet = null;
+    this.contract = null;
+    this.isInitialized = false;
+    this.pollingInterval = null;
+    this.lastProcessedBlock = 0;
+  }
+
+  /**
+   * Initialize the blockchain service
+   */
+  async initialize() {
+    try {
+      if (this.isInitialized) {
+        return { success: true, message: 'Already initialized' };
+      }
+
+      // Validate configuration
+      const validation = this.config.validate();
+      if (!validation.isValid) {
+        throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Initialize provider with fallback
+      try {
+        const wsUrl = this.config.getNetworkInfo().wsUrl;
+        this.provider = new ethers.WebSocketProvider(wsUrl);
+        console.log('🌐 WebSocket provider initialized');
+      } catch (wsError) {
+        console.log('⚠️ WebSocket failed, using HTTP provider');
+      this.provider = new ethers.JsonRpcProvider(
+          this.config.getNetworkInfo().rpcUrl,
+          {
+            name: "polygon-amoy",
+            chainId: 80002
+          }
+        );
+      }
+
+      // Initialize wallet
+      const walletInfo = this.config.getWalletInfo();
+      this.wallet = new ethers.Wallet(walletInfo.privateKey, this.provider);
+        console.log('🔐 Enhanced blockchain wallet initialized');
+
+      // Initialize contract
+      const contractInfo = this.config.getContractInfo();
+      const contractABI = await this.loadContractABI(contractInfo.abiPath);
+      this.contract = new ethers.Contract(contractInfo.address, contractABI, this.wallet);
+        console.log('📜 Enhanced smart contract initialized');
+
+      // Set up event polling only if contract is deployed
+      if (this.contract && this.contract.target) {
+        await this.setupEventPolling();
+      } else {
+        console.log('⚠️ Contract not deployed, skipping event polling setup');
+      }
+
+      this.isInitialized = true;
+      console.log('✅ Enhanced blockchain service initialized successfully');
+      
+      return {
+        success: true,
+        message: 'Enhanced blockchain service initialized successfully',
+        network: this.config.getNetworkInfo(),
+        contract: contractInfo.address
+      };
+    } catch (error) {
+      console.error('❌ Failed to initialize enhanced blockchain service:', error);
+      return {
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Load contract ABI
+   */
+  async loadContractABI(abiPath) {
+    try {
+      // Basic ABI for land records
+    return [
+        "function createLandRecord(string surveyNumber, string ownerId, string landType, uint256 area, string location, string dataHash) external",
+        "function updateLandRecord(string surveyNumber, string newDataHash, string changeReason) external",
+        "function getLandRecord(string surveyNumber) external view returns (tuple(string surveyNumber, string ownerId, string landType, uint256 area, string location, uint256 timestamp, string hash))",
+        "function verifyRecordIntegrity(string surveyNumber, string dataHash) external view returns (bool)",
+        "function isAuthorizedOfficer(address officer) external view returns (bool)",
+        "function addAuthorizedOfficer(address officer) external",
+        "function removeAuthorizedOfficer(address officer) external",
+        "event LandRecordCreated(string surveyNumber, string ownerId, string dataHash, uint256 timestamp)",
+        "event LandRecordUpdated(string surveyNumber, string newDataHash, uint256 timestamp)",
+        "event LandRecordDeleted(string surveyNumber, uint256 timestamp)"
+      ];
+    } catch (error) {
+      console.error('Failed to load contract ABI:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set up event polling system
+   */
+  async setupEventPolling() {
+    try {
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+      }
+
+      // Poll every 60 seconds for new events
+      this.pollingInterval = setInterval(async () => {
+        await this.pollForNewEvents();
+      }, 60000);
+
+      console.log('✅ Event polling system set up successfully (no filters)');
+    } catch (error) {
+      console.error('❌ Failed to set up event polling:', error);
+    }
+  }
+
+  /**
+   * Poll for new blockchain events
+   */
+  async pollForNewEvents() {
+    try {
+      if (!this.provider || !this.contract) return;
+
+      const currentBlock = await this.provider.getBlockNumber();
+      
+      // Initialize lastProcessedBlock if it's 0 (first run)
+      if (this.lastProcessedBlock === 0) {
+        this.lastProcessedBlock = currentBlock - 1;
+        console.log(`🔄 Initializing blockchain polling from block ${this.lastProcessedBlock}`);
+        return;
+      }
+
+      // Limit the block range to avoid RPC errors (max 1000 blocks)
+      const maxBlockRange = 1000;
+      const fromBlock = Math.max(this.lastProcessedBlock + 1, currentBlock - maxBlockRange);
+      
+      if (fromBlock > currentBlock) {
+        console.log(`⏭️ Skipping polling: fromBlock ${fromBlock} > currentBlock ${currentBlock}`);
+        return;
+      }
+
+      // Only poll if there are new blocks to process
+      if (fromBlock === currentBlock) {
+        console.log(`⏭️ No new blocks to process (fromBlock: ${fromBlock}, currentBlock: ${currentBlock})`);
+        return;
+      }
+
+      console.log(`🔍 Polling blockchain events from block ${fromBlock} to ${currentBlock}`);
+
+      try {
+        const logs = await this.provider.getLogs({
+          address: this.contract.target,
+          fromBlock,
+          toBlock: currentBlock
+        });
+
+        console.log(`📝 Found ${logs.length} blockchain events`);
+
+        for (const log of logs) {
+          try {
+            const decodedLog = this.contract.interface.parseLog(log);
+            if (decodedLog && decodedLog.name) {
+              await this.processBlockchainEvent(decodedLog, log);
+            }
+          } catch (parseError) {
+            console.warn('⚠️ Failed to parse log:', parseError.message);
+          }
+        }
+
+        this.lastProcessedBlock = currentBlock;
+        console.log(`✅ Blockchain polling completed. Last processed block: ${this.lastProcessedBlock}`);
+      } catch (rpcError) {
+        console.warn(`⚠️ RPC error during polling: ${rpcError.message}`);
+        // Don't update lastProcessedBlock on RPC errors to retry next time
+      }
+    } catch (error) {
+      console.error('❌ Event polling failed:', error.message);
+    }
+  }
+
+  /**
+   * Process blockchain events
+   */
+  async processBlockchainEvent(decodedLog, log) {
+    try {
+      const { name, args } = decodedLog;
+      const timestamp = new Date();
+
+      switch (name) {
+        case 'LandRecordCreated':
+          await this.handleLandRecordCreated(args, timestamp);
+          break;
+        case 'LandRecordUpdated':
+          await this.handleLandRecordUpdated(args, timestamp);
+          break;
+        case 'LandRecordDeleted':
+          await this.handleLandRecordDeleted(args, timestamp);
+          break;
+        default:
+          console.log(`ℹ️ Unhandled event: ${name}`);
+      }
+    } catch (error) {
+      console.error('❌ Event processing failed:', error.message);
+    }
+  }
+
+  /**
+   * Handle land record created event
+   */
+  async handleLandRecordCreated(args, timestamp) {
+    try {
+      const [surveyNumber, ownerId, dataHash] = args;
+      
+      const ledgerEntry = new MongoBlockchainLedger({
+        survey_number: surveyNumber,
+        event_type: 'LAND_RECORD_CREATED',
+        officer_id: 1, // Default officer
+        metadata: {
+          owner_id: ownerId,
+          data_hash: dataHash,
+          block_number: timestamp.getTime()
+        },
+        timestamp: timestamp.toISOString(),
+        block_id: crypto.randomBytes(16).toString('hex'),
+        current_hash: dataHash,
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
+
+      console.log(`✅ Land record created event processed: ${surveyNumber}`);
+    } catch (error) {
+      console.error('❌ Failed to process land record created event:', error);
+    }
+  }
+
+  /**
+   * Handle land record updated event
+   */
+  async handleLandRecordUpdated(args, timestamp) {
+    try {
+      const [surveyNumber, newDataHash] = args;
+      
+      const ledgerEntry = new MongoBlockchainLedger({
+        survey_number: surveyNumber,
+        event_type: 'LAND_RECORD_UPDATED',
+        officer_id: 1, // Default officer
+        metadata: {
+          new_data_hash: newDataHash,
+          block_number: timestamp.getTime()
+        },
+        timestamp: timestamp.toISOString(),
+        block_id: crypto.randomBytes(16).toString('hex'),
+        current_hash: newDataHash,
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
+
+      console.log(`✅ Land record updated event processed: ${surveyNumber}`);
+    } catch (error) {
+      console.error('❌ Failed to process land record updated event:', error);
+    }
+  }
+
+  /**
+   * Handle land record deleted event
+   */
+  async handleLandRecordDeleted(args, timestamp) {
+    try {
+      const [surveyNumber] = args;
+      
+      const ledgerEntry = new MongoBlockchainLedger({
+        survey_number: surveyNumber,
+        event_type: 'LAND_RECORD_DELETED',
+        officer_id: 1, // Default officer
+        metadata: {
+          deletion_timestamp: timestamp.toISOString(),
+          block_number: timestamp.getTime()
+        },
+        timestamp: timestamp.toISOString(),
+        block_id: crypto.randomBytes(16).toString('hex'),
+        current_hash: crypto.randomBytes(32).toString('hex'),
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      await ledgerEntry.save();
+
+      console.log(`✅ Land record deleted event processed: ${surveyNumber}`);
+    } catch (error) {
+      console.error('❌ Failed to process land record deleted event:', error);
+    }
+  }
+
+  /**
+   * Generate hash for land record data
+   */
+  generateDataHash(recordData) {
+    try {
+      const dataString = JSON.stringify(recordData, Object.keys(recordData).sort());
+      return crypto.createHash('sha256').update(dataString).digest('hex');
+    } catch (error) {
+      console.error('❌ Failed to generate data hash:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create blockchain ledger entry for any land record operation
+   */
+  async createLedgerEntry(entryData) {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Blockchain service not initialized');
+      }
+
+      const {
+        survey_number,
+        event_type,
+        officer_id,
+        metadata = {},
+        project_id,
+        remarks,
+        timestamp,
+        record_data = null
+      } = entryData;
+
+      // Generate unique block ID
+      const blockId = crypto.randomBytes(16).toString('hex');
+
+      // Generate hash from record data if provided
+      let currentHash = crypto.randomBytes(32).toString('hex');
+      if (record_data) {
+        currentHash = this.generateDataHash(record_data);
+      }
+
+      // Get previous hash for this survey
+      const previousEntry = await MongoBlockchainLedger.findOne({
+        survey_number,
+        event_type: { $ne: 'LAND_RECORD_DELETED' }
+      }).sort({ timestamp: -1 });
+
+      const previousHash = previousEntry ? previousEntry.current_hash : '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+      // Create ledger entry with proper data formatting
+      const ledgerEntry = new MongoBlockchainLedger({
+        survey_number,
+        event_type,
+        officer_id,
+        timestamp: timestamp || new Date().toISOString(),
+        metadata,
+        project_id,
+        remarks,
+        block_id: blockId,
+        previous_hash: previousHash,
+        current_hash: currentHash,
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate the entry before saving
+      await ledgerEntry.validate();
+
+      // Store in database
+      const savedEntry = await ledgerEntry.save();
+
+      console.log('📝 Blockchain ledger entry created:', {
+        survey_number,
+        event_type,
+        block_id: blockId,
+        hash: currentHash
+      });
+
+      return savedEntry;
+    } catch (error) {
+      console.error('❌ Failed to create ledger entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create blockchain entry for JMR record
+   */
+  async createJMRBlockchainEntry(jmrRecord, officerId, projectId) {
+    try {
+      const recordData = {
+        survey_number: jmrRecord.survey_number,
+        measured_area: jmrRecord.measured_area,
+        land_type: jmrRecord.land_type,
+        tribal_classification: jmrRecord.tribal_classification,
+        village: jmrRecord.village,
+        taluka: jmrRecord.taluka,
+        district: jmrRecord.district,
+        owner_id: jmrRecord.owner_id,
+        project_id: jmrRecord.project_id,
+        created_at: jmrRecord.created_at,
+        updated_at: jmrRecord.updated_at
+      };
+
+      return await this.createLedgerEntry({
+        survey_number: jmrRecord.survey_number,
+        event_type: 'JMR_MEASUREMENT_UPLOADED',
+        officer_id: officerId,
+        project_id: projectId,
+        metadata: {
+          jmr_id: jmrRecord._id,
+          measured_area: jmrRecord.measured_area,
+          land_type: jmrRecord.land_type,
+          tribal_classification: jmrRecord.tribal_classification,
+          village: jmrRecord.village,
+          taluka: jmrRecord.taluka,
+          district: jmrRecord.district
+        },
+        remarks: `JMR measurement uploaded for survey ${jmrRecord.survey_number}`,
+        timestamp: new Date().toISOString(),
+        record_data: recordData
+      });
+    } catch (error) {
+      console.error('❌ Failed to create JMR blockchain entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create blockchain entry for landowner record
+   */
+  async createLandownerBlockchainEntry(landownerRecord, officerId, projectId) {
+    try {
+      const recordData = {
+        survey_number: landownerRecord.survey_number,
+        owner_name: landownerRecord.owner_name,
+        owner_id: landownerRecord.owner_id,
+        land_type: landownerRecord.land_type,
+        area: landownerRecord.area,
+        village: landownerRecord.village,
+        taluka: landownerRecord.taluka,
+        district: landownerRecord.district,
+        created_at: landownerRecord.created_at,
+        updated_at: landownerRecord.updated_at
+      };
+
+      return await this.createLedgerEntry({
+        survey_number: landownerRecord.survey_number,
+        event_type: 'LANDOWNER_RECORD_CREATED',
+        officer_id: officerId,
+        project_id: projectId,
+        metadata: {
+          landowner_id: landownerRecord._id,
+          owner_name: landownerRecord.owner_name,
+          owner_id: landownerRecord.owner_id,
+          land_type: landownerRecord.land_type,
+          area: landownerRecord.area,
+          village: landownerRecord.village,
+          taluka: landownerRecord.taluka,
+          district: landownerRecord.district
+        },
+        remarks: `Landowner record created for survey ${landownerRecord.survey_number}`,
+        timestamp: new Date().toISOString(),
+        record_data: recordData
+      });
+    } catch (error) {
+      console.error('❌ Failed to create landowner blockchain entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get survey blockchain status
+   */
+  async surveyExistsOnBlockchain(surveyNumber) {
+    try {
+      const entry = await MongoBlockchainLedger.findOne({
+        survey_number: surveyNumber,
+        $or: [
+          { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'LANDOWNER_RECORD_CREATED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] } },
+          { transaction_type: { $exists: true } } // Old schema
+        ]
+      });
+
+      return !!entry;
+    } catch (error) {
+      console.error('❌ Failed to check blockchain status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get survey integrity status
+   */
+  async getSurveyIntegrityStatus(surveyNumber) {
+    try {
+      const entries = await MongoBlockchainLedger.find({
+        survey_number
+      }).sort({ timestamp: 1 });
+
+      if (entries.length === 0) {
+        return {
+          isIntegrityValid: false,
+          lastChecked: null,
+          compromiseReason: 'No blockchain entries found'
+        };
+      }
+
+      // Check hash chain integrity
+      let isValid = true;
+      let compromiseReason = null;
+
+      for (let i = 1; i < entries.length; i++) {
+        if (entries[i].previous_hash !== entries[i - 1].current_hash) {
+          isValid = false;
+          compromiseReason = `Hash chain broken at entry ${i}`;
+          break;
+        }
+      }
+
+      return {
+        isIntegrityValid: isValid,
+        lastChecked: entries[entries.length - 1].timestamp,
+        compromiseReason: compromiseReason || 'Integrity verified'
+      };
+    } catch (error) {
+      console.error('❌ Failed to get integrity status:', error);
+      return {
+        isIntegrityValid: false,
+        lastChecked: null,
+        compromiseReason: 'Error checking integrity'
+      };
+    }
+  }
+
+  /**
+   * Get survey timeline count
+   */
+  async getTimelineCount(surveyNumber) {
+    try {
+      const count = await MongoBlockchainLedger.countDocuments({
+        survey_number: surveyNumber
+      });
+      return count;
+    } catch (error) {
+      console.error('❌ Failed to get timeline count:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get survey timeline events
+   */
+  async getSurveyTimeline(surveyNumber) {
+    try {
+      const events = await MongoBlockchainLedger.find({
+        survey_number: surveyNumber
+      }).sort({ timestamp: 1 });
+      
+      const timeline = [];
+      
+      events.forEach(event => {
+        // Handle both old and new schema
+        if (event.timeline_history && Array.isArray(event.timeline_history)) {
+          // New schema with timeline_history
+          event.timeline_history.forEach(timelineItem => {
+            timeline.push({
+              id: timelineItem._id || event._id,
+              event_type: timelineItem.action || event.event_type,
+              timestamp: timelineItem.timestamp || event.timestamp,
+              officer_id: timelineItem.officer_id || event.officer_id,
+              metadata: timelineItem.metadata || event.metadata,
+              remarks: timelineItem.remarks || event.remarks,
+              block_id: timelineItem.block_id || event.block_id,
+              current_hash: timelineItem.data_hash || event.current_hash,
+              previous_hash: timelineItem.previous_hash || event.previous_hash
+            });
+          });
+        } else {
+          // Old schema - convert to timeline format
+        timeline.push({
+            id: event._id,
+            event_type: event.transaction_type || event.event_type || 'BLOCKCHAIN_ENTRY',
+            timestamp: event.timestamp,
+            officer_id: event.officer_id || 'unknown',
+            metadata: { 
+              transaction_type: event.transaction_type,
+              block_status: event.block_status,
+              block_id: event.block_id
+            },
+            remarks: `Blockchain entry: ${event.transaction_type || 'unknown'}`,
+            block_id: event.block_id,
+            current_hash: event.current_hash,
+            previous_hash: event.previous_hash
+          });
+        }
+      });
+
+      return timeline;
+    } catch (error) {
+      console.error('❌ Failed to get survey timeline:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get enhanced network status
+   */
+  async getEnhancedNetworkStatus() {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Blockchain service not initialized');
+      }
+
+      const network = await this.provider.getNetwork();
+      const gasPrice = await this.provider.getFeeData();
+      
+      let walletBalance = '0';
+      if (this.wallet && typeof this.wallet.getBalance === 'function') {
+        try {
+          const balance = await this.wallet.getBalance();
+          walletBalance = ethers.formatEther(balance);
+        } catch (balanceError) {
+          console.warn('⚠️ Could not get wallet balance:', balanceError.message);
+        }
+      }
+      
+      return {
+        success: true,
+        data: {
+          network: {
+            name: network.name,
+            chainId: network.chainId.toString(),
+            rpcUrl: this.config.getNetworkInfo().rpcUrl,
+            wsUrl: this.config.getNetworkInfo().wsUrl,
+            explorer: this.config.getNetworkInfo().explorer
+          },
+          wallet: {
+            address: this.config.getWalletInfo().address,
+            balance: walletBalance,
+            isConnected: !!this.wallet
+          },
+          contract: {
+            address: this.config.getContractInfo().address,
+            isDeployed: true
+          },
+          gas: {
+            gasPrice: gasPrice.gasPrice ? ethers.formatUnits(gasPrice.gasPrice, 'gwei') : '0',
+            maxFeePerGas: gasPrice.maxFeePerGas ? ethers.formatUnits(gasPrice.maxFeePerGas, 'gwei') : '0',
+            maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas ? ethers.formatUnits(gasPrice.maxPriorityFeePerGas, 'gwei') : '0'
+          },
+          status: {
+            isInitialized: this.isInitialized,
+            lastProcessedBlock: this.lastProcessedBlock,
+            pollingActive: !!this.pollingInterval
+          }
+        }
+      };
+    } catch (error) {
+      console.error('❌ Failed to get enhanced network status:', error);
+      return { 
+        success: false,
+        message: error.message,
+        error: error.toString()
+      };
+    }
+  }
+
+  /**
+   * Get surveys with blockchain status
+   */
+  async getSurveysWithBlockchainStatus(limit = 100) {
+    try {
+      const surveys = await MongoJMRRecord.find({ is_active: true })
+        .limit(limit)
+        .sort({ createdAt: -1 });
+
+      const surveysWithStatus = await Promise.all(
+        surveys.map(async (survey) => {
+          const blockchainStatus = await this.surveyExistsOnBlockchain(survey.survey_number);
+          const integrityStatus = await this.getSurveyIntegrityStatus(survey.survey_number);
+          const timelineCount = await this.getSurveyTimeline(survey.survey_number);
+
+          return {
+            ...survey.toObject(),
+            blockchain_status: blockchainStatus,
+            integrity_status: integrityStatus,
+            timeline_count: timelineCount
+          };
+        })
+      );
+
+      return surveysWithStatus;
+    } catch (error) {
+      console.error('❌ Failed to get surveys with blockchain status:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Create or update survey block on blockchain
+   */
+  async createOrUpdateSurveyBlock(surveyNumber, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Blockchain service not initialized');
+      }
+
+      // Check if survey block already exists
+      let existingBlock = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber,
+        event_type: 'SURVEY_CREATED_ON_BLOCKCHAIN'
+      });
+
+      if (existingBlock) {
+        // Update existing block
+        return await this.updateSurveyBlock(existingBlock, data, eventType, officerId, projectId, remarks);
+      } else {
+        // Create new block
+        return await this.createSurveyBlock(surveyNumber, data, eventType, officerId, projectId, remarks);
+      }
+    } catch (error) {
+      console.error('❌ Failed to create/update survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create new survey block
+   */
+  async createSurveyBlock(surveyNumber, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      const blockId = `BLOCK_${surveyNumber}_${Date.now()}`;
+      const timestamp = new Date();
+      
+      // Generate initial survey data structure
+      const surveyData = {
+        jmr: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        notice: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        payment: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        award: { data: null, hash: null, last_updated: null, status: 'not_created' },
+        landowner: { data: null, hash: null, last_updated: null, status: 'not_created' }
+      };
+
+      // Create initial timeline entry
+      const timelineHistory = [{
+        action: 'SURVEY_CREATED_ON_BLOCKCHAIN',
+        timestamp: timestamp,
+        officer_id: officerId,
+        data_hash: this.generateDataHash(data),
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        metadata: { event_type: eventType, project_id: projectId },
+        remarks: `Survey ${surveyNumber} registered on blockchain`
+      }];
+
+      // Create blockchain ledger entry
+      const ledgerEntry = new MongoBlockchainLedger({
+        block_id: blockId,
+        survey_number: surveyNumber,
+        event_type: 'SURVEY_CREATED_ON_BLOCKCHAIN',
+        officer_id: officerId,
+        project_id: projectId,
+        survey_data: surveyData,
+        timeline_history: timelineHistory,
+        metadata: { event_type: eventType, project_id: projectId },
+        remarks: remarks,
+        timestamp: timestamp,
+        previous_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+        current_hash: null, // Will be generated by pre-save middleware
+        nonce: Math.floor(Math.random() * 1000000),
+        is_valid: true
+      });
+
+      // Validate and save
+      await ledgerEntry.validate();
+      const savedEntry = await ledgerEntry.save();
+
+      console.log('✅ Survey block created:', {
+        block_id: blockId,
+        survey_number: surveyNumber,
+        hash: savedEntry.current_hash
+      });
+
+      return {
+        success: true,
+        block_id: blockId,
+        hash: savedEntry.current_hash,
+        ledger_entry: savedEntry
+      };
+    } catch (error) {
+      console.error('❌ Failed to create survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update existing survey block
+   */
+  async updateSurveyBlock(existingBlock, data, eventType, officerId, projectId = null, remarks = '') {
+    try {
+      const timestamp = new Date();
+      const previousHash = existingBlock.current_hash;
+
+      // Add timeline entry
+      existingBlock.addTimelineEntry(
+        eventType,
+        officerId,
+        this.generateDataHash(data),
+        previousHash,
+        { event_type: eventType, project_id: projectId },
+        remarks
+      );
+
+      // Update survey data section based on event type
+      if (eventType.includes('JMR')) {
+        existingBlock.updateSurveyDataSection('jmr', data, 'updated');
+      } else if (eventType.includes('NOTICE')) {
+        existingBlock.updateSurveyDataSection('notice', data, 'updated');
+      } else if (eventType.includes('PAYMENT')) {
+        existingBlock.updateSurveyDataSection('payment', data, 'updated');
+      } else if (eventType.includes('AWARD')) {
+        existingBlock.updateSurveyDataSection('award', data, 'updated');
+      } else if (eventType.includes('LANDOWNER')) {
+        existingBlock.updateSurveyDataSection('landowner', data, 'updated');
+      }
+
+      // Save updated block
+      const updatedBlock = await existingBlock.save();
+
+      console.log('✅ Survey block updated:', {
+        block_id: existingBlock.block_id,
+        survey_number: existingBlock.survey_number,
+        new_hash: updatedBlock.current_hash
+      });
+
+      return {
+        success: true,
+        block_id: existingBlock.block_id,
+        hash: updatedBlock.current_hash,
+        ledger_entry: updatedBlock
+      };
+    } catch (error) {
+      console.error('❌ Failed to update survey block:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add timeline entry to survey block
+   */
+  async addTimelineEntry(surveyNumber, action, officerId, dataHash, previousHash, metadata, remarks) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        throw new Error(`No blockchain block found for survey ${surveyNumber}`);
+      }
+
+      block.addTimelineEntry(action, officerId, dataHash, previousHash, metadata, remarks);
+      const updatedBlock = await block.save();
+
+      console.log('✅ Timeline entry added:', {
+        survey_number: surveyNumber,
+        action: action,
+        new_hash: updatedBlock.current_hash
+      });
+
+      return {
+        success: true,
+        hash: updatedBlock.current_hash,
+        timeline_entry: updatedBlock.timeline_history[updatedBlock.timeline_history.length - 1]
+      };
+    } catch (error) {
+      console.error('❌ Failed to add timeline entry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify survey integrity
+   */
+  async verifySurveyIntegrity(surveyNumber) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        return {
+          isValid: false,
+          reason: 'No blockchain block found',
+          survey_number: surveyNumber
+        };
+      }
+
+      // Verify chain integrity
+      const chainIntegrity = await MongoBlockchainLedger.verifyChainIntegrity(surveyNumber);
+      
+      // Verify data integrity for each section
+      const dataIntegrity = {};
+      for (const [sectionName, sectionData] of Object.entries(block.survey_data || {})) {
+        if (sectionData.data && sectionData.hash) {
+          const currentHash = this.generateDataHash(sectionData.data);
+          dataIntegrity[sectionName] = {
+            isValid: currentHash === sectionData.hash,
+            storedHash: sectionData.hash,
+            currentHash: currentHash,
+            lastUpdated: sectionData.last_updated
+          };
+        } else {
+          dataIntegrity[sectionName] = {
+            isValid: true,
+            storedHash: null,
+            currentHash: null,
+            lastUpdated: null
+          };
+        }
+      }
+
+      // Overall integrity status
+      const overallIntegrity = chainIntegrity.isValid && 
+        Object.values(dataIntegrity).every(section => section.isValid);
+
+      return {
+        isValid: overallIntegrity,
+        reason: overallIntegrity ? 'All integrity checks passed' : 'Integrity check failed',
+        survey_number: surveyNumber,
+        chain_integrity: chainIntegrity,
+        data_integrity: dataIntegrity,
+        block_hash: block.current_hash,
+        last_updated: block.updatedAt
+      };
+    } catch (error) {
+      console.error('❌ Failed to verify survey integrity:', error);
+      return {
+        isValid: false,
+        reason: `Verification error: ${error.message}`,
+        survey_number: surveyNumber
+      };
+    }
+  }
+
+        /**
+   * Get survey timeline
+   */
+  async getSurveyTimeline(surveyNumber) {
+    try {
+      const block = await MongoBlockchainLedger.findOne({ 
+        survey_number: surveyNumber 
+      }).sort({ timestamp: -1 });
+
+      if (!block) {
+        return [];
+      }
+
+      return block.timeline_history || [];
+    } catch (error) {
+      console.error('❌ Failed to get survey timeline:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Generate data hash
+   */
+  generateDataHash(data) {
+    try {
+      const dataString = JSON.stringify(data, Object.keys(data).sort());
+      return crypto.createHash('sha256').update(dataString).digest('hex');
+    } catch (error) {
+      console.error('❌ Error generating data hash:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get survey integrity status
+   */
+  async getSurveyIntegrityStatus(surveyNumber) {
+    try {
+      const integrity = await this.verifySurveyIntegrity(surveyNumber);
+      return integrity.isValid ? 'verified' : 'compromised';
+    } catch (error) {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Bulk sync existing records to blockchain
+   */
+  async bulkSyncToBlockchain(records, officerId, projectId = null) {
+    try {
+    const results = [];
+    
+      for (const record of records) {
+        try {
+          const result = await this.createOrUpdateSurveyBlock(
+            record.survey_number,
+            record,
+            'RECORD_CREATED',
+            officerId,
+            projectId,
+            'Bulk sync from existing records'
+          );
+        results.push({
+            survey_number: record.survey_number,
+            success: true,
+            result: result
+        });
+      } catch (error) {
+        results.push({
+            survey_number: record.survey_number,
+            success: false,
+          error: error.message
+        });
+      }
+    }
+    
+      return {
+        success: true,
+        total_records: records.length,
+        successful_syncs: results.filter(r => r.success).length,
+        failed_syncs: results.filter(r => !r.success).length,
+        results: results
+      };
+    } catch (error) {
+      console.error('❌ Failed to bulk sync to blockchain:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  cleanup() {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    console.log('🧹 Enhanced blockchain service cleaned up');
+  }
+}
+
+export default EnhancedBlockchainService;

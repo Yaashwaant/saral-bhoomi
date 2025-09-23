@@ -22,6 +22,7 @@ import {
   Users
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { config } from '../../../config';
 
 interface CSVData {
   खातेदाराचे_नांव: string;
@@ -116,7 +117,7 @@ const CSVUploadManager = () => {
   // Safe translation access with fallback
   const t = translations?.[user?.language || 'marathi'] || translations.english;
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+  const API_BASE_URL = config.API_BASE_URL;
 
   const loadAgents = async () => {
     try {
@@ -229,7 +230,9 @@ const CSVUploadManager = () => {
       if (response.ok && data.success) {
         toast.success(t.uploadSuccess);
         // Immediately refresh landowner list so KYC/Notice screens reflect new rows
-        try { await reloadLandowners(); } catch {}
+        try { await reloadLandowners(); } catch (err) {
+          console.warn('Failed to reload landowners:', err);
+        }
         setCsvData([]);
         setCsvRawText('');
         setUploadedFile(null);

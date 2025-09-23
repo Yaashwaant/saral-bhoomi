@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSaral } from '@/contexts/SaralContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +11,7 @@ import {
   MapPin, 
   IndianRupee, 
   CheckCircle, 
+  CheckCircle2,
   Clock,
   FileText,
   Users,
@@ -18,17 +19,32 @@ import {
   Download,
   Shield,
   Building2,
-  Landmark
+  Landmark,
+  Database,
+  Award,
+  Banknote,
+  Hash,
+  Workflow,
+  Plus,
+  Search,
+  BarChart3
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import ProjectManagement from './ProjectManagement';
-import CSVUploadManager from './CSVUploadManager';
 import VillageWiseReports from './VillageWiseReports';
-import KYCApprovalQueue from './KYCApprovalQueue';
+import KYCAssignmentManager from './KYCAssignmentManager';
 import PaymentInitiation from './PaymentInitiation';
-import JmrAwardManager from './JmrAwardManager';
 import NoticeGenerator from './NoticeGenerator';
 import SimpleAgentAssignment from './SimpleAgentAssignment';
+// Import new enhanced components
+import EnhancedJMRManager from './EnhancedJMRManager';
+import EnhancedAwardManager from './EnhancedAwardManager';
+import LandRecordsManager from './LandRecordsManager';
+import EnhancedPaymentManager from './EnhancedPaymentManager';
+import EnhancedDashboard from './EnhancedDashboard';
+import DocumentUploadPortal from './DocumentUploadPortal';
+import PaymentSlipGenerator from './PaymentSlipGenerator';
+import BlockchainDashboard from './BlockchainDashboard';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -43,12 +59,16 @@ const OfficerDashboard = () => {
       dashboard: 'भूमि अधिकारी डॅशबोर्ड',
       overview: 'सारांश',
       projects: 'प्रकल्प व्यवस्थापन',
-      csvUpload: 'CSV अपलोड',
-      surveys: 'JMR / Award',
       notices: 'नोटीस जनरेटर',
       villages: 'गावनिहाय अहवाल',
       kycApproval: 'KYC मंजुरी',
       payments: 'पेमेंट इनिशिएशन',
+      enhancedPayment: 'एन्हान्स्ड Payment',
+      documentUpload: 'Document Upload',
+      paymentSlips: 'पेमेंट स्लिप्स',
+      landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -72,12 +92,16 @@ const OfficerDashboard = () => {
       dashboard: 'Land Officer Dashboard',
       overview: 'Overview',
       projects: 'Project Management',
-      csvUpload: 'CSV Upload',
-      surveys: 'JMR / Award',
       notices: 'Notice Generator',
       villages: 'Village Reports',
       kycApproval: 'KYC Approval',
       payments: 'Payment Initiation',
+      enhancedPayment: 'Enhanced Payment',
+      documentUpload: 'Document Upload',
+      paymentSlips: 'Payment Slips',
+      landRecordsManagement: 'Land Records Management',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -101,12 +125,16 @@ const OfficerDashboard = () => {
       dashboard: 'भूमि अधिकारी डैशबोर्ड',
       overview: 'सारांश',
       projects: 'परियोजना प्रबंधन',
-      csvUpload: 'CSV अपलोड',
-      surveys: 'JMR / Award',
       notices: 'नोटिस जनरेटर',
       villages: 'गांव रिपोर्ट',
       kycApproval: 'KYC अनुमोदन',
       payments: 'भुगतान शुरुआत',
+      enhancedPayment: 'एन्हान्स्ड Payment',
+      documentUpload: 'Document Upload',
+      paymentSlips: 'पेमेंट स्लिप्स',
+      landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
+      jmr: 'JMR',
+      award: 'Award',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -257,161 +285,103 @@ const OfficerDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-8 bg-blue-50">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.overview}
-              </TabsTrigger>
-              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.projects}
-              </TabsTrigger>
-              <TabsTrigger value="csv" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.csvUpload}
-              </TabsTrigger>
-              <TabsTrigger value="surveys" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.surveys}
-              </TabsTrigger>
-              <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.notices}
-              </TabsTrigger>
-              <TabsTrigger value="villages" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.villages}
-              </TabsTrigger>
-              <TabsTrigger value="kyc" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.kycApproval}
-              </TabsTrigger>
-              <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>
-                {t.payments}
-              </TabsTrigger>
-            </TabsList>
+                         <TabsList className="flex w-full bg-blue-50 overflow-x-auto">
+               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <BarChart3 className="h-4 w-4 mr-1" />
+                 Overview
+               </TabsTrigger>
+               <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Land Records Management
+               </TabsTrigger>
+               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Database className="h-4 w-4 mr-1" />
+                 JMR
+               </TabsTrigger>
+               <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Award className="h-4 w-4 mr-1" />
+                 Award Declaration
+               </TabsTrigger>
+               <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Award className="h-4 w-4 mr-1" />
+                 Award
+               </TabsTrigger>
+               <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Notice Generator
+               </TabsTrigger>
+               <TabsTrigger value="paymentSlips" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 Payment Slips
+               </TabsTrigger>
+                               <TabsTrigger value="blockchain" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                  fontWeight: 500,
+                  letterSpacing: '0.2px'
+                }}>
+                  <Hash className="h-4 w-4 mr-1" />
+                  Blockchain
+                </TabsTrigger>
+             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6 mt-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Recent Projects */}
-                <Card className="bg-white/70 backdrop-blur-md border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="text-blue-900 flex items-center space-x-2">
-                      <Building2 className="h-5 w-5" />
-                      <span>{t.recentProjects}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {recentProjects.map((project) => (
-                        <div key={project.id} className="flex items-center justify-between p-3 bg-blue-50/50 rounded-lg">
-                          <div>
-                            <p className="text-sm font-medium text-blue-900">{project.name}</p>
-                            <p className="text-xs text-blue-600">{project.village} • {project.area} {t.hectares}</p>
-                          </div>
-                          {getStatusBadge(project.status)}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                         <TabsContent value="overview" className="space-y-6 mt-6">
+               <EnhancedDashboard />
+             </TabsContent>
 
-                {/* Quick Actions */}
-                <Card className="bg-white/70 backdrop-blur-md border-orange-200">
-                  <CardHeader>
-                    <CardTitle className="text-orange-900 flex items-center space-x-2">
-                      <FolderPlus className="h-5 w-5" />
-                      <span>{t.quickActions}</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 gap-3">
-                      <Button 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => setActiveTab('projects')}
-                      >
-                        <FolderPlus className="h-4 w-4 mr-2" />
-                        {t.createProject}
-                      </Button>
-                      <Button 
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
-                        onClick={() => setActiveTab('csv')}
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        {t.uploadCSV}
-                      </Button>
-                      <Button 
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => setActiveTab('villages')}
-                      >
-                        <MapPin className="h-4 w-4 mr-2" />
-                        {t.viewVillages}
-                      </Button>
-                      <Button 
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                        onClick={() => setActiveTab('kyc')}
-                      >
-                        <Shield className="h-4 w-4 mr-2" />
-                        {t.approveKYC}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
+             <TabsContent value="landRecords" className="mt-6">
+               <LandRecordsManager />
+             </TabsContent>
 
-            <TabsContent value="projects" className="mt-6">
-              <ProjectManagement />
-            </TabsContent>
+             <TabsContent value="jmr" className="mt-6">
+               <EnhancedJMRManager />
+             </TabsContent>
 
-            <TabsContent value="csv" className="mt-6">
-              <CSVUploadManager />
-            </TabsContent>
+             <TabsContent value="awardDeclaration" className="mt-6">
+               <EnhancedAwardManager />
+             </TabsContent>
 
-            <TabsContent value="surveys" className="mt-6">
-              <JmrAwardManager />
-            </TabsContent>
+             <TabsContent value="award" className="mt-6">
+               <EnhancedAwardManager />
+             </TabsContent>
 
-            <TabsContent value="notices" className="mt-6">
-              <NoticeGenerator />
-            </TabsContent>
+             <TabsContent value="notices" className="mt-6">
+               <NoticeGenerator />
+             </TabsContent>
 
-            <TabsContent value="villages" className="mt-6">
-              <VillageWiseReports />
-            </TabsContent>
-
-            <TabsContent value="kyc" className="mt-6">
-              <KYCApprovalQueue />
-            </TabsContent>
-
-            <TabsContent value="payments" className="mt-6">
-              <PaymentInitiation />
-            </TabsContent>
+             <TabsContent value="paymentSlips" className="mt-6">
+               <PaymentSlipGenerator />
+             </TabsContent>
+                         <TabsContent value="blockchain" className="mt-6">
+               <BlockchainDashboard />
+             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>

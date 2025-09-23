@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useSaral } from '@/contexts/SaralContext';
 import { toast } from 'sonner';
 import { FileText, Download, Eye, Printer, UserCheck, ArrowRight, Copy, Send } from 'lucide-react';
+import { config } from '../../../config';
 
 interface GeneratedNotice {
   id: string;
@@ -40,16 +41,10 @@ const NoticeGenerator: React.FC = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isKycAssignmentOpen, setIsKycAssignmentOpen] = useState(false);
   const [selectedNoticeForKyc, setSelectedNoticeForKyc] = useState<GeneratedNotice | null>(null);
-  const [availableAgents] = useState([
-    { id: '4', name: 'राजेश पाटील', phone: '+91 9876543210', area: 'उंबरपाडा तालुका' },
-    { id: '5', name: 'सुनील कांबळे', phone: '+91 9876543211', area: 'उंबरपाडा तालुका' },
-    { id: '6', name: 'महेश देशमुख', phone: '+91 9876543212', area: 'उंबरपाडा तालुका' },
-    { id: '7', name: 'विठ्ठल जाधव', phone: '+91 9876543213', area: 'उंबरपाडा तालुका' },
-    { id: '8', name: 'रामराव पवार', phone: '+91 9876543214', area: 'उंबरपाडा तालुका' }
-  ]);
+  const [availableAgents, setAvailableAgents] = useState<any[]>([]);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-  const ENABLE_SMS = (import.meta.env.VITE_ENABLE_SMS === 'true');
+  const API_BASE_URL = config.API_BASE_URL;
+  const ENABLE_SMS = config.ENABLE_SMS;
   
   // Hearing Notice builder state
   type Recipient = { name: string; relation?: string; address?: string };
@@ -100,6 +95,7 @@ const NoticeGenerator: React.FC = () => {
   });
   const [jmrCount, setJmrCount] = useState<number>(0);
   const [awardCount, setAwardCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const updateRecipient = (idx: number, key: keyof Recipient, value: string) => {
     setHearingRecipients(prev => prev.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
@@ -143,7 +139,7 @@ const NoticeGenerator: React.FC = () => {
         <div style="font-weight:600;">प्रति,</div>
         ${recipientsHtml || '<div>—</div>'}
       </div>
-      ${ccHtml ? `<div style=\"margin:8px 0;\"><div style=\"font-weight:600;\">प्रतिलिपी सादरांसाठी:</div>${ccHtml}</div>` : ''}
+      ${ccHtml ? `<div style="margin:8px 0;"><div style="font-weight:600;">प्रतिलिपी सादरांसाठी:</div>${ccHtml}</div>` : ''}
       <div style="margin:12px 0;">
         विषय: गाव – ${hearingForm.village || '—'}, तालुका – ${hearingForm.taluka || '—'}, जिल्हा – ${hearingForm.district || '—'} येथील स.नं./गट क्र. ${surveyList || '—'} वरील ${hearingForm.projectName} संदर्भात.
       </div>
@@ -153,7 +149,7 @@ const NoticeGenerator: React.FC = () => {
       <div style="margin:12px 0; font-weight:600;">
         त्यानुसार, आपण/आपले प्रतिनिधी यांनी दि. ${hearingForm.hearingDate} रोजी वेळ ${hearingForm.hearingTime} वाजता, ${hearingForm.venue} येथे होणाऱ्या सुनावणीस उपस्थित राहावे. अनुपस्थित राहिल्यास, उपलब्ध दाखल्यांच्या आधारे निर्णय घेण्यात येईल व तीच अंतिम मानली जाईल.
       </div>
-      ${docsHtml ? `<div style=\"margin:12px 0;\">कृपया खालील कागदपत्रे सोबत आणावीत:<ul>${docsHtml}</ul></div>` : ''}
+      ${docsHtml ? `<div style="margin:12px 0;">कृपया खालील कागदपत्रे सोबत आणावीत:<ul>${docsHtml}</ul></div>` : ''}
       <div style="margin-top:24px; text-align:right;">
         <div>(${hearingForm.signatoryName})</div>
         <div>${hearingForm.designation}</div>
@@ -168,7 +164,7 @@ const NoticeGenerator: React.FC = () => {
   };
 
   const downloadHearingNotice = () => {
-    const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
+    const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -257,6 +253,53 @@ const NoticeGenerator: React.FC = () => {
     loadExistingNotices();
   }, [selectedProject]);
 
+  // Load land records from the new API
+  const loadLandRecords = async () => {
+    if (!selectedProject) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data) {
+          // Transform the land records to match the expected format
+          const transformedRecords = data.data.map((record: any) => ({
+            id: record._id || record.id,
+            'स.नं./हि.नं./ग.नं.': record.survey_number,
+            'खातेदाराचे_नांव': record.landowner_name,
+            'गांव': record.village,
+            'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
+            'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
+            isTribal: record.is_tribal,
+            tribalCertificateNo: record.tribal_certificate_no,
+            tribalLag: record.tribal_lag,
+            noticeGenerated: record.notice_generated,
+            projectId: selectedProject
+          }));
+          setFilteredRecords(transformedRecords);
+        }
+      } else {
+        console.log('No land records found, falling back to landowner records');
+        // Fallback to existing landowner records
+        const projectRecords = landownerRecords.filter(r => 
+          String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
+        );
+        setFilteredRecords(projectRecords);
+      }
+    } catch (error) {
+      console.error('Error loading land records:', error);
+      // Fallback to existing landowner records
+      const projectRecords = landownerRecords.filter(r => 
+        String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
+      );
+      setFilteredRecords(projectRecords);
+    }
+  };
+
+  useEffect(() => {
+    loadLandRecords();
+  }, [selectedProject, landownerRecords]);
+
   // Fallback: derive generated notices directly from landowner records (updated by CSV ingest)
   useEffect(() => {
     if (!selectedProject) { return; }
@@ -296,10 +339,17 @@ const NoticeGenerator: React.FC = () => {
       let filtered = projectRecords;
 
       if (searchTerm) {
-        filtered = filtered.filter(record => {
-          const surveyMatch = record['स.नं./हि.नं./ग.नं.']?.toLowerCase().includes(searchTerm.toLowerCase());
-          const ownerMatch = record['खातेदाराचे_नांव']?.toLowerCase().includes(searchTerm.toLowerCase());
-          const villageMatch = record['गांव']?.toLowerCase().includes(searchTerm.toLowerCase());
+        filtered = filtered.filter((record: any) => {
+          // Support both new land records structure and old CSV format
+          const surveyMatch = (
+            safeField(record, 'स.नं./हि.नं./ग.नं.').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          const ownerMatch = (
+            safeField(record, 'खातेदाराचे_नांव').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          const villageMatch = (
+            safeField(record, 'गांव').toLowerCase().includes(searchTerm.toLowerCase())
+          );
           
           console.log('Search filtering:', {
             searchTerm,
@@ -307,9 +357,9 @@ const NoticeGenerator: React.FC = () => {
             ownerMatch,
             villageMatch,
             record: {
-              survey: record['स.नं./हि.नं./ग.नं.'],
-              owner: record['खातेदाराचे_नांव'],
-              village: record['गांव']
+              survey: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+              owner: safeField(record, 'खातेदाराचे_नांव'),
+              village: safeField(record, 'गांव')
             }
           });
           
@@ -387,71 +437,34 @@ const NoticeGenerator: React.FC = () => {
   const safeField = (record: any, fieldName: string) => {
     // Define field mappings between old and new formats
     const fieldMappings: { [key: string]: string[] } = {
-      'खातेदाराचे_नांव': ['खातेदाराचे_नांव'],
-      'स.नं./हि.नं./ग.नं.': ['स.नं./हि.नं./ग.नं.', 'सर्वे_नं'],
+      'खातेदाराचे_नांव': ['खातेदाराचे_नांव', 'landowner_name'],
+      'स.नं./हि.नं./ग.नं.': ['स.नं./हि.नं./ग.नं.', 'सर्वे_नं', 'survey_number'],
       'गांव': ['गांव', 'village'],
-      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र'],
+      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र', 'area'],
       'संपादित_जमिनीचे_क्षेत्र': ['संपादित_जमिनीचे_क्षेत्र', 'संपादित_क्षेत्र'],
       'जमिनीचा_प्रकार': ['जमिनीचा_प्रकार'],
       'जमिनीचा_प्रकार_शेती_बिनशेती': ['जमिनीचा_प्रकार_शेती_बिनशेती'],
-      'मंजुर_केलेला_दर': ['मंजुर_केलेला_दर', 'दर'],
+      'मंजुर_केलेला_दर': ['मंजुर_केलेला_दर', 'दर', 'rate'],
       'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य': ['संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य'],
       'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक': ['कलम_26_2_नुसार_गावास_लागु_असलेले_गणक'],
-      'कलम_26_नुसार_जमिनीचा_मोबदला': ['कलम_26_नुसार_जमिनीचा_मोबदला'],
-      'बांधकामे_रक्कम': ['बांधकामे_रक्कम', 'संरचना_झाडे_विहिरी_रक्कम'],
-      'वनझाडे_रक्कम': ['वनझाडे_रक्कम'],
-      'फळझाडे_रक्कम': ['फळझाडे_रक्कम'],
-      'विहिरी_रक्कम': ['विहिरी_रक्कम'],
-      'एकुण_रक्कम_13_15_17_19': ['एकुण_रक्कम_13_15_17_19'],
-      'एकुण_रक्कम_11_20': ['एकुण_रक्कम_11_20'],
-      'सोलेशियम_100': ['सोलेशियम_100'],
-      'निर्धारित_मोबदला': ['निर्धारित_मोबदला'],
-      'एकुण_रक्कमेवर_25_वाढीव_मोबदला': ['एकुण_रक्कमेवर_25_वाढीव_मोबदला'],
-      'एकुण_मोबदला': ['एकुण_मोबदला', 'एकूण_मोबदला'],
-      'वजावट_रक्कम': ['वजावट_रक्कम'],
-      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम', 'अंतिम_रक्कम']
+      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम', 'total_compensation'],
+      'tribal_certificate_no': ['tribal_certificate_no', 'tribalCertificateNo'],
+      'tribal_lag': ['tribal_lag', 'tribalLag'],
+      'is_tribal': ['is_tribal', 'isTribal'],
+      'notice_generated': ['notice_generated', 'noticeGenerated']
     };
 
-    // Try all possible field names for this field
-    const possibleFields = fieldMappings[fieldName] || [fieldName];
-    let value = undefined;
-    let matchedField = '';
-
-    for (const possibleField of possibleFields) {
-      if (record[possibleField] !== undefined && record[possibleField] !== null && record[possibleField] !== '') {
-        value = record[possibleField];
-        matchedField = possibleField;
-        break;
+    // Check if the field name is in our mappings
+    if (fieldMappings[fieldName]) {
+      for (const mappedField of fieldMappings[fieldName]) {
+        if (record[mappedField] !== undefined && record[mappedField] !== null && record[mappedField] !== '') {
+          return record[mappedField];
+        }
       }
     }
 
-    // If still not found, try fuzzy matching
-    if (value === undefined || value === null) {
-      const keys = Object.keys(record);
-      const matchingKey = keys.find(key => 
-        key.trim() === fieldName.trim() || 
-        key.replace(/\s+/g, '') === fieldName.replace(/\s+/g, '') ||
-        key.includes(fieldName.split('_')[0])
-      );
-      
-      if (matchingKey) {
-        value = record[matchingKey];
-        matchedField = matchingKey;
-      }
-    }
-    
-    if (value === undefined || value === null || value === '') {
-      console.warn(`Field ${fieldName} not found. Tried: ${possibleFields.join(', ')}. Available keys:`, Object.keys(record));
-      return '';
-    }
-    
-    if (matchedField !== fieldName) {
-      console.log(`Field mapping: ${fieldName} -> ${matchedField} = ${value}`);
-    }
-    
-    // Clean up the value (remove quotes if present)
-    const cleanValue = typeof value === 'string' ? value.replace(/^"|"$/g, '') : value;
-    return cleanValue;
+    // Direct field access as fallback
+    return record[fieldName] || '';
   };
 
   const safeNumericField = (record: any, fieldName: string) => {
@@ -474,10 +487,9 @@ const NoticeGenerator: React.FC = () => {
     // Debug specific field values
     console.log('Field values check:');
     console.log('खातेदाराचे_नांव:', record['खातेदाराचे_नांव']);
-    console.log('स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
-    console.log('गांव:', record['गांव']);
-    console.log('मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
-    console.log('सोलेशियम_100:', record['सोलेशियम_100']);
+    console.log('- स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
+    console.log('- मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
+    console.log('- सोलेशियम_100:', record['सोलेशियम_100']);
     
     const project = projects.find(p => p.id === record.projectId);
     const today = new Date();
@@ -653,15 +665,37 @@ const NoticeGenerator: React.FC = () => {
     }
   };
 
-  const proceedToKycFromRecord = async (record: any) => {
+  const assignToKycFromRecord = async (record: any) => {
     try {
-      // Demo: always assign to agent@saral.gov.in
-      const listRes = await fetch(`${API_BASE_URL}/agents/list`);
-      const list = await listRes.json();
-      const demoAgent = (list.agents || []).find((a: any) => a.email === 'agent@saral.gov.in');
-      const agentId = demoAgent?.id || demoAgent?._id;
+      // Demo: always assign to rajesh patil (field officer)
+      let fieldOfficer;
+      let apiAgents = [];
+      
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/agents/list`);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          apiAgents = list.agents || [];
+          fieldOfficer = apiAgents.find((a: any) => 
+            a.name === 'Rajesh Patil - Field Officer'
+          );
+        }
+      } catch (apiError) {
+        console.warn('API call failed, using local agents:', apiError);
+      }
+      
+      // Fallback to local availableAgents if API failed or agent not found
+      if (!fieldOfficer) {
+        fieldOfficer = availableAgents.find(a => 
+          a.name === 'Rajesh Patil - Field Officer'
+        );
+      }
+      
+      const agentId = fieldOfficer?.id || fieldOfficer?._id;
       if (!agentId) {
-        toast.error('Demo agent not found (agent@saral.gov.in)');
+        console.error('Available agents from API:', apiAgents);
+        console.error('Available agents from local:', availableAgents);
+        toast.error('Field officer Rajesh Patil - Field Officer not found in any source');
         return;
       }
 
@@ -678,13 +712,21 @@ const NoticeGenerator: React.FC = () => {
       }, { surveyNumber, projectId });
 
       if (success) {
-        toast.success('Assigned for KYC');
+        toast.success('Notice assigned to Rajesh Patil - Field Officer for KYC');
+        // Update the record status to show it's assigned
+        record.kycStatus = 'assigned';
+        record.assignedAgent = {
+          id: agentId,
+          name: 'Rajesh Patil - Field Officer',
+          phone: fieldOfficer.phone || '+91 9876543216',
+          assignedAt: new Date()
+        };
       } else {
-        toast.error('Failed to assign for KYC');
+        toast.error('Failed to assign notice for KYC');
       }
     } catch (e) {
-      console.error('Auto-assign KYC failed', e);
-      toast.error('Failed to assign for KYC');
+      console.error('KYC assignment failed', e);
+      toast.error('Failed to assign notice for KYC');
     }
   };
 
@@ -789,6 +831,8 @@ const NoticeGenerator: React.FC = () => {
         noticeNumber: selectedNoticeForKyc.noticeNumber,
         noticeDate: selectedNoticeForKyc.noticeDate,
         noticeContent: selectedNoticeForKyc.content
+      }, { 
+        projectId: selectedProject 
       });
 
       if (success) {
@@ -830,6 +874,190 @@ const NoticeGenerator: React.FC = () => {
       toast.error('Failed to assign agent for KYC processing');
     }
   };
+
+  const assignToKyc = async (notice: GeneratedNotice) => {
+    try {
+      // Demo: directly assign to rajesh patil (field officer)
+      let fieldOfficer;
+      let apiAgents = [];
+      
+      try {
+        const listRes = await fetch(`${API_BASE_URL}/agents/list`);
+        if (listRes.ok) {
+          const list = await listRes.json();
+          apiAgents = list.agents || [];
+          fieldOfficer = apiAgents.find((a: any) => 
+            a.name === 'Rajesh Patil - Field Officer'
+          );
+        }
+      } catch (apiError) {
+        console.warn('API call failed, using local agents:', apiError);
+      }
+      
+      // Fallback to local availableAgents if API failed or agent not found
+      if (!fieldOfficer) {
+        fieldOfficer = availableAgents.find(a => 
+          a.name === 'Rajesh Patil - Field Officer'
+        );
+      }
+      
+      const agentId = fieldOfficer?.id || fieldOfficer?._id;
+      if (!agentId) {
+        console.error('Available agents from API:', apiAgents);
+        console.error('Available agents from local:', availableAgents);
+        toast.error('Field officer Rajesh Patil - Field Officer not found in any source');
+        return;
+      }
+
+      console.log('🔄 Assigning notice to Rajesh Patil - Field Officer for KYC:', {
+        landownerId: notice.landownerId,
+        agentId: agentId,
+        agentName: 'Rajesh Patil - Field Officer',
+        noticeNumber: notice.noticeNumber
+      });
+
+      // Use the enhanced agent assignment with notice data
+      const success = await assignAgentWithNotice(notice.landownerId, agentId, {
+        noticeNumber: notice.noticeNumber,
+        noticeDate: notice.noticeDate,
+        noticeContent: notice.content
+      }, { 
+        projectId: selectedProject 
+      });
+
+      if (success) {
+        // Update the notice with agent assignment in local state
+        const updatedNotice = {
+          ...notice,
+          status: 'assigned_for_kyc' as const,
+          kycStatus: 'assigned' as const,
+          assignedAgent: {
+            id: agentId,
+            name: 'Rajesh Patil - Field Officer',
+            phone: fieldOfficer.phone || '+91 9876543210',
+            assignedAt: new Date()
+          }
+        };
+
+        // Update the generated notices list
+        setGeneratedNotices(prev => prev.map(n => 
+          n.id === notice.id ? updatedNotice : n
+        ));
+
+        // Also update the landowner record locally
+        await updateLandownerRecord(notice.landownerId, {
+          kycStatus: 'in_progress',
+          assignedAgent: agentId,
+          assignedAt: new Date()
+        });
+
+        toast.success('✅ Notice successfully assigned to Rajesh Patil - Field Officer for KYC processing');
+        console.log('✅ KYC assignment completed successfully');
+      } else {
+        throw new Error('Assignment API call failed');
+      }
+    } catch (error) {
+      console.error('❌ Failed to assign notice for KYC:', error);
+      toast.error('Failed to assign notice for KYC processing');
+    }
+  };
+
+  const generateNoticeFromRecord = async (record: any) => {
+    setLoading(true);
+    try {
+      const noticeContent = generateNoticeContent(record);
+      const response = await fetch(`${API_BASE_URL}/landowners/generate-notice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
+          area: parseFloat(safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र') || '0'),
+          village: safeField(record, 'गांव'),
+          taluka: 'नागपूर', // Default taluka
+          district: 'नागपूर', // Default district
+          total_compensation: parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') || '0'),
+          is_tribal: record.isTribal || false,
+          tribal_certificate_no: (record as any).tribalCertificateNo || '',
+          tribal_lag: (record as any).tribalLag || '',
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success('Notice generated successfully');
+        
+        // Update the record locally to show the change
+        record.noticeGenerated = true;
+        record.noticeNumber = data.data.notice_number;
+        record.noticeDate = data.data.notice_date;
+        
+        // Reload the records to update the UI
+        loadLandRecords();
+        
+        // Record blockchain event
+        await recordBlockchainEvent(safeField(record, 'स.नं./हि.नं./ग.नं.'), 'NOTICE_GENERATED', {
+          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
+          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
+          notice_number: data.data.notice_number
+        });
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to generate notice');
+      }
+    } catch (error) {
+      console.error('Error generating notice:', error);
+      toast.error('Error generating notice');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recordBlockchainEvent = async (surveyNumber: string, eventType: string, metadata: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/blockchain`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer demo-jwt-token`
+        },
+        body: JSON.stringify({
+          survey_number: surveyNumber,
+          event_type: eventType,
+          officer_id: 'demo-officer',
+          metadata: metadata,
+          project_id: selectedProject
+        })
+      });
+
+      if (response.ok) {
+        console.log('Blockchain event recorded successfully');
+      }
+    } catch (error) {
+      console.error('Error recording blockchain event:', error);
+    }
+  };
+
+  // Load agents from API
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/agents/list`);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableAgents(data.agents || []);
+        }
+      } catch (error) {
+        console.error('Error loading agents:', error);
+      }
+    };
+
+    loadAgents();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -1236,32 +1464,55 @@ const NoticeGenerator: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => previewNotice(record.id)}
-                        title="View Notice"
-                      >
-                        <Eye className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadNoticeFromRecord(record)}
-                        title="Download Notice"
-                      >
-                        <Download className="h-3 w-3" />
-                      </Button>
-                      {record.noticeGenerated && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => proceedToKycFromRecord(record)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <UserCheck className="h-3 w-3 mr-1" />
-                          Proceed to KYC
-                        </Button>
+                      {!record.noticeGenerated ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => previewNotice(record.id)}
+                            title="Preview Notice"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => generateNoticeFromRecord(record)}
+                            disabled={loading}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <FileText className="h-3 w-3 mr-1" />
+                            Generate Notice
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => previewNotice(record.id)}
+                            title="View Notice"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadNoticeFromRecord(record)}
+                            title="Download Notice"
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => assignToKycFromRecord(record)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Assign to KYC
+                          </Button>
+                        </>
                       )}
                     </div>
                   </TableCell>
@@ -1398,11 +1649,11 @@ const NoticeGenerator: React.FC = () => {
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => proceedToKyc(notice)}
+                              onClick={() => assignToKyc(notice)}
                               className="bg-blue-600 hover:bg-blue-700"
                             >
                               <UserCheck className="h-3 w-3 mr-1" />
-                              Proceed to KYC
+                              Assign to KYC
                             </Button>
                           )}
                         </div>
@@ -1434,7 +1685,7 @@ const NoticeGenerator: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const html = `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
+                const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
                 const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

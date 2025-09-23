@@ -1,6 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import User from '../models/User.js';
+import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -10,14 +10,22 @@ const router = express.Router();
 // @access  Public (temporarily)
 router.get('/', async (req, res) => {
   try {
-    const users = await User.findAll({
-      attributes: { exclude: ['password'] }
-    });
+    const users = await MongoUser.find({}).select('-password');
     
     res.status(200).json({
       success: true,
       count: users.length,
-      data: users
+      data: users.map(user => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        phone: user.phone,
+        is_active: user.is_active,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt
+      }))
     });
   } catch (error) {
     console.error('Get users error:', error);
@@ -33,9 +41,7 @@ router.get('/', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/:id', async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id, {
-      attributes: { exclude: ['password'] }
-    });
+    const user = await MongoUser.findById(req.params.id).select('-password');
     
     if (!user) {
       return res.status(404).json({
@@ -46,7 +52,17 @@ router.get('/:id', async (req, res) => {
     
     res.status(200).json({
       success: true,
-      data: user
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        phone: user.phone,
+        is_active: user.is_active,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt
+      }
     });
   } catch (error) {
     console.error('Get user error:', error);
@@ -65,7 +81,7 @@ router.post('/', async (req, res) => {
     const { name, email, password, role, department, phone, language } = req.body;
     
     // Check if user already exists
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await MongoUser.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -73,21 +89,27 @@ router.post('/', async (req, res) => {
       });
     }
     
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
     // Create user
-    const user = await User.create({
+    const user = new MongoUser({
       name,
       email,
-      password,
+      password: hashedPassword,
       role,
       department,
       phone,
       language
     });
     
+    await user.save();
+    
     res.status(201).json({
       success: true,
       data: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -112,7 +134,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { name, email, role, department, phone, language, isActive } = req.body;
     
-    const user = await User.findByPk(req.params.id);
+    const user = await MongoUser.findById(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -134,7 +156,7 @@ router.put('/:id', async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -158,7 +180,7 @@ router.put('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.delete('/:id', async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const user = await MongoUser.findById(req.params.id);
     
     if (!user) {
       return res.status(404).json({
@@ -187,18 +209,25 @@ router.delete('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/role/:role', async (req, res) => {
   try {
-    const users = await User.findAll({ 
-      where: {
-        role: req.params.role,
-        isActive: true 
-      },
-      attributes: { exclude: ['password'] }
-    });
+    const users = await MongoUser.find({ 
+      role: req.params.role,
+      isActive: true 
+    }).select('-password');
     
     res.status(200).json({
       success: true,
       count: users.length,
-      data: users
+      data: users.map(user => ({
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        phone: user.phone,
+        is_active: user.is_active,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt
+      }))
     });
   } catch (error) {
     console.error('Get users by role error:', error);
@@ -223,7 +252,7 @@ router.put('/:id/password', async (req, res) => {
       });
     }
     
-    const user = await User.findByPk(req.params.id);
+    const user = await MongoUser.findById(req.params.id);
     if (!user) {
       return res.status(404).json({
         success: false,

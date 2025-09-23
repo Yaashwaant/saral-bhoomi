@@ -1,8 +1,7 @@
 import express from 'express';
-import LandownerRecord from '../models/LandownerRecord.js';
-import Project from '../models/Project.js';
-import User from '../models/User.js';
-import sequelize from '../config/database.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -14,9 +13,7 @@ router.get('/summary/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await LandownerRecord.findAll({
-      where: { projectId }
-    });
+    const records = await MongoLandownerRecord.find({ project_id: projectId });
 
     // Group by village
     const villageMap = {};
@@ -45,13 +42,13 @@ router.get('/summary/:projectId', async (req, res) => {
       
       const summary = villageMap[village];
       summary.totalLandowners++;
-      summary.totalCompensation += parseFloat(record.अंतिम_रक्कम) || 0;
-      summary.totalArea += parseFloat(record.क्षेत्र) || 0;
-      summary.totalAcquiredArea += parseFloat(record.संपादित_क्षेत्र) || 0;
-      if (record.noticeGenerated) summary.noticesGenerated++;
+      summary.totalCompensation += parseFloat(record.final_amount) || 0;
+      summary.totalArea += parseFloat(record.area) || 0;
+      summary.totalAcquiredArea += parseFloat(record.acquired_area) || 0;
+      if (record.notice_generated) summary.noticesGenerated++;
       
       // KYC status counts
-      switch (record.kycStatus) {
+      switch (record.kyc_status) {
         case 'pending': summary.kycPending++; break;
         case 'in_progress': summary.kycInProgress++; break;
         case 'completed': summary.kycCompleted++; break;
@@ -60,12 +57,12 @@ router.get('/summary/:projectId', async (req, res) => {
       }
       
       // Payment status counts
-      switch (record.paymentStatus) {
+      switch (record.payment_status) {
         case 'pending': summary.paymentsPending++; break;
         case 'initiated': summary.paymentsInitiated++; break;
         case 'success': 
           summary.paymentsSuccess++; 
-          summary.totalPaid += parseFloat(record.अंतिम_रक्कम) || 0;
+          summary.totalPaid += parseFloat(record.final_amount) || 0;
           break;
         case 'failed': summary.paymentsFailed++; break;
       }
@@ -113,18 +110,12 @@ router.get('/details/:projectId/:villageName', async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await LandownerRecord.findAll({
-      where,
-      include: [
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email', 'phone'] },
-        { model: Project, attributes: ['projectName', 'pmisCode'] }
-      ],
-      order: [['खातेदाराचे_नांव', 'ASC']],
-      offset,
-      limit: parseInt(limit)
-    });
+    const records = await MongoLandownerRecord.find(where)
+      .skip(offset)
+      .limit(parseInt(limit))
+      .sort({ landowner_name: 1 }); // Assuming landowner_name is the sort field
 
-    const total = await LandownerRecord.count({ where });
+    const total = await MongoLandownerRecord.countDocuments(where);
 
     res.status(200).json({
       success: true,
@@ -156,7 +147,7 @@ router.get('/progress/:projectId', async (req, res) => {
     const { projectId } = req.params;
 
     // Get project details
-    const project = await Project.findByPk(projectId);
+    const project = await MongoProject.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -165,19 +156,17 @@ router.get('/progress/:projectId', async (req, res) => {
     }
 
     // Get overall project statistics
-    const records = await LandownerRecord.findAll({
-      where: { projectId }
-    });
+    const records = await MongoLandownerRecord.find({ project_id: projectId });
 
     const overallStats = {
       totalRecords: records.length,
-      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.अंतिम_रक्कम) || 0), 0),
-      noticesGenerated: records.filter(r => r.noticeGenerated).length,
-      kycApproved: records.filter(r => r.kycStatus === 'approved').length,
-      paymentsCompleted: records.filter(r => r.paymentStatus === 'success').length,
+      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0),
+      noticesGenerated: records.filter(r => r.notice_generated).length,
+      kycApproved: records.filter(r => r.kyc_status === 'approved').length,
+      paymentsCompleted: records.filter(r => r.payment_status === 'success').length,
       totalPaid: records
-        .filter(r => r.paymentStatus === 'success')
-        .reduce((sum, r) => sum + (parseFloat(r.अंतिम_रक्कम) || 0), 0)
+        .filter(r => r.payment_status === 'success')
+        .reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0)
     };
 
     // Get village-wise progress
@@ -196,9 +185,9 @@ router.get('/progress/:projectId', async (req, res) => {
       
       const progress = villageMap[village];
       progress.totalRecords++;
-      if (record.paymentStatus === 'success') progress.paymentsCompleted++;
-      if (record.noticeGenerated) progress.noticesGenerated++;
-      if (record.kycStatus === 'approved') progress.kycApproved++;
+      if (record.payment_status === 'success') progress.paymentsCompleted++;
+      if (record.notice_generated) progress.noticesGenerated++;
+      if (record.kyc_status === 'approved') progress.kycApproved++;
     });
 
     const villageProgress = Object.values(villageMap).map(progress => ({
@@ -219,9 +208,9 @@ router.get('/progress/:projectId', async (req, res) => {
       success: true,
       data: {
         project: {
-          id: project.id,
-          name: project.projectName,
-          pmisCode: project.pmisCode,
+          id: project._id,
+          name: project.project_name,
+          pmisCode: project.pmis_code,
           completionPercentage: projectCompletion
         },
         overallStats: {
@@ -248,29 +237,24 @@ router.get('/agent-workload/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await LandownerRecord.findAll({
-      where: { 
-        projectId,
-        assignedAgent: { [sequelize.Op.ne]: null }
-      },
-      include: [
-        { model: User, as: 'assignedAgentUser', attributes: ['name', 'email'] }
-      ]
-    });
+    const records = await MongoLandownerRecord.find({ 
+      project_id: projectId,
+      assigned_agent: { $ne: null }
+    }).populate('assigned_agent');
 
     // Group by agent and village
     const agentMap = {};
     records.forEach(record => {
-      if (!record.assignedAgentUser) return;
+      if (!record.assigned_agent) return;
       
-      const agentId = record.assignedAgent;
+      const agentId = record.assigned_agent._id;
       const village = record.village;
       
       if (!agentMap[agentId]) {
         agentMap[agentId] = {
           agentId,
-          agentName: record.assignedAgentUser.name,
-          agentEmail: record.assignedAgentUser.email,
+          agentName: record.assigned_agent.name,
+          agentEmail: record.assigned_agent.email,
           villages: {},
           totalAssigned: 0,
           totalKycCompleted: 0,
@@ -281,10 +265,10 @@ router.get('/agent-workload/:projectId', async (req, res) => {
       const agent = agentMap[agentId];
       agent.totalAssigned++;
       
-      if (['completed', 'approved'].includes(record.kycStatus)) {
+      if (['completed', 'approved'].includes(record.kyc_status)) {
         agent.totalKycCompleted++;
       }
-      if (record.paymentStatus === 'success') {
+      if (record.payment_status === 'success') {
         agent.totalPaymentsCompleted++;
       }
       
@@ -298,10 +282,10 @@ router.get('/agent-workload/:projectId', async (req, res) => {
       }
       
       agent.villages[village].totalAssigned++;
-      if (['completed', 'approved'].includes(record.kycStatus)) {
+      if (['completed', 'approved'].includes(record.kyc_status)) {
         agent.villages[village].kycCompleted++;
       }
-      if (record.paymentStatus === 'success') {
+      if (record.payment_status === 'success') {
         agent.villages[village].paymentsCompleted++;
       }
     });

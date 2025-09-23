@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type UserRole = 'admin' | 'officer' | 'agent';
+export type UserRole = 'admin' | 'officer' | 'field_officer' | 'agent';
 
 export interface User {
   id: string;
@@ -105,6 +105,34 @@ const demoUsers: User[] = [
     department: 'Field Operations',
     phone: '+91-9876543214',
     language: 'marathi'
+  },
+  // Field Officer users for testing
+  {
+    id: '9',
+    name: 'Rajesh Patil - Field Officer',
+    email: 'field.officer@saralbhoomi.gov.in',
+    role: 'field_officer',
+    department: 'Field Operations Department',
+    phone: '+91-9876543216',
+    language: 'marathi'
+  },
+  {
+    id: '10',
+    name: 'Mahesh Kamble - Field Officer',
+    email: 'field.officer2@saralbhoomi.gov.in',
+    role: 'field_officer',
+    department: 'Field Operations Department',
+    phone: '+91-9876543217',
+    language: 'marathi'
+  },
+  {
+    id: '11',
+    name: 'Priya Sharma - Field Officer',
+    email: 'field.officer3@saralbhoomi.gov.in',
+    role: 'field_officer',
+    department: 'Field Operations Department',
+    phone: '+91-9876543218',
+    language: 'marathi'
   }
 ];
 
@@ -116,18 +144,89 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Demo login logic - replace with actual API call
-    const foundUser = demoUsers.find(u => u.email === email);
-    
-    if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123')) {
-      setUser(foundUser);
-      localStorage.setItem('saral_user', JSON.stringify(foundUser));
-      // Set a fake JWT token for demo purposes
-      localStorage.setItem('authToken', 'demo-jwt-token');
-      return true;
+    try {
+      console.log('🔐 Attempting login for:', email);
+      
+      // Connect to backend API
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      console.log('📡 Backend response status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Backend response data:', data);
+        
+        if (data.success && data.accessToken) {
+          console.log('✅ Login successful, processing user data...');
+          
+          // Store the JWT token
+          localStorage.setItem('authToken', data.accessToken);
+          
+          // Extract user info from response
+          const userData = {
+            id: data.user?.id || 'demo-id',
+            name: data.user?.name || 'Demo User',
+            email: data.user?.email || email,
+            role: data.user?.role || 'officer',
+            department: data.user?.department || 'Demo Department',
+            phone: data.user?.phone || '+91-0000000000',
+            language: 'marathi' as const
+          };
+          
+          console.log('👤 Processed user data:', userData);
+          
+          setUser(userData);
+          localStorage.setItem('saral_user', JSON.stringify(userData));
+          
+          console.log('💾 User data stored in state and localStorage');
+          return true;
+        } else {
+          console.log('❌ Backend response indicates failure:', data);
+        }
+      } else {
+        console.log('❌ Backend request failed with status:', response.status);
+      }
+      
+      // Fallback to demo users if API fails
+      console.log('🔄 Falling back to demo users...');
+      const foundUser = demoUsers.find(u => u.email === email);
+      console.log('🔍 Found demo user:', foundUser);
+      
+      if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+        console.log('✅ Demo user authentication successful');
+        setUser(foundUser);
+        localStorage.setItem('saral_user', JSON.stringify(foundUser));
+        localStorage.setItem('authToken', 'demo-jwt-token');
+        return true;
+      }
+      
+      console.log('❌ No valid demo user found');
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      
+      // Fallback to demo users if API fails
+      console.log('🔄 Falling back to demo users after error...');
+      const foundUser = demoUsers.find(u => u.email === email);
+      console.log('🔍 Found demo user:', foundUser);
+      
+      if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+        console.log('✅ Demo user authentication successful after error');
+        setUser(foundUser);
+        localStorage.setItem('saral_user', JSON.stringify(foundUser));
+        localStorage.setItem('authToken', 'demo-jwt-token');
+        return true;
+      }
+      
+      console.log('❌ No valid demo user found after error');
+      return false;
     }
-    
-    return false;
   };
 
   const logout = () => {

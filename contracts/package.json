@@ -1,0 +1,38 @@
+{
+  "name": "saral-bhoomi-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for SARAL Bhoomi land records system",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:mumbai": "hardhat run deploy.js --network mumbai",
+    "deploy:amoy": "hardhat run deploy.js --network amoy",
+    "deploy:amoy-alt": "hardhat run deploy.js --network amoy_alt",
+    "deploy:amoy-quick": "hardhat run deploy.js --network amoy_quick",
+    "deploy:local": "hardhat run deploy.js --network hardhat",
+    "verify:mumbai": "hardhat verify --network mumbai",
+    "verify:amoy": "hardhat verify --network amoy",
+    "clean": "hardhat clean",
+    "node": "hardhat node"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "polygon",
+    "land-records",
+    "smart-contracts",
+    "solidity"
+  ],
+  "author": "SARAL Bhoomi Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.0"
+  },
+  "dependencies": {
+    "ethers": "^6.11.1"
+  }
+}

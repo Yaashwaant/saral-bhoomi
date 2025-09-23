@@ -6,7 +6,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
 import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
+import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +36,12 @@ const App = () => {
                     <DashboardPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/field-officer" element={
+                  <ProtectedRoute allowedRoles={['field_officer', 'officer', 'admin']}>
+                    <FieldOfficerPage />
+                  </ProtectedRoute>
+                } />
+
                 <Route path="*" element={<Navigate to="/saral/login" replace />} />
               </Routes>
               <Toaster />

@@ -1,3 +1,7 @@
+// Load environment variables FIRST
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -8,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
-import sequelize, { testConnection } from './config/database.js';
+import { connectMongoDBAtlas, getMongoAtlasConnectionStatus } from './config/mongodb-atlas.js';
 import { initializeCloudinary } from './services/cloudinaryService.js';
 
 // Import routes
@@ -24,13 +28,18 @@ import agentRoutes from './routes/agents.js';
 import landownerRoutes from './routes/landowners.js';
 import jmrRoutes from './routes/jmr.js';
 import awardRoutes from './routes/awards.js';
+import blockchainRoutes from './routes/blockchain.js';
+import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
+import dataIntegrityRoutes from './routes/dataIntegrity.js';
+import workflowRoutes from './routes/workflow.js';
+import documentRoutes from './routes/documents.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
 import { authMiddleware } from './middleware/auth.js';
 
-// Import models
-import { User } from './models/index.js';
+// Import MongoDB models
+import MongoUser from './models/mongo/User.js';
 // Optional: Firebase Admin (Firestore/Storage)
 import admin from 'firebase-admin';
 
@@ -51,10 +60,6 @@ const logsDir = join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
-
-// Load environment variables
-import dotenv from 'dotenv';
-dotenv.config({ path: './config.env' });
 // Initialize Firebase if env present
 try {
   const serviceJsonRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -121,16 +126,33 @@ app.use(cors({
   origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-demo-role']
 }));
 
-// Rate limiting
+// Rate limiting - More generous for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 1000, // Increased to 1000 requests per windowMs for development
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks and test endpoints
+    return req.path === '/health' || req.path === '/api/test' || req.path === '/api/test-token';
+  }
 });
 app.use('/api/', limiter);
+
+// Special rate limiter for blockchain endpoints (more generous)
+const blockchainLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 2000, // Very generous for blockchain operations
+  message: 'Blockchain API rate limit exceeded. Please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/blockchain', blockchainLimiter);
+app.use('/api/jmr-blockchain', blockchainLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -195,19 +217,19 @@ app.use('/api', async (req, res, next) => {
         req.path.includes('/agents/kyc-status') ||
         req.path.includes('/agents/upload-document')
       ) {
-        let defaultAgentId = 4;
+        let defaultAgentId = 'demo-agent-id';
         try {
-          const firstAgent = await User.findOne({
-            where: { role: 'agent', isActive: true },
-            order: [['id', 'ASC']],
-            attributes: ['id', 'name', 'email']
-          });
+          const firstAgent = await MongoUser.findOne({
+            role: 'agent',
+            is_active: true
+          }).sort({ createdAt: 1 }).select('_id name email');
+          
           if (firstAgent) {
-            defaultAgentId = firstAgent.id;
+            defaultAgentId = firstAgent._id.toString();
           }
         } catch (e) {
           // fallback to hardcoded id if query fails
-          defaultAgentId = 4;
+          defaultAgentId = 'demo-agent-id';
         }
 
         req.user = {
@@ -217,9 +239,9 @@ app.use('/api', async (req, res, next) => {
           role: 'agent'
         };
       } else {
-        // Use demo officer id 1 by default
+        // Use demo officer id by default
         req.user = {
-          id: 1,
+          id: 'demo-officer-id',
           name: 'Demo Officer',
           email: 'officer@saral.gov.in',
           role: 'officer'
@@ -235,12 +257,22 @@ app.use('/api', async (req, res, next) => {
 // Special endpoint to check available agents in the database
 app.get('/api/agents/list-all', async (req, res) => {
   try {
-    const agents = await User.findAll({
-      where: { role: 'agent', isActive: true },
-      attributes: ['id', 'name', 'email', 'phone', 'department'],
-      order: [['name', 'ASC']]
+    const agents = await MongoUser.find({
+      role: 'agent',
+      is_active: true
+    }).select('_id name email phone department').sort({ name: 1 });
+    
+    res.status(200).json({ 
+      success: true, 
+      count: agents.length, 
+      data: agents.map(agent => ({
+        id: agent._id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone,
+        department: agent.department
+      }))
     });
-    res.status(200).json({ success: true, count: agents.length, data: agents });
   } catch (error) {
     console.error('Error fetching agents:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch agents' });
@@ -260,6 +292,11 @@ app.use('/api/agents', agentRoutes);
 app.use('/api/landowners', landownerRoutes);
 app.use('/api/jmr', jmrRoutes);
 app.use('/api/awards', awardRoutes);
+app.use('/api/blockchain', blockchainRoutes);
+app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
+app.use('/api/data-integrity', dataIntegrityRoutes);
+app.use('/api/workflow', workflowRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');
@@ -335,27 +372,28 @@ app.use('*', (req, res) => {
   });
 });
 
-// PostgreSQL connection with Sequelize
+// MongoDB connection with Mongoose
 const connectDB = async () => {
   try {
-    console.log('🔗 Attempting to connect to PostgreSQL database...');
+    console.log('🔗 Attempting to connect to MongoDB Atlas...');
     
     // Test database connection
-    const isConnected = await testConnection();
+    const isConnected = await connectMongoDBAtlas();
     
     if (isConnected) {
-      // Conditional sync: allow one-time auto-alter via env flag
-      const alterOnBoot = String(process.env.DB_ALTER_ON_BOOT || '').toLowerCase() === 'true';
-      console.log(`🔄 Syncing database models${alterOnBoot ? ' with alter:true (one-time)' : ' (no alter)'}...`);
-      await sequelize.sync(alterOnBoot ? { alter: true } : undefined);
-      console.log('✅ Database models synced successfully!');
+      console.log('✅ MongoDB Atlas connected successfully!');
+      
+      // Get connection status
+      const status = getMongoAtlasConnectionStatus();
+      console.log('📊 Database Status:', status);
+      
       return true;
     } else {
-      console.log('⚠️  Database connection failed. Starting server in demo mode with in-memory data.');
+      console.log('⚠️  MongoDB connection failed. Starting server in demo mode with in-memory data.');
       return false;
     }
   } catch (error) {
-    console.error('❌ Database connection error:', error.message);
+    console.error('❌ MongoDB connection error:', error.message);
     console.log('⚠️  Starting server in demo mode with in-memory data.');
     return false;
   }

@@ -17,13 +17,19 @@ import {
   Download,
   Shield,
   Building2,
-  MapPin
+  MapPin,
+  Hash,
+  Workflow,
+  Database
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import UserManagement from './UserManagement';
 import NoticeHeaderManagement from './NoticeHeaderManagement';
 import NoticeTemplateCreator from './NoticeTemplateCreator';
 import SystemSettings from './SystemSettings';
+// Import new enhanced components
+import BlockchainDashboard from './BlockchainDashboard';
+import CompleteWorkflowManager from './CompleteWorkflowManager';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -40,6 +46,8 @@ const AdminDashboard = () => {
       userManagement: 'वापरकर्ता व्यवस्थापन',
       noticeHeaders: 'नोटीस हेडर',
       systemSettings: 'सिस्टम सेटिंग्स',
+      blockchainDashboard: 'ब्लॉकचेन डॅशबोर्ड',
+      workflowManager: 'वर्कफ्लो मॅनेजर',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalUsers: 'एकूण वापरकर्ते',
@@ -58,6 +66,8 @@ const AdminDashboard = () => {
       userManagement: 'User Management',
       noticeHeaders: 'Notice Headers',
       systemSettings: 'System Settings',
+      blockchainDashboard: 'Blockchain Dashboard',
+      workflowManager: 'Workflow Manager',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalUsers: 'Total Users',
@@ -76,6 +86,8 @@ const AdminDashboard = () => {
       userManagement: 'उपयोगकर्ता प्रबंधन',
       noticeHeaders: 'नोटिस हेडर',
       systemSettings: 'सिस्टम सेटिंग्स',
+      blockchainDashboard: 'ब्लॉकचेन डैशबोर्ड',
+      workflowManager: 'वर्कफ्लो मैनेजर',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalUsers: 'कुल उपयोगकर्ता',
@@ -218,7 +230,7 @@ const AdminDashboard = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-blue-50">
+            <TabsList className="grid w-full grid-cols-6 bg-blue-50">
               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
@@ -246,6 +258,22 @@ const AdminDashboard = () => {
                 letterSpacing: '0.2px'
               }}>
                 {t.systemSettings}
+              </TabsTrigger>
+              <TabsTrigger value="blockchain" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Hash className="h-4 w-4 mr-1" />
+                {t.blockchainDashboard}
+              </TabsTrigger>
+              <TabsTrigger value="workflow" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Workflow className="h-4 w-4 mr-1" />
+                {t.workflowManager}
               </TabsTrigger>
             </TabsList>
 
@@ -316,6 +344,12 @@ const AdminDashboard = () => {
 
             <TabsContent value="settings" className="mt-6">
               <SystemSettings />
+            </TabsContent>
+            <TabsContent value="blockchain" className="mt-6">
+              <BlockchainDashboard />
+            </TabsContent>
+            <TabsContent value="workflow" className="mt-6">
+              <CompleteWorkflowManager />
             </TabsContent>
           </Tabs>
         </CardContent>

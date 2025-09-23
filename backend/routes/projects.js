@@ -1,6 +1,6 @@
 import express from 'express';
-import Project from '../models/Project.js';
-import User from '../models/User.js';
+import MongoProject from '../models/mongo/Project.js';
+import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -21,26 +21,22 @@ router.get('/', async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const where = {};
-    if (district) where.district = district;
-    if (taluka) where.taluka = taluka;
-    if (type) where.type = type;
-    if (status) where[status] = 'approved';
-    if (isActive !== undefined) where.isActive = isActive === 'true';
+    const filter = {};
+    if (district) filter.district = district;
+    if (taluka) filter.taluka = taluka;
+    if (type) filter.type = type;
+    if (status) filter.status = status;
+    if (isActive !== undefined) filter.is_active = isActive === 'true';
     
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const projects = await Project.findAll({
-      where,
-      include: [
-        { model: User, as: 'creator', attributes: ['name', 'email'] }
-      ],
-      order: [['createdAt', 'DESC']],
-      offset,
-      limit: parseInt(limit)
-    });
+    const projects = await MongoProject.find(filter)
+      .populate('createdBy', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
     
-    const total = await Project.count({ where });
+    const total = await MongoProject.countDocuments(filter);
     
     res.status(200).json({
       success: true,
@@ -51,7 +47,32 @@ router.get('/', async (req, res) => {
         limit: parseInt(limit),
         pages: Math.ceil(total / parseInt(limit))
       },
-      data: projects
+      data: projects.map(project => ({
+        id: project._id,
+        projectName: project.projectName,
+        schemeName: project.schemeName,
+        landRequired: project.landRequired,
+        landAvailable: project.landAvailable,
+        landToBeAcquired: project.landToBeAcquired,
+        type: project.type,
+        district: project.district,
+        taluka: project.taluka,
+        villages: project.villages,
+        estimatedCost: project.estimatedCost,
+        allocatedBudget: project.allocatedBudget,
+        startDate: project.startDate,
+        expectedCompletion: project.expectedCompletion,
+        status: project.status,
+        createdBy: project.createdBy ? {
+          id: project.createdBy._id,
+          name: project.createdBy.name,
+          email: project.createdBy.email
+        } : null,
+        description: project.description,
+        progress: project.progress,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt
+      }))
     });
   } catch (error) {
     console.error('Get projects error:', error);
@@ -67,11 +88,8 @@ router.get('/', async (req, res) => {
 // @access  Public (temporarily)
 router.get('/:id', async (req, res) => {
   try {
-    const project = await Project.findByPk(req.params.id, {
-      include: [
-        { model: User, as: 'creator', attributes: ['name', 'email'] }
-      ]
-    });
+    const project = await MongoProject.findById(req.params.id)
+      .populate('createdBy', 'name email');
     
     if (!project) {
       return res.status(404).json({
@@ -82,7 +100,32 @@ router.get('/:id', async (req, res) => {
     
     res.status(200).json({
       success: true,
-      data: project
+      data: {
+        id: project._id,
+        projectName: project.projectName,
+        schemeName: project.schemeName,
+        landRequired: project.landRequired,
+        landAvailable: project.landAvailable,
+        landToBeAcquired: project.landToBeAcquired,
+        type: project.type,
+        district: project.district,
+        taluka: project.taluka,
+        villages: project.villages,
+        estimatedCost: project.estimatedCost,
+        allocatedBudget: project.allocatedBudget,
+        startDate: project.startDate,
+        expectedCompletion: project.expectedCompletion,
+        status: project.status,
+        createdBy: project.createdBy ? {
+          id: project.createdBy._id,
+          name: project.createdBy.name,
+          email: project.createdBy.email
+        } : null,
+        description: project.description,
+        progress: project.progress,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt
+      }
     });
   } catch (error) {
     console.error('Get project error:', error);
@@ -115,7 +158,7 @@ router.post('/', async (req, res) => {
     } = req.body;
     
     // Check if PMIS code already exists
-    const existingProject = await Project.findOne({ where: { pmisCode } });
+    const existingProject = await MongoProject.findOne({ pmisCode });
     if (existingProject) {
       return res.status(400).json({
         success: false,
@@ -124,7 +167,7 @@ router.post('/', async (req, res) => {
     }
     
     // Create project
-    const project = await Project.create({
+    const project = await MongoProject.create({
       projectName,
       pmisCode,
       schemeName,
@@ -146,11 +189,8 @@ router.post('/', async (req, res) => {
       createdBy: req.user.id
     });
     
-    const populatedProject = await Project.findByPk(project.id, {
-      include: [
-        { model: User, as: 'creator', attributes: ['name', 'email'] }
-      ]
-    });
+    const populatedProject = await MongoProject.findById(project._id)
+      .populate('createdBy', 'name email');
     
     res.status(201).json({
       success: true,
@@ -170,7 +210,7 @@ router.post('/', async (req, res) => {
 // @access  Public (temporarily)
 router.put('/:id', async (req, res) => {
   try {
-    const project = await Project.findByPk(req.params.id);
+    const project = await MongoProject.findById(req.params.id);
     
     if (!project) {
       return res.status(404).json({
@@ -224,11 +264,8 @@ router.put('/:id', async (req, res) => {
     
     await project.update(updateData);
     
-        const updatedProject = await Project.findByPk(project.id, {
-      include: [
-        { model: User, as: 'creator', attributes: ['name', 'email'] }
-      ]
-    });
+        const updatedProject = await MongoProject.findById(project._id)
+      .populate('createdBy', 'name email');
     
     res.status(200).json({
       success: true,
@@ -248,7 +285,7 @@ router.put('/:id', async (req, res) => {
 // @access  Public (temporarily)
 router.delete('/:id', async (req, res) => {
   try {
-    const project = await Project.findByPk(req.params.id);
+    const project = await MongoProject.findById(req.params.id);
     
     if (!project) {
       return res.status(404).json({
@@ -257,7 +294,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    await project.destroy();
+    await project.deleteOne();
     
     res.status(200).json({
       success: true,
@@ -278,7 +315,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/stats/overview', async (req, res) => {
   try {
     // Get all projects for manual aggregation
-    const allProjects = await Project.findAll();
+    const allProjects = await MongoProject.find({});
     
     // Calculate stats manually
     const stats = [{
@@ -345,7 +382,7 @@ router.put('/:id/assign-officers', async (req, res) => {
   try {
     const { officerIds } = req.body;
     
-    const project = await Project.findByPk(req.params.id);
+    const project = await MongoProject.findById(req.params.id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -355,7 +392,7 @@ router.put('/:id/assign-officers', async (req, res) => {
     
     await project.update({ assignedOfficers: officerIds });
     
-    const updatedProject = await Project.findByPk(project.id);
+    const updatedProject = await MongoProject.findById(project._id);
     
     res.status(200).json({
       success: true,
@@ -377,7 +414,7 @@ router.put('/:id/assign-agents', async (req, res) => {
   try {
     const { agentIds } = req.body;
     
-    const project = await Project.findByPk(req.params.id);
+    const project = await MongoProject.findById(req.params.id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -387,7 +424,7 @@ router.put('/:id/assign-agents', async (req, res) => {
     
     await project.update({ assignedAgents: agentIds });
     
-    const updatedProject = await Project.findByPk(project.id);
+    const updatedProject = await MongoProject.findById(project._id);
     
     res.status(200).json({
       success: true,

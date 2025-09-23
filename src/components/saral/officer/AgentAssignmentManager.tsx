@@ -154,7 +154,7 @@ const AgentAssignmentManager: React.FC = () => {
 
   const calculateAgentSuitability = (agent: Agent, request: AssignmentRequest) => {
     let score = 0;
-    let factors: string[] = [];
+    const factors: string[] = [];
 
     // Workload factor (higher score for lower workload)
     const workloadRatio = agent.currentWorkload / agent.maxCapacity;

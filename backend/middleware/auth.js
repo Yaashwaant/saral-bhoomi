@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import User from '../models/mongo/User.js';
 
 // Enhanced JWT verification with refresh token support
 export const authMiddleware = async (req, res, next) => {
@@ -27,15 +27,25 @@ export const authMiddleware = async (req, res, next) => {
 
     // Accept demo token for development/demo use
     if (token === 'demo-jwt-token') {
+      // For demo token, we need to determine the user role from the request
+      // This is a simplified approach - in production, you'd want a more secure method
+      const userRole = req.headers['x-demo-role'] || 'officer'; // Default fallback
+      
+      console.log('🎭 Demo token detected');
+      console.log('📋 x-demo-role header:', req.headers['x-demo-role']);
+      console.log('🎯 Final user role:', userRole);
+      
       req.user = {
         id: 'demo-user-id',
         _id: 'demo-user-id',
-        name: 'Demo Officer',
-        email: 'officer@saral.gov.in',
-        role: 'officer',
-        department: 'Land Acquisition',
+        name: `Demo ${userRole.charAt(0).toUpperCase() + userRole.slice(1)}`,
+        email: `${userRole}@saral.gov.in`,
+        role: userRole,
+        department: 'Demo Department',
         isActive: true
       };
+      
+      console.log('👤 Created demo user:', req.user);
       return next();
     }
 
@@ -53,9 +63,7 @@ export const authMiddleware = async (req, res, next) => {
       }
       
       // Get user from token
-      const user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
+      const user = await User.findById(decoded.id).select('-password');
       
       if (!user) {
         // Temporary test user for development when database is not available
@@ -80,7 +88,7 @@ export const authMiddleware = async (req, res, next) => {
       }
 
       // Check if user is active
-      if (!user.isActive) {
+      if (!user.is_active) {
         return res.status(401).json({
           success: false,
           message: 'User account is deactivated',
@@ -137,15 +145,23 @@ export const authorize = (...roles) => {
       });
     }
 
-    console.log(`Authorizing user ${req.user.role} with required roles:`, roles);
+    // Flatten the roles array to handle both formats:
+    // authorize('officer', 'admin') -> ['officer', 'admin']
+    // authorize(['officer', 'admin']) -> ['officer', 'admin']
+    const flatRoles = roles.flat();
+
+    console.log(`🔐 Authorizing user ${req.user.role} with required roles:`, flatRoles);
+    console.log(`👤 Full user object:`, req.user);
+    console.log(`📋 Required roles:`, flatRoles);
+    console.log(`✅ User role in required roles:`, flatRoles.includes(req.user.role));
     
-    if (!roles.includes(req.user.role)) {
+    if (!flatRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: `User role '${req.user.role}' is not authorized to access this route. Required roles: ${roles.join(', ')}`,
+        message: `User role '${req.user.role}' is not authorized to access this route. Required roles: ${flatRoles.join(', ')}`,
         code: 'INSUFFICIENT_PERMISSIONS',
         userRole: req.user.role,
-        requiredRoles: roles
+        requiredRoles: flatRoles
       });
     }
     next();
@@ -175,11 +191,9 @@ export const refreshTokenMiddleware = async (req, res, next) => {
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
       
       // Get user
-      const user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
-      });
+      const user = await User.findById(decoded.id).select('-password');
 
-      if (!user || !user.isActive) {
+      if (!user || !user.is_active) {
         return res.status(401).json({
           success: false,
           message: 'Invalid refresh token',
@@ -187,16 +201,16 @@ export const refreshTokenMiddleware = async (req, res, next) => {
         });
       }
 
-      // Generate new access token
-      const newAccessToken = user.getSignedJwtToken();
+      // Generate new access token - TODO: Implement JWT generation
+      // const newAccessToken = user.getSignedJwtToken();
       
-      // Generate new refresh token
-      const newRefreshToken = user.getRefreshToken();
+      // Generate new refresh token - TODO: Implement refresh token generation
+      // const newRefreshToken = user.getRefreshToken();
 
-      req.newTokens = {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-      };
+      // req.newTokens = {
+      //   accessToken: newAccessToken,
+      //   refreshToken: newRefreshToken
+      // };
       
       req.user = user;
       next();
