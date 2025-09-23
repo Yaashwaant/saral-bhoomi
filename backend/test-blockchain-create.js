@@ -4,6 +4,51 @@ import crypto from 'crypto';
 // MongoDB connection string from config.env
 const MONGODB_URI = 'mongodb+srv://bhiseyashwant8:wmcdBGmsJvSTjeuh@saral-bhoomi-cluster.ytoaysp.mongodb.net/saral_bhoomi?retryWrites=true&w=majority&appName=saral-bhoomi-cluster';
 
+// 🔧 ADD: Data cleaning function for consistent hash generation
+function cleanDataForSerialization(data) {
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.map(item => cleanDataForSerialization(item));
+  }
+
+  // Handle objects
+  const cleaned = {};
+  for (const [key, value] of Object.entries(data)) {
+    // Skip internal Mongoose fields
+    if (key.startsWith('__') || key === '_id') {
+      continue;
+    }
+
+    // 🔧 EXCLUDE current timestamps that change on every check
+    if (key === 'timestamp' && value instanceof Date) {
+      continue;
+    }
+
+    // Handle dates - convert to ISO strings for consistent hashing
+    if (value instanceof Date) {
+      cleaned[key] = value.toISOString();
+    }
+    // Handle nested objects
+    else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      cleaned[key] = cleanDataForSerialization(value);
+    }
+    // Handle arrays
+    else if (Array.isArray(value)) {
+      cleaned[key] = cleanDataForSerialization(value);
+    }
+    // Handle primitive values
+    else {
+      cleaned[key] = value;
+    }
+  }
+
+  return cleaned;
+}
+
 async function testBlockchainCreation() {
   try {
     console.log('🔗 Connecting to MongoDB...');
@@ -39,7 +84,10 @@ async function testBlockchainCreation() {
       // Create blockchain entry
       const blockId = `BLOCK_${surveyNumber}_${Date.now()}`;
       const timestamp = new Date();
-      const dataHash = crypto.createHash('sha256').update(JSON.stringify(record)).digest('hex');
+      
+      // 🔧 FIX: Use consistent data cleaning for hash generation
+      const cleanData = cleanDataForSerialization(record);
+      const dataHash = crypto.createHash('sha256').update(JSON.stringify(cleanData, Object.keys(cleanData).sort())).digest('hex');
       
       const blockchainEntry = {
         block_id: blockId,

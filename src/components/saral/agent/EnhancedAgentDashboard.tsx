@@ -39,6 +39,7 @@ import { toast } from 'sonner';
 import { NoticeBasedKycRecord, DEFAULT_KYC_DOCUMENTS, KycUploadedDocument } from '@/types/enhancedKyc';
 import { agentApi } from '@/utils/agentApi';
 import debugHelpers from '@/utils/debugHelpers';
+import { config } from '@/config';
 
 interface EnhancedAgentDashboardProps {
   agentId?: string;
@@ -95,8 +96,10 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
       }
       
       // Call the API with agent email parameter for stable matching
-      const response = await fetch(`/api/agents/assigned-with-notices?agentEmail=${encodeURIComponent(currentAgentEmail)}`, {
+      const response = await fetch(`${config.API_BASE_URL}/agents/assigned-with-notices?agentEmail=${encodeURIComponent(currentAgentEmail)}`, {
         method: 'GET',
+        mode: 'cors',
+        credentials: 'include',
         headers
       });
 
@@ -212,8 +215,10 @@ const EnhancedAgentDashboard: React.FC<EnhancedAgentDashboardProps> = ({ agentId
       }
       
       const objectUrl = URL.createObjectURL(file);
-      const response = await fetch(`/api/agents/upload-document/${selectedRecord.id}`, {
+      const response = await fetch(`${config.API_BASE_URL}/agents/upload-document/${selectedRecord.id}`, {
         method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
         headers,
         body: JSON.stringify({
           documentType: selectedDocumentType,

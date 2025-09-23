@@ -231,52 +231,7 @@ const OfficerDashboard = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-white/80 backdrop-blur-md border-blue-200 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-800">{t.totalProjects}</CardTitle>
-            <Building2 className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-900">{stats.totalProjects}</div>
-            <p className="text-xs text-blue-600 mt-1">Land acquisition projects</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white/80 backdrop-blur-md border-orange-200 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-800">{t.totalCompensation}</CardTitle>
-            <IndianRupee className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-900">{formatCurrency(stats.totalCompensation)}</div>
-            <p className="text-xs text-orange-600 mt-1">Total compensation amount</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white/80 backdrop-blur-md border-green-200 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-800">{t.pendingKYC}</CardTitle>
-            <Shield className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-900">{stats.pendingKYC}</div>
-            <p className="text-xs text-green-600 mt-1">Awaiting approval</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white/80 backdrop-blur-md border-purple-200 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-purple-800">{t.pendingPayments}</CardTitle>
-            <Clock className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-900">{stats.pendingPayments}</div>
-            <p className="text-xs text-purple-600 mt-1">Payment processing</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Removed top-level stats cards. Summary now lives inside the Overview tab. */}
 
       {/* Main Content Tabs */}
       <Card className="bg-white/80 backdrop-blur-md border-blue-200 shadow-lg">
@@ -294,6 +249,14 @@ const OfficerDashboard = () => {
                  <BarChart3 className="h-4 w-4 mr-1" />
                  Overview
                </TabsTrigger>
+               <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <Building2 className="h-4 w-4 mr-1" />
+                Project Management
+              </TabsTrigger>
                <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
@@ -355,6 +318,10 @@ const OfficerDashboard = () => {
                          <TabsContent value="overview" className="space-y-6 mt-6">
                <EnhancedDashboard />
              </TabsContent>
+
+            <TabsContent value="projects" className="mt-6">
+              <ProjectManagement />
+            </TabsContent>
 
              <TabsContent value="landRecords" className="mt-6">
                <LandRecordsManager />

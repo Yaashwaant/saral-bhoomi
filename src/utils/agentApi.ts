@@ -1,6 +1,7 @@
 // Agent API utilities for better error handling and logging
+import { config } from '../config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = config.API_BASE_URL;
 
 // Helper function to get auth token
 const getAuthToken = () => {
@@ -17,6 +18,8 @@ export const agentApiCall = async (endpoint: string, options: RequestInit = {}) 
   
   try {
     const response = await fetch(url, {
+      mode: 'cors',
+      credentials: 'include',
       ...options,
       headers: {
         'Content-Type': 'application/json',

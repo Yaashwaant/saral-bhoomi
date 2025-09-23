@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { config } from '../../../config';
+
+const API_BASE_URL = config.API_BASE_URL;
 
 const JmrAwardManager: React.FC = () => {
   const { projects, landownerRecords } = useSaral();

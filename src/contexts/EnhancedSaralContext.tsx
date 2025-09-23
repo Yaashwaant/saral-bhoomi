@@ -321,6 +321,8 @@ export const EnhancedSaralProvider: React.FC<EnhancedSaralProviderProps> = ({ ch
   const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        mode: 'cors',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options.headers,

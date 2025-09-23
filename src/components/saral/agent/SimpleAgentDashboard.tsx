@@ -44,7 +44,9 @@ interface LandownerRecord {
   };
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+import { config } from '../../../config';
+
+const API_BASE_URL = config.API_BASE_URL;
 
 const SimpleAgentDashboard: React.FC = () => {
   const { user } = useAuth();

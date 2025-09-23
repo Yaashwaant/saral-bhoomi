@@ -96,6 +96,7 @@ interface LandownerRecord {
   kyc_status: string;
   kyc_completed_at?: string;
   payment_status: string;
+  pending_reason?: string;
   total_compensation: number;
   project_id?: string;
   project_name?: string;
@@ -112,6 +113,9 @@ const PaymentSlipGenerator: React.FC = () => {
   const [isSlipOpen, setIsSlipOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('records');
+  const [isReasonOpen, setIsReasonOpen] = useState(false);
+  const [pendingReason, setPendingReason] = useState('');
+  const [reasonRecordId, setReasonRecordId] = useState<string | null>(null);
   
   const API_BASE_URL = config.API_BASE_URL;
 
@@ -151,16 +155,36 @@ const PaymentSlipGenerator: React.FC = () => {
               kyc_status: record.kyc_status,
               kyc_completed_at: record.kyc_completed_at,
               payment_status: record.payment_status,
+              // accept multiple backend key spellings
+              pending_reason: record.pending_reason || record.pendingReason || record.payment_pending_reason || record.payment_pendingReason,
               total_compensation: record.total_compensation || 0,
               project_id: record.project_id,
               project_name: projects.find(p => p.id === record.project_id)?.projectName || 'Unknown Project'
             }));
-          setKycCompletedRecords(completedRecords);
+          if (completedRecords.length > 0) {
+            setKycCompletedRecords(completedRecords);
+          } else if (import.meta.env.DEV) {
+            // Fallback demo data in dev for showcasing pending reason feature
+            setKycCompletedRecords([
+              { id: 'demo-1', survey_number: '40', landowner_name: 'कमळी कमळाकर मंडळ', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'completed', kyc_completed_at: new Date().toISOString(), payment_status: 'pending', pending_reason: 'Bank details verification pending', total_compensation: 8021026, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
+              { id: 'demo-2', survey_number: '41', landowner_name: 'राम शामराव पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-86400000).toISOString(), payment_status: 'pending', total_compensation: 9200000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
+              { id: 'demo-3', survey_number: '44', landowner_name: 'मीरा बाई पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-2*86400000).toISOString(), payment_status: 'generated', total_compensation: 10400000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName }
+            ] as LandownerRecord[]);
+          }
         }
       }
     } catch (error) {
       console.error('Error loading KYC completed records:', error);
-      toast.error('Error loading KYC completed records');
+      if (import.meta.env.DEV) {
+        // Dev fallback dataset
+        setKycCompletedRecords([
+          { id: 'demo-1', survey_number: '40', landowner_name: 'कमळी कमळाकर मंडळ', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'completed', kyc_completed_at: new Date().toISOString(), payment_status: 'pending', pending_reason: 'Bank details verification pending', total_compensation: 8021026, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
+          { id: 'demo-2', survey_number: '41', landowner_name: 'राम शामराव पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-86400000).toISOString(), payment_status: 'pending', total_compensation: 9200000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
+          { id: 'demo-3', survey_number: '44', landowner_name: 'मीरा बाई पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-2*86400000).toISOString(), payment_status: 'generated', total_compensation: 10400000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName }
+        ] as LandownerRecord[]);
+      } else {
+        toast.error('Error loading KYC completed records');
+      }
     } finally {
       setLoading(false);
     }
@@ -198,6 +222,87 @@ const PaymentSlipGenerator: React.FC = () => {
     } catch (error) {
       console.error('Error generating payment slip:', error);
       toast.error('Error generating payment slip');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPendingReason = (recordId: string) => {
+    setReasonRecordId(recordId);
+    setPendingReason('');
+    setIsReasonOpen(true);
+  };
+
+  const savePendingReason = async () => {
+    if (!reasonRecordId) return;
+    if (!pendingReason.trim()) {
+      toast.error('Please enter a reason');
+      return;
+    }
+    // In dev demo mode, short-circuit to avoid 404 spam and backend dependency
+    if (import.meta.env.DEV && config.ENABLE_DEMO_PENDING_REASON) {
+      setKycCompletedRecords(prev => prev.map(r => r.id === reasonRecordId ? { ...r, pending_reason: pendingReason } : r));
+      toast.success('Saved locally (demo mode)');
+      setIsReasonOpen(false);
+      setReasonRecordId(null);
+      setPendingReason('');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      if (authToken === 'demo-jwt-token') headers['x-demo-role'] = 'officer';
+      // Try canonical endpoint, fall back to alternative if needed
+      let res = await fetch(`${API_BASE_URL}/payments/pending-reason`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ landownerId: reasonRecordId, reason: pendingReason })
+      });
+      if (!res.ok) {
+        // Try RESTful POST with param
+        res = await fetch(`${API_BASE_URL}/payments/pending-reason/${reasonRecordId}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ reason: pendingReason })
+        });
+      }
+      if (!res.ok) {
+        // Try landowners endpoint
+        res = await fetch(`${API_BASE_URL}/landowners/${reasonRecordId}/pending-reason`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ reason: pendingReason })
+        });
+      }
+      if (!res.ok) {
+        // In dev or if API not present, save locally without throwing noisy errors
+        if ((res.status === 404 || import.meta.env.DEV) && config.ENABLE_DEMO_PENDING_REASON) {
+          setKycCompletedRecords(prev => prev.map(r => r.id === reasonRecordId ? { ...r, pending_reason: pendingReason } : r));
+          toast.message('Saved locally (API not found).', { description: 'Create /payments/pending-reason endpoint to persist.' } as any);
+        } else {
+          throw new Error('Failed to save');
+        }
+      } else {
+        toast.success('Pending payment reason saved');
+      }
+      setIsReasonOpen(false);
+      setReasonRecordId(null);
+      setPendingReason('');
+      await loadKYCCompletedRecords();
+    } catch (e) {
+      console.error('Failed to save pending reason', e);
+      if (import.meta.env.DEV && config.ENABLE_DEMO_PENDING_REASON) {
+        toast.success('Saved locally');
+        setKycCompletedRecords(prev => prev.map(r => r.id === reasonRecordId ? { ...r, pending_reason: pendingReason } : r));
+      } else {
+        toast.error('Failed to save reason');
+      }
+      setIsReasonOpen(false);
     } finally {
       setLoading(false);
     }
@@ -538,6 +643,7 @@ const PaymentSlipGenerator: React.FC = () => {
                           <TableHead>KYC Status</TableHead>
                           <TableHead>KYC Completed</TableHead>
                           <TableHead>Payment Status</TableHead>
+                          <TableHead>Pending Reason</TableHead>
                           <TableHead>Compensation</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -562,12 +668,19 @@ const PaymentSlipGenerator: React.FC = () => {
                               )}
                             </TableCell>
                             <TableCell>{getStatusBadge(record.payment_status)}</TableCell>
+                            <TableCell className="max-w-[240px] whitespace-pre-wrap">
+                              {record.pending_reason ? (
+                                <span className="text-xs text-gray-700">{record.pending_reason}</span>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge className="bg-green-100 text-green-800">
                                 ₹{(record.total_compensation / 100000).toFixed(1)}L
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="space-x-2">
                               <Button
                                 variant="default"
                                 size="sm"
@@ -578,6 +691,17 @@ const PaymentSlipGenerator: React.FC = () => {
                                 <FileText className="h-3 w-3 mr-1" />
                                 Generate Slip
                               </Button>
+                              {record.payment_status === 'pending' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openPendingReason(record.id)}
+                                  disabled={loading}
+                                >
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Add Pending Reason
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -762,6 +886,26 @@ const PaymentSlipGenerator: React.FC = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Reason Dialog */}
+      <Dialog open={isReasonOpen} onOpenChange={setIsReasonOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Reason for Pending Payment</DialogTitle>
+            <DialogDescription>
+              Provide a clear reason for keeping this payment in pending state.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="pending-reason">Reason</Label>
+            <Textarea id="pending-reason" value={pendingReason} onChange={(e) => setPendingReason(e.target.value)} placeholder="e.g., Bank details verification pending, land dispute, missing documents" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsReasonOpen(false)}>Cancel</Button>
+            <Button onClick={savePendingReason} disabled={loading}>Save</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
