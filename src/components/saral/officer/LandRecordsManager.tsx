@@ -13,6 +13,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { AlertTriangle, FileText, Eye, Download, Upload, Database, CheckCircle, Clock, RefreshCw, XCircle } from 'lucide-react';
 import { config } from '../../../config';
+import { 
+  safeGetField, 
+  safeGetNumericField,
+  formatNumber,
+  formatCurrency,
+  getLandownerName,
+  getSurveyNumber,
+  getDisplayArea,
+  getVillageName,
+  getCompensationAmount,
+  getKycStatus,
+  getPaymentStatus,
+  isNewFormat
+} from '../../../utils/fieldMappingUtils';
 
 interface LandRecord {
   id?: string;
@@ -675,7 +689,7 @@ const LandRecordsManager: React.FC = () => {
             <SelectContent>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
-                  {project.name}
+                  {project.projectName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -942,26 +956,308 @@ const LandRecordsManager: React.FC = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Survey Number</TableHead>
-                        <TableHead>Landowner</TableHead>
-                        <TableHead>Area (Ha)</TableHead>
-                        <TableHead>Village</TableHead>
-                        <TableHead>KYC Status</TableHead>
-                        <TableHead>Payment Status</TableHead>
-                        <TableHead>Blockchain Status</TableHead>
+                        {/* Basic Identification */}
+                        <TableHead className="min-w-[80px]">Serial No.</TableHead>
+                        <TableHead className="min-w-[150px]">Landowner Name</TableHead>
+                        <TableHead className="min-w-[120px]">Survey Number</TableHead>
+                        <TableHead className="min-w-[100px]">Old Survey</TableHead>
+                        <TableHead className="min-w-[100px]">Group No.</TableHead>
+                        <TableHead className="min-w-[100px]">CTS No.</TableHead>
+                        
+                        {/* Area Fields */}
+                        <TableHead className="min-w-[120px]">Village Record Area (Ha.Ar)</TableHead>
+                        <TableHead className="min-w-[120px]">Acquired Area (Sq.m/Ha)</TableHead>
+                        
+                        {/* Land Classification */}
+                        <TableHead className="min-w-[120px]">Land Category</TableHead>
+                        <TableHead className="min-w-[150px]">Land Type Classification</TableHead>
+                        <TableHead className="min-w-[100px]">Agricultural Type</TableHead>
+                        <TableHead className="min-w-[130px]">Agricultural Classification</TableHead>
+                        
+                        {/* Rate and Market Value */}
+                        <TableHead className="min-w-[120px]">Approved Rate (₹/Ha)</TableHead>
+                        <TableHead className="min-w-[140px]">Market Value Acquired Area</TableHead>
+                        
+                        {/* Section 26 Calculations */}
+                        <TableHead className="min-w-[120px]">Section 26(2) Factor</TableHead>
+                        <TableHead className="min-w-[140px]">Section 26 Compensation</TableHead>
+                        
+                        {/* Structure Compensation */}
+                        <TableHead className="min-w-[100px]">Buildings Count</TableHead>
+                        <TableHead className="min-w-[120px]">Buildings Amount (₹)</TableHead>
+                        <TableHead className="min-w-[120px]">Forest Trees Count</TableHead>
+                        <TableHead className="min-w-[140px]">Forest Trees Amount (₹)</TableHead>
+                        <TableHead className="min-w-[120px]">Fruit Trees Count</TableHead>
+                        <TableHead className="min-w-[140px]">Fruit Trees Amount (₹)</TableHead>
+                        <TableHead className="min-w-[130px]">Wells/Borewells Count</TableHead>
+                        <TableHead className="min-w-[150px]">Wells/Borewells Amount (₹)</TableHead>
+                        <TableHead className="min-w-[140px]">Total Structures Amount</TableHead>
+                        
+                        {/* Compensation Calculations */}
+                        <TableHead className="min-w-[140px]">Total Compensation Amount</TableHead>
+                        <TableHead className="min-w-[120px]">100% Solatium</TableHead>
+                        <TableHead className="min-w-[140px]">Determined Compensation</TableHead>
+                        <TableHead className="min-w-[150px]">Additional 25% Compensation</TableHead>
+                        <TableHead className="min-w-[140px]">Total Final Compensation</TableHead>
+                        <TableHead className="min-w-[120px]">Deduction Amount</TableHead>
+                        <TableHead className="min-w-[150px]">Final Payable Amount</TableHead>
+                        
+                        {/* Location */}
+                        <TableHead className="min-w-[100px]">Village</TableHead>
+                        <TableHead className="min-w-[100px]">Taluka</TableHead>
+                        <TableHead className="min-w-[100px]">District</TableHead>
+                        
+                        {/* Contact Information */}
+                        <TableHead className="min-w-[120px]">Contact Phone</TableHead>
+                        <TableHead className="min-w-[150px]">Contact Email</TableHead>
+                        <TableHead className="min-w-[200px]">Contact Address</TableHead>
+                        
+                        {/* Banking Information */}
+                        <TableHead className="min-w-[150px]">Bank Account Number</TableHead>
+                        <TableHead className="min-w-[100px]">Bank IFSC</TableHead>
+                        <TableHead className="min-w-[150px]">Bank Name</TableHead>
+                        <TableHead className="min-w-[150px]">Bank Branch</TableHead>
+                        <TableHead className="min-w-[150px]">Account Holder Name</TableHead>
+                        
+                        {/* Tribal Information */}
+                        <TableHead className="min-w-[80px]">Is Tribal</TableHead>
+                        <TableHead className="min-w-[150px]">Tribal Certificate No.</TableHead>
+                        <TableHead className="min-w-[100px]">Tribal Lag</TableHead>
+                        
+                        {/* Status Fields */}
+                        <TableHead className="min-w-[100px]">KYC Status</TableHead>
+                        <TableHead className="min-w-[120px]">Payment Status</TableHead>
+                        <TableHead className="min-w-[100px]">Notice Generated</TableHead>
+                        <TableHead className="min-w-[120px]">Assigned Agent</TableHead>
+                        
+                        {/* Additional Fields */}
+                        <TableHead className="min-w-[200px]">Notes</TableHead>
+                        <TableHead className="min-w-[200px]">Remarks (शेरा)</TableHead>
+                        
+                        {/* Format Indicator */}
+                        <TableHead className="min-w-[100px]">Data Format</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {landRecords.map((record) => (
                         <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.survey_number}</TableCell>
-                          <TableCell>{record.landowner_name}</TableCell>
-                          <TableCell>{record.area}</TableCell>
-                          <TableCell>{record.village}</TableCell>
-                          <TableCell>{getStatusBadge(record.kyc_status, 'kyc')}</TableCell>
-                          <TableCell>{getStatusBadge(record.payment_status, 'payment')}</TableCell>
+                          {/* Basic Identification */}
+                          <TableCell className="text-center">{safeGetField(record, 'serial_number') || '-'}</TableCell>
+                          <TableCell className="font-medium">{getLandownerName(record)}</TableCell>
+                          <TableCell className="font-medium">{getSurveyNumber(record)}</TableCell>
+                          <TableCell>{safeGetField(record, 'old_survey_number') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'group_number') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'cts_number') || '-'}</TableCell>
+                          
+                          {/* Area Fields */}
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'total_area_village_record') > 0 
+                              ? formatNumber(safeGetNumericField(record, 'total_area_village_record'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'acquired_area_sqm_hectare') > 0 
+                              ? formatNumber(safeGetNumericField(record, 'acquired_area_sqm_hectare'))
+                              : '-'
+                            }
+                          </TableCell>
+                          
+                          {/* Land Classification */}
+                          <TableCell>{safeGetField(record, 'land_category') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'land_type_classification') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'agricultural_type') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'agricultural_classification') || '-'}</TableCell>
+                          
+                          {/* Rate and Market Value */}
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'approved_rate_per_hectare') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'approved_rate_per_hectare'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'market_value_acquired_area') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'market_value_acquired_area'))
+                              : '-'
+                            }
+                          </TableCell>
+                          
+                          {/* Section 26 Calculations */}
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'section_26_2_factor') > 0 
+                              ? formatNumber(safeGetNumericField(record, 'section_26_2_factor'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'section_26_compensation') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'section_26_compensation'))
+                              : '-'
+                            }
+                          </TableCell>
+                          
+                          {/* Structure Compensation */}
+                          <TableCell className="text-center">
+                            {safeGetNumericField(record, 'buildings_count') > 0 
+                              ? safeGetNumericField(record, 'buildings_count')
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'buildings_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'buildings_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {safeGetNumericField(record, 'forest_trees_count') > 0 
+                              ? safeGetNumericField(record, 'forest_trees_count')
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'forest_trees_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'forest_trees_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {safeGetNumericField(record, 'fruit_trees_count') > 0 
+                              ? safeGetNumericField(record, 'fruit_trees_count')
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'fruit_trees_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'fruit_trees_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {safeGetNumericField(record, 'wells_borewells_count') > 0 
+                              ? safeGetNumericField(record, 'wells_borewells_count')
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'wells_borewells_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'wells_borewells_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'total_structures_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'total_structures_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          
+                          {/* Compensation Calculations */}
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'total_compensation_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'total_compensation_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'solatium_100_percent') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'solatium_100_percent'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'determined_compensation') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'determined_compensation'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'additional_25_percent_compensation') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'additional_25_percent_compensation'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'total_final_compensation') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'total_final_compensation'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {safeGetNumericField(record, 'deduction_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'deduction_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">
+                            {safeGetNumericField(record, 'final_payable_amount') > 0 
+                              ? formatCurrency(safeGetNumericField(record, 'final_payable_amount'))
+                              : '-'
+                            }
+                          </TableCell>
+                          
+                          {/* Location */}
+                          <TableCell>{getVillageName(record)}</TableCell>
+                          <TableCell>{safeGetField(record, 'taluka') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'district') || '-'}</TableCell>
+                          
+                          {/* Contact Information */}
+                          <TableCell>{safeGetField(record, 'contact_phone') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'contact_email') || '-'}</TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={safeGetField(record, 'contact_address')}>
+                            {safeGetField(record, 'contact_address') || '-'}
+                          </TableCell>
+                          
+                          {/* Banking Information */}
+                          <TableCell className="font-mono text-xs">
+                            {safeGetField(record, 'bank_account_number') || '-'}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {safeGetField(record, 'bank_ifsc_code') || '-'}
+                          </TableCell>
+                          <TableCell>{safeGetField(record, 'bank_name') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'bank_branch_name') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'bank_account_holder_name') || '-'}</TableCell>
+                          
+                          {/* Tribal Information */}
+                          <TableCell className="text-center">
+                            {safeGetField(record, 'is_tribal') ? (
+                              <Badge variant="secondary" className="bg-orange-100 text-orange-800">Yes</Badge>
+                            ) : (
+                              <span className="text-gray-400">No</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{safeGetField(record, 'tribal_certificate_no') || '-'}</TableCell>
+                          <TableCell>{safeGetField(record, 'tribal_lag') || '-'}</TableCell>
+                          
+                          {/* Status Fields */}
+                          <TableCell>{getStatusBadge(getKycStatus(record), 'kyc')}</TableCell>
+                          <TableCell>{getStatusBadge(getPaymentStatus(record), 'payment')}</TableCell>
+                          <TableCell className="text-center">
+                            {safeGetField(record, 'notice_generated') ? (
+                              <Badge variant="default" className="bg-green-100 text-green-800">Generated</Badge>
+                            ) : (
+                              <span className="text-gray-400">Pending</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{safeGetField(record, 'assigned_agent') || '-'}</TableCell>
+                          
+                          {/* Additional Fields */}
+                          <TableCell className="max-w-[200px] truncate" title={safeGetField(record, 'notes')}>
+                            {safeGetField(record, 'notes') || '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={safeGetField(record, 'remarks')}>
+                            {safeGetField(record, 'remarks') || '-'}
+                          </TableCell>
+                          
+                          {/* Format Indicator */}
                           <TableCell>
-                            {getBlockchainStatusBadge(record.blockchain_status || 'not_on_blockchain')}
+                            {isNewFormat(record) ? (
+                              <Badge variant="default" className="bg-green-500">Parishisht-K</Badge>
+                            ) : (
+                              <Badge variant="secondary">Legacy</Badge>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

@@ -437,21 +437,75 @@ const NoticeGenerator: React.FC = () => {
   const safeField = (record: any, fieldName: string) => {
     // Define field mappings between old and new formats
     const fieldMappings: { [key: string]: string[] } = {
-      'खातेदाराचे_नांव': ['खातेदाराचे_नांव', 'landowner_name'],
-      'स.नं./हि.नं./ग.नं.': ['स.नं./हि.नं./ग.नं.', 'सर्वे_नं', 'survey_number'],
+      // Landowner name mappings
+      'खातेदाराचे_नांव': ['खातेदाराचे_नांव', 'landowner_name', 'खातेदाराचे नांव'],
+      'landowner_name': ['landowner_name', 'खातेदाराचे_नांव', 'खातेदाराचे नांव'],
+      
+      // Survey number mappings (prioritize new survey number)
+      'स.नं./हि.नं./ग.नं.': ['नविन स.नं.', 'new_survey_number', 'survey_number', 'स.नं./हि.नं./ग.नं.', 'सर्वे_नं', 'जुना स.नं.', 'old_survey_number'],
+      'survey_number': ['नविन स.नं.', 'new_survey_number', 'survey_number', 'स.नं./हि.नं./ग.नं.', 'सर्वे_नं', 'जुना स.नं.', 'old_survey_number'],
+      'old_survey_number': ['जुना स.नं.', 'old_survey_number'],
+      'new_survey_number': ['नविन स.नं.', 'new_survey_number'],
+      
+      // Location mappings
       'गांव': ['गांव', 'village'],
-      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र', 'area'],
-      'संपादित_जमिनीचे_क्षेत्र': ['संपादित_जमिनीचे_क्षेत्र', 'संपादित_क्षेत्र'],
-      'जमिनीचा_प्रकार': ['जमिनीचा_प्रकार'],
-      'जमिनीचा_प्रकार_शेती_बिनशेती': ['जमिनीचा_प्रकार_शेती_बिनशेती'],
-      'मंजुर_केलेला_दर': ['मंजुर_केलेला_दर', 'दर', 'rate'],
-      'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य': ['संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य'],
-      'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक': ['कलम_26_2_नुसार_गावास_लागु_असलेले_गणक'],
-      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम', 'total_compensation'],
+      'village': ['village', 'गांव'],
+      
+      // Area mappings
+      'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': ['total_area_village_record', 'गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)', 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र', 'क्षेत्र', 'area'],
+      'area': ['total_area_village_record', 'गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)', 'area', 'क्षेत्र', 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'],
+      'क्षेत्र': ['total_area_village_record', 'गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)', 'क्षेत्र', 'area'],
+      
+      // Acquired area mappings
+      'संपादित_जमिनीचे_क्षेत्र': ['acquired_area_sqm_hectare', 'संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)', 'संपादित_जमिनीचे_क्षेत्र', 'संपादित_क्षेत्र', 'acquired_area'],
+      'acquired_area': ['acquired_area_sqm_hectare', 'संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)', 'acquired_area', 'संपादित_क्षेत्र', 'संपादित_जमिनीचे_क्षेत्र'],
+      'संपादित_क्षेत्र': ['acquired_area_sqm_hectare', 'संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)', 'संपादित_क्षेत्र', 'acquired_area'],
+      
+      // Land type mappings
+      'जमिनीचा_प्रकार': ['land_category', 'जमिनीचा प्रकार', 'जमिनीचा_प्रकार'],
+      'जमिनीचा_प्रकार_शेती_बिनशेती': ['land_type_classification', 'जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार', 'जमिनीचा_प्रकार_शेती_बिनशेती'],
+      
+      // Rate mappings
+      'मंजुर_केलेला_दर': ['approved_rate_per_hectare', 'मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये', 'मंजुर_केलेला_दर', 'दर', 'rate'],
+      'rate': ['approved_rate_per_hectare', 'मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये', 'rate', 'दर', 'मंजुर_केलेला_दर'],
+      'दर': ['approved_rate_per_hectare', 'मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये', 'दर', 'rate'],
+      
+      // Market value and compensation mappings
+      'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य': ['market_value_acquired_area', 'संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू', 'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य'],
+      'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक': ['section_26_2_factor', 'कलम 26 (2) नुसार गावास लागु असलेले गणक Factor (अ.क्र. 5 X 8)', 'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक'],
+      'कलम_26_नुसार_जमिनीचा_मोबदला': ['section_26_compensation', 'कलम 26 नुसार जमिनीचा मोबदला (9X10)', 'कलम_26_नुसार_जमिनीचा_मोबदला'],
+      
+      // Total compensation mappings
+      'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': ['final_payable_amount', 'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)', 'total_final_compensation', 'एकुण मोबदला (26+ 27)', 'total_compensation', 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम'],
+      'total_compensation': ['final_payable_amount', 'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)', 'total_final_compensation', 'एकुण मोबदला (26+ 27)', 'total_compensation_amount', 'एकुण रक्कम (14+23)', 'total_compensation'],
+      'एकूण_मोबदला': ['final_payable_amount', 'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)', 'total_final_compensation', 'एकुण मोबदला (26+ 27)', 'total_compensation_amount', 'एकुण रक्कम (14+23)', 'एकूण_मोबदला'],
+      
+      // Solatium mappings
+      'सोलेशियम_100': ['solatium_100_percent', '100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5', 'सोलेशियम_100', 'solatium'],
+      'solatium': ['solatium_100_percent', '100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5', 'solatium', 'सोलेशियम_100'],
+      
+      // Final amount mappings
+      'अंतिम_रक्कम': ['final_payable_amount', 'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)', 'total_final_compensation', 'एकुण मोबदला (26+ 27)', 'अंतिम_रक्कम', 'final_amount'],
+      'final_amount': ['final_payable_amount', 'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)', 'total_final_compensation', 'एकुण मोबदला (26+ 27)', 'final_amount', 'अंतिम_रक्कम'],
+      
+      // Structure compensation mappings
+      'संरचना_झाडे_विहिरी_रक्कम': ['total_structures_amount', 'एकुण रक्कम रुपये (16+18+ 20+22)', 'structure_trees_wells_amount', 'संरचना_झाडे_विहिरी_रक्कम'],
+      
+      // Additional new format fields
+      'group_number': ['गट नंबर', 'group_number'],
+      'cts_number': ['सी.टी.एस. नंबर', 'cts_number'],
+      'determined_compensation': ['निर्धारित मोबदला 26 = (24+25)', 'determined_compensation'],
+      'additional_25_percent_compensation': ['एकूण रक्कमेवर  25%  वाढीव मोबदला', 'additional_25_percent_compensation'],
+      'deduction_amount': ['वजावट रक्कम रुपये', 'deduction_amount'],
+      
+      // Tribal information
       'tribal_certificate_no': ['tribal_certificate_no', 'tribalCertificateNo'],
       'tribal_lag': ['tribal_lag', 'tribalLag'],
       'is_tribal': ['is_tribal', 'isTribal'],
-      'notice_generated': ['notice_generated', 'noticeGenerated']
+      'notice_generated': ['notice_generated', 'noticeGenerated'],
+      
+      // Remarks
+      'remarks': ['शेरा', 'remarks', 'notes']
     };
 
     // Check if the field name is in our mappings

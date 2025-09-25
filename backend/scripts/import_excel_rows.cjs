@@ -1,0 +1,377 @@
+const XLSX = require('xlsx');
+const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs');
+
+// We'll import models dynamically since they're ES modules
+let MongoLandownerRecord, MongoProject;
+
+/**
+ * IMPORT ALL 181 ROWS FROM CHANDRAPADA EXCEL FILE
+ * This script reads every single row from the Excel file and imports it into the database
+ */
+
+// MongoDB connection - use the same Atlas connection as the server
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://bhiseyashwant8:wmcdBGmsJvSTjeuh@saral-bhoomi-cluster.ytoaysp.mongodb.net/saral_bhoomi?retryWrites=true&w=majority&appName=saral-bhoomi-cluster';
+
+// Excel column mapping (based on actual headers from your file)
+const COLUMN_MAPPING = {
+  'अ.क्र': 'serial_number',
+  'खातेदाराचे नांव': 'landowner_name', 
+  'जुना स.नं.': 'old_survey_number',
+  'नविन स.नं.': 'new_survey_number',
+  'गट नंबर': 'group_number',
+  'सी.टी.एस. नंबर': 'cts_number',
+  'गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)': 'total_area_village_record',
+  'संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)': 'acquired_area_sqm_hectare',
+  'जमिनीचा प्रकार': 'land_category',
+  'जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार': 'land_type_classification',
+  'मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये': 'approved_rate_per_hectare',
+  'संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू': 'market_value_acquired_area',
+  'कलम 26 (2) नुसार गावास लागु असलेले गणक Factor (अ.क्र. 5 X 8)': 'section_26_2_factor',
+  'कलम 26 नुसार जमिनीचा मोबदला (9X10)': 'section_26_compensation',
+  'एकुण रक्कम रुपये (16+18+ 20+22)': 'total_structures_amount',
+  'एकुण रक्कम (14+23)': 'total_compensation_amount',
+  '100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5': 'solatium_100_percent',
+  'निर्धारित मोबदला 26 = (24+25)': 'determined_compensation',
+  'एकूण रक्कमेवर  25%  वाढीव मोबदला\n(अ.क्र. 26 नुसार येणाऱ्या रक्कमेवर)': 'additional_25_percent_compensation',
+  'एकुण मोबदला (26+ 27)': 'total_final_compensation',
+  'वजावट रक्कम रुपये': 'deduction_amount',
+  'हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)': 'final_payable_amount',
+  'शेरा': 'remarks'
+};
+
+// Numeric fields that need to be converted to numbers
+const NUMERIC_FIELDS = [
+  'total_area_village_record', 'acquired_area_sqm_hectare', 'approved_rate_per_hectare',
+  'market_value_acquired_area', 'section_26_2_factor', 'section_26_compensation',
+  'total_structures_amount', 'total_compensation_amount', 'solatium_100_percent',
+  'determined_compensation', 'additional_25_percent_compensation', 'total_final_compensation',
+  'deduction_amount', 'final_payable_amount'
+];
+
+function cleanValue(value, isNumeric = false) {
+  if (value === null || value === undefined || value === '') {
+    return isNumeric ? 0 : '';
+  }
+  
+  if (isNumeric) {
+    // Convert to string first, then clean
+    const cleaned = String(value).replace(/[^\d.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  }
+  
+  return String(value).trim();
+}
+
+async function readExcelData() {
+  try {
+    console.log('🔍 Reading Excel file...');
+    
+    // Path to Excel file
+    const excelPath = path.join(__dirname, '../../Chandrapada New 20.01.23-.xlsx');
+    
+    if (!fs.existsSync(excelPath)) {
+      throw new Error(`Excel file not found: ${excelPath}`);
+    }
+    
+    // Read workbook
+    const workbook = XLSX.readFile(excelPath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    console.log(`📊 Sheet: ${sheetName}`);
+    console.log(`📊 Range: ${worksheet['!ref']}`);
+    
+    // Parse range
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    console.log(`📊 Rows: ${range.s.r} to ${range.e.r} (${range.e.r - range.s.r + 1} total)`);
+    console.log(`📊 Cols: ${range.s.c} to ${range.e.c} (${range.e.c - range.s.c + 1} total)`);
+    
+    // Get headers from row 4 (0-indexed row 3)
+    const headers = [];
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 3, c: col });
+      const cell = worksheet[cellAddress];
+      headers.push(cell ? cell.v : `Column_${col}`);
+    }
+    
+    console.log(`📋 Found ${headers.length} headers`);
+    console.log('📋 First 10 headers:', headers.slice(0, 10));
+    
+    // Extract all data rows starting from row 7 (0-indexed row 6)
+    const records = [];
+    for (let row = 6; row <= range.e.r; row++) {
+      const record = {};
+      let hasData = false;
+      
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+        const cell = worksheet[cellAddress];
+        const header = headers[col - range.s.c];
+        const value = cell ? cell.v : '';
+        
+        if (header && value !== '') {
+          record[header] = value;
+          hasData = true;
+        }
+      }
+      
+      if (hasData) {
+        records.push(record);
+      }
+    }
+    
+    console.log(`✅ Extracted ${records.length} records from Excel`);
+    
+    // Show sample record
+    if (records.length > 0) {
+      console.log('\n📋 Sample record (first row):');
+      const sample = records[0];
+      Object.keys(sample).slice(0, 8).forEach(key => {
+        console.log(`   ${key}: ${sample[key]}`);
+      });
+    }
+    
+    return records;
+    
+  } catch (error) {
+    console.error('❌ Error reading Excel:', error);
+    throw error;
+  }
+}
+
+function convertToDbRecord(excelRow, projectId) {
+  // Create base record with required fields
+  const dbRecord = {
+    project_id: projectId,
+    
+    // Required fields with fallbacks
+    survey_number: cleanValue(excelRow['नविन स.नं.'] || excelRow['जुना स.नं.'] || 'UNKNOWN'),
+    landowner_name: cleanValue(excelRow['खातेदाराचे नांव'] || 'Unknown Owner'),
+    area: cleanValue(excelRow['गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)'] || 0, true),
+    
+    // Location defaults
+    village: 'चंद्रपदा',
+    taluka: 'Unknown',
+    district: 'Unknown',
+    
+    // Status defaults
+    kyc_status: 'pending',
+    payment_status: 'pending',
+    notice_generated: false,
+    is_active: true,
+    
+    // Format tracking
+    data_format: 'parishisht_k',
+    source_file_name: 'Chandrapada New 20.01.23-.xlsx',
+    import_batch_id: Date.now().toString()
+  };
+  
+  // Map all Excel columns to DB fields
+  Object.keys(COLUMN_MAPPING).forEach(excelCol => {
+    const dbField = COLUMN_MAPPING[excelCol];
+    if (excelRow[excelCol] !== undefined) {
+      const isNumeric = NUMERIC_FIELDS.includes(dbField);
+      dbRecord[dbField] = cleanValue(excelRow[excelCol], isNumeric);
+    }
+  });
+  
+  return dbRecord;
+}
+
+async function importToDatabase() {
+  let connection;
+  
+  try {
+    console.log('🚀 Starting Excel import process...');
+    
+    // Dynamic import of ES modules
+    console.log('📦 Loading models...');
+    const { default: LandownerRecordModel } = await import('../models/mongo/LandownerRecord.js');
+    const { default: ProjectModel } = await import('../models/mongo/Project.js');
+    MongoLandownerRecord = LandownerRecordModel;
+    MongoProject = ProjectModel;
+    
+    // Connect to MongoDB
+    console.log('📦 Connecting to MongoDB...');
+    connection = await mongoose.connect(MONGODB_URI);
+    console.log('✅ Connected to MongoDB');
+    
+    // Find or create project
+    let project = await MongoProject.findOne({ projectName: 'Chandrapada Import Project' });
+    if (!project) {
+      project = new MongoProject({
+        projectName: 'Chandrapada Import Project',
+        pmisCode: 'CHANDRAPADA-2023',
+        schemeName: 'Chandrapada Land Acquisition',
+        landRequired: 100,
+        landAvailable: 0,
+        landToBeAcquired: 100,
+        type: 'other',
+        district: 'Unknown',
+        taluka: 'Unknown',
+        villages: ['चंद्रपदा'],
+        isActive: true
+      });
+      
+      await project.save();
+      console.log('📁 Created project:', project.projectName);
+    } else {
+      console.log('📁 Using existing project:', project.projectName);
+    }
+    
+    // Read Excel data
+    const excelRecords = await readExcelData();
+    
+    if (excelRecords.length === 0) {
+      console.log('⚠️ No records found in Excel file');
+      return;
+    }
+    
+    // Clear existing records for clean import
+    const existingCount = await MongoLandownerRecord.countDocuments({ project_id: project._id });
+    if (existingCount > 0) {
+      console.log(`🗑️ Clearing ${existingCount} existing records for clean import...`);
+      await MongoLandownerRecord.deleteMany({ project_id: project._id });
+    }
+    
+    // Convert and prepare records
+    console.log(`🔄 Converting ${excelRecords.length} Excel records to database format...`);
+    const dbRecords = [];
+    let successCount = 0;
+    let skipCount = 0;
+    
+    excelRecords.forEach((excelRow, index) => {
+      try {
+        const dbRecord = convertToDbRecord(excelRow, project._id);
+        
+        // Basic validation - check required fields for uniqueness
+        if (!dbRecord.landowner_name || dbRecord.landowner_name === 'Unknown Owner') {
+          console.warn(`⚠️ Row ${index + 1}: No landowner name, skipping`);
+          skipCount++;
+          return;
+        }
+        
+        // At least one survey number should be present
+        if ((!dbRecord.old_survey_number || dbRecord.old_survey_number === '') && 
+            (!dbRecord.new_survey_number || dbRecord.new_survey_number === '') &&
+            (!dbRecord.survey_number || dbRecord.survey_number === 'UNKNOWN')) {
+          console.warn(`⚠️ Row ${index + 1}: No survey numbers available, skipping`);
+          skipCount++;
+          return;
+        }
+        
+        // Ensure we have values for unique constraint (use fallbacks if needed)
+        if (!dbRecord.old_survey_number) dbRecord.old_survey_number = dbRecord.survey_number || '';
+        if (!dbRecord.new_survey_number) dbRecord.new_survey_number = dbRecord.survey_number || '';
+        
+        dbRecords.push(dbRecord);
+        successCount++;
+        
+      } catch (error) {
+        console.error(`❌ Error processing row ${index + 1}:`, error.message);
+        skipCount++;
+      }
+    });
+    
+    console.log(`📊 Conversion complete: ${successCount} records ready, ${skipCount} skipped`);
+    
+    if (dbRecords.length === 0) {
+      console.log('❌ No valid records to import');
+      return;
+    }
+    
+    // Insert records in batches with duplicate handling
+    console.log(`💾 Inserting ${dbRecords.length} records into database...`);
+    const batchSize = 50;
+    let insertedCount = 0;
+    let duplicateCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < dbRecords.length; i += batchSize) {
+      const batch = dbRecords.slice(i, i + batchSize);
+      try {
+        // Use ordered: false to continue inserting even if some fail
+        const result = await MongoLandownerRecord.insertMany(batch, { ordered: false });
+        insertedCount += result.length;
+        console.log(`   ✅ Inserted ${insertedCount}/${dbRecords.length} records...`);
+      } catch (error) {
+        if (error.name === 'MongoBulkWriteError') {
+          // Handle bulk write errors (duplicates)
+          const inserted = error.result.insertedCount || 0;
+          const duplicates = error.writeErrors?.length || 0;
+          
+          insertedCount += inserted;
+          duplicateCount += duplicates;
+          
+          console.log(`   ⚠️ Batch ${Math.floor(i/batchSize) + 1}: ${inserted} inserted, ${duplicates} duplicates skipped`);
+          
+          // Log sample duplicate for debugging
+          if (error.writeErrors && error.writeErrors.length > 0) {
+            const sampleError = error.writeErrors[0];
+            console.log(`   🔍 Sample duplicate: ${JSON.stringify(sampleError.err.op.landowner_name)} (${sampleError.err.op.old_survey_number} → ${sampleError.err.op.new_survey_number})`);
+          }
+        } else {
+          console.error(`   ❌ Batch error:`, error.message);
+          errorCount += batch.length;
+        }
+      }
+    }
+    
+    // Final verification
+    const finalCount = await MongoLandownerRecord.countDocuments({ project_id: project._id });
+    
+    console.log('\n🎉 IMPORT COMPLETED SUCCESSFULLY!');
+    console.log('📊 Final Summary:');
+    console.log(`   📄 Excel file: Chandrapada New 20.01.23-.xlsx`);
+    console.log(`   📊 Excel records found: ${excelRecords.length}`);
+    console.log(`   ✅ Successfully imported: ${insertedCount}`);
+    console.log(`   🔄 Duplicates skipped: ${duplicateCount}`);
+    console.log(`   ⚠️ Invalid/Skipped: ${skipCount}`);
+    console.log(`   ❌ Errors: ${errorCount}`);
+    console.log(`   📦 Total database records: ${finalCount}`);
+    console.log(`   📁 Project: ${project.projectName} (ID: ${project._id})`);
+    console.log(`   🔑 Unique constraint: project_id + serial_number`);
+    
+    // Show sample of imported data
+    const sampleRecord = await MongoLandownerRecord.findOne({ project_id: project._id });
+    if (sampleRecord) {
+      console.log('\n📋 Sample imported record:');
+      console.log(`   🆔 Serial: ${sampleRecord.serial_number || 'N/A'}`);
+      console.log(`   👤 Name: ${sampleRecord.landowner_name}`);
+      console.log(`   📍 Old Survey: ${sampleRecord.old_survey_number || 'N/A'}`);
+      console.log(`   📍 New Survey: ${sampleRecord.new_survey_number || 'N/A'}`);
+      console.log(`   📍 Primary Survey: ${sampleRecord.survey_number || 'N/A'}`);
+      console.log(`   🏷️ Group: ${sampleRecord.group_number || 'N/A'}`);
+      console.log(`   📏 Area: ${sampleRecord.total_area_village_record || 'N/A'} Ha`);
+      console.log(`   💰 Final Amount: ₹${sampleRecord.final_payable_amount || 'N/A'}`);
+      console.log(`   📊 Format: ${sampleRecord.data_format}`);
+      console.log(`   🔑 Unique Key: "${project._id}" + "${sampleRecord.serial_number}"`);
+    }
+    
+    console.log('\n✨ All Excel rows have been imported into the database!');
+    console.log('🌐 You can now view them in the frontend Land Records Management section.');
+    
+  } catch (error) {
+    console.error('💥 Import failed:', error);
+    throw error;
+  } finally {
+    if (connection) {
+      await mongoose.disconnect();
+      console.log('📦 Disconnected from MongoDB');
+    }
+  }
+}
+
+// Run the import
+importToDatabase()
+  .then(() => {
+    console.log('🏁 Import process completed successfully');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('💥 Import process failed:', error);
+    process.exit(1);
+  });

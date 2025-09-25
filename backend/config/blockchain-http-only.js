@@ -1,4 +1,5 @@
-// saral-bhoomi/backend/config/blockchain.js
+// saral-bhoomi/backend/config/blockchain-http-only.js
+// HTTP-only configuration to avoid WebSocket issues
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,41 +11,35 @@ const __dirname = path.dirname(__filename);
 // Load environment variables from config.env
 dotenv.config({ path: path.join(__dirname, '../config.env') });
 
-class BlockchainConfig {
+class BlockchainConfigHTTPOnly {
   constructor() {
     this.config = {
-      enabled: process.env.BLOCKCHAIN_ENABLED === 'true' || true, // Default to true
+      enabled: process.env.BLOCKCHAIN_ENABLED === 'true' || true,
       network: {
         name: process.env.BLOCKCHAIN_NETWORK || 'polygon_amoy',
         chainId: process.env.BLOCKCHAIN_CHAIN_ID || '80002',
         rpcUrl: process.env.BLOCKCHAIN_RPC_URL || 'https://rpc-amoy.polygon.technology',
-        wsUrl: process.env.BLOCKCHAIN_WS_URL || 'wss://rpc-amoy.polygon.technology',
+        wsUrl: null, // Disable WebSocket
         explorer: process.env.BLOCKCHAIN_EXPLORER || 'https://www.oklink.com/amoy',
-        // Multiple provider endpoints for failover
+        // HTTP-only providers for failover
         providers: [
           {
             name: 'polygon-official',
             rpcUrl: 'https://rpc-amoy.polygon.technology',
-            wsUrl: 'wss://rpc-amoy.polygon.technology',
+            wsUrl: null,
             priority: 1
           },
           {
             name: 'alchemy',
             rpcUrl: process.env.ALCHEMY_RPC_URL || 'https://polygon-amoy.g.alchemy.com/v2/demo',
-            wsUrl: process.env.ALCHEMY_WS_URL || 'wss://polygon-amoy.g.alchemy.com/v2/demo',
+            wsUrl: null,
             priority: 2
           },
           {
             name: 'infura',
             rpcUrl: process.env.INFURA_RPC_URL || 'https://polygon-amoy.infura.io/v3/demo',
-            wsUrl: process.env.INFURA_WS_URL || 'wss://polygon-amoy.infura.io/ws/v3/demo',
+            wsUrl: null,
             priority: 3
-          },
-          {
-            name: 'quicknode',
-            rpcUrl: process.env.QUICKNODE_RPC_URL || 'https://your-endpoint.polygon-amoy.quiknode.pro/demo/',
-            wsUrl: process.env.QUICKNODE_WS_URL || 'wss://your-endpoint.polygon-amoy.quiknode.pro/demo/',
-            priority: 4
           }
         ]
       },
@@ -58,19 +53,19 @@ class BlockchainConfig {
       },
       gas: {
         limit: process.env.BLOCKCHAIN_GAS_LIMIT || '3000000',
-        maxFeePerGas: process.env.BLOCKCHAIN_MAX_FEE_PER_GAS || '30000000000', // 30 gwei
-        maxPriorityFeePerGas: process.env.BLOCKCHAIN_MAX_PRIORITY_FEE_PER_GAS || '2000000000' // 2 gwei
+        maxFeePerGas: process.env.BLOCKCHAIN_MAX_FEE_PER_GAS || '30000000000',
+        maxPriorityFeePerGas: process.env.BLOCKCHAIN_MAX_PRIORITY_FEE_PER_GAS || '2000000000'
       },
       dataIntegrity: {
-        enabled: process.env.DATA_INTEGRITY_ENABLED === 'true' || true, // Default to true
+        enabled: process.env.DATA_INTEGRITY_ENABLED === 'true' || true,
         hashAlgorithm: process.env.DATA_INTEGRITY_HASH_ALGORITHM || 'sha256',
         batchSize: parseInt(process.env.DATA_INTEGRITY_BATCH_SIZE) || 100
       },
       websocket: {
-        maxRetries: parseInt(process.env.WEBSOCKET_MAX_RETRIES) || 3,
-        retryDelay: parseInt(process.env.WEBSOCKET_RETRY_DELAY) || 1000,
-        maxRetryDelay: parseInt(process.env.WEBSOCKET_MAX_RETRY_DELAY) || 30000,
-        healthCheckInterval: parseInt(process.env.WEBSOCKET_HEALTH_CHECK_INTERVAL) || 30000
+        maxRetries: 0, // Disable WebSocket retries
+        retryDelay: 0,
+        maxRetryDelay: 0,
+        healthCheckInterval: 0
       }
     };
   }
@@ -87,7 +82,7 @@ class BlockchainConfig {
 
   // Get network configuration
   getNetworkInfo() {
-      return {
+    return {
       name: this.config.network.name,
       chainId: this.config.network.chainId,
       rpcUrl: this.config.network.rpcUrl,
@@ -119,7 +114,7 @@ class BlockchainConfig {
 
   // Get provider configuration (alias for network info)
   getProviderConfig() {
-      return {
+    return {
       url: this.config.network.rpcUrl,
       chainId: this.config.network.chainId
     };
@@ -143,7 +138,7 @@ class BlockchainConfig {
 
   // Get contract information
   getContractInfo() {
-        return {
+    return {
       address: this.config.contract.address,
       abiPath: this.config.contract.abiPath
     };
@@ -151,7 +146,7 @@ class BlockchainConfig {
 
   // Get gas settings
   getGasSettings() {
-      return {
+    return {
       limit: parseInt(this.config.gas.limit),
       maxFeePerGas: parseInt(this.config.gas.maxFeePerGas),
       maxPriorityFeePerGas: parseInt(this.config.gas.maxPriorityFeePerGas)
@@ -160,7 +155,7 @@ class BlockchainConfig {
 
   // Get data integrity settings
   getDataIntegritySettings() {
-      return {
+    return {
       enabled: this.config.dataIntegrity.enabled,
       hashAlgorithm: this.config.dataIntegrity.hashAlgorithm,
       batchSize: this.config.dataIntegrity.batchSize
@@ -221,27 +216,28 @@ class BlockchainConfig {
       console.log('⚠️  Using demo blockchain configuration - replace with real values for production');
     }
       
-      return {
+    return {
       isValid: errors.length === 0,
       errors: errors
-      };
+    };
   }
 
   // Get configuration summary
   getSummary() {
-      return {
+    return {
       enabled: this.config.enabled,
       network: this.config.network.name,
       chainId: this.config.network.chainId,
       walletAddress: this.config.wallet.address ? `${this.config.wallet.address.substring(0, 6)}...${this.config.wallet.address.substring(38)}` : 'Not configured',
       contractAddress: this.config.contract.address ? `${this.config.contract.address.substring(0, 6)}...${this.config.contract.address.substring(38)}` : 'Not configured',
-      dataIntegrity: this.config.dataIntegrity.enabled
+      dataIntegrity: this.config.dataIntegrity.enabled,
+      websocketEnabled: false
     };
   }
 
   // Get environment variables for debugging
   getEnvironmentInfo() {
-      return {
+    return {
       BLOCKCHAIN_ENABLED: process.env.BLOCKCHAIN_ENABLED,
       BLOCKCHAIN_NETWORK: process.env.BLOCKCHAIN_NETWORK,
       BLOCKCHAIN_CHAIN_ID: process.env.BLOCKCHAIN_CHAIN_ID,
@@ -261,12 +257,21 @@ class BlockchainConfig {
   // Reset to default configuration
   resetToDefaults() {
     this.config = {
-      enabled: true, // Default to enabled
+      enabled: true,
       network: {
         name: 'polygon_amoy',
         chainId: '80002',
         rpcUrl: 'https://rpc-amoy.polygon.technology',
-        explorer: 'https://www.oklink.com/amoy'
+        wsUrl: null,
+        explorer: 'https://www.oklink.com/amoy',
+        providers: [
+          {
+            name: 'polygon-official',
+            rpcUrl: 'https://rpc-amoy.polygon.technology',
+            wsUrl: null,
+            priority: 1
+          }
+        ]
       },
       wallet: {
         privateKey: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
@@ -282,12 +287,18 @@ class BlockchainConfig {
         maxPriorityFeePerGas: '2000000000'
       },
       dataIntegrity: {
-        enabled: true, // Default to enabled
+        enabled: true,
         hashAlgorithm: 'sha256',
         batchSize: 100
+      },
+      websocket: {
+        maxRetries: 0,
+        retryDelay: 0,
+        maxRetryDelay: 0,
+        healthCheckInterval: 0
       }
     };
   }
 }
 
-export default BlockchainConfig;
+export default BlockchainConfigHTTPOnly;

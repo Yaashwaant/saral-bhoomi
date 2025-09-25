@@ -14,6 +14,20 @@ import { config } from '../../../config';
 import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { 
+  safeGetField, 
+  safeGetNumericField,
+  formatNumber,
+  formatCurrency,
+  getLandownerName,
+  getSurveyNumber,
+  getDisplayArea,
+  getVillageName,
+  getCompensationAmount,
+  getKycStatus,
+  getPaymentStatus,
+  isNewFormat
+} from '../../../utils/fieldMappingUtils';
 
 interface DashboardStats {
   totalLand: number;
@@ -429,24 +443,66 @@ const EnhancedDashboard: React.FC = () => {
                             <th className="p-2 text-left">Survey No.</th>
                             <th className="p-2 text-left">Landowner</th>
                             <th className="p-2 text-left">Village</th>
-                            <th className="p-2 text-left">Taluka</th>
-                            <th className="p-2 text-left">District</th>
+                            <th className="p-2 text-left">Area</th>
                             <th className="p-2 text-left">Amount</th>
                             <th className="p-2 text-left">Payment</th>
                             <th className="p-2 text-left">Notice</th>
+                            <th className="p-2 text-left">Format</th>
                           </tr>
                         </thead>
                         <tbody>
                           {pagedRecords.map((r: any) => (
                             <tr key={r.id} className="border-t">
-                              <td className="p-2">{r['सर्वे_नं']}</td>
-                              <td className="p-2">{r['खातेदाराचे_नांव']}</td>
-                              <td className="p-2">{r.village}</td>
-                              <td className="p-2">{r.taluka}</td>
-                              <td className="p-2">{r.district}</td>
-                              <td className="p-2">₹{(parseFloat(String(r['अंतिम_रक्कम'] || '0')) || 0).toLocaleString()}</td>
-                              <td className="p-2">{r.paymentStatus}</td>
-                              <td className="p-2">{r.noticeGenerated ? 'Yes' : 'No'}</td>
+                              <td className="p-2">
+                                <div className="font-medium">{getSurveyNumber(r)}</div>
+                                {safeGetField(r, 'old_survey_number') && (
+                                  <div className="text-xs text-gray-500">Old: {safeGetField(r, 'old_survey_number')}</div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <div>{getLandownerName(r)}</div>
+                                {safeGetField(r, 'group_number') && (
+                                  <div className="text-xs text-gray-500">Group: {safeGetField(r, 'group_number')}</div>
+                                )}
+                              </td>
+                              <td className="p-2">{getVillageName(r)}</td>
+                              <td className="p-2">
+                                <div>{getDisplayArea(r)}</div>
+                                {safeGetNumericField(r, 'acquired_area') > 0 && (
+                                  <div className="text-xs text-gray-500">
+                                    Acq: {formatNumber(safeGetNumericField(r, 'acquired_area'))} Ha
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <div>{getCompensationAmount(r)}</div>
+                                {safeGetNumericField(r, 'solatium') > 0 && (
+                                  <div className="text-xs text-gray-500">
+                                    Sol: {formatCurrency(safeGetNumericField(r, 'solatium'))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <Badge 
+                                  variant={getPaymentStatus(r) === 'completed' ? 'default' : 'secondary'}
+                                  className={getPaymentStatus(r) === 'completed' ? 'bg-green-500' : ''}
+                                >
+                                  {getPaymentStatus(r)}
+                                </Badge>
+                              </td>
+                              <td className="p-2">
+                                <Badge variant={safeGetField(r, 'notice_generated') ? 'default' : 'outline'}>
+                                  {safeGetField(r, 'notice_generated') ? 'Generated' : 'Pending'}
+                                </Badge>
+                              </td>
+                              <td className="p-2">
+                                <Badge 
+                                  variant={isNewFormat(r) ? 'default' : 'secondary'}
+                                  className={isNewFormat(r) ? 'bg-blue-500' : ''}
+                                >
+                                  {isNewFormat(r) ? 'New' : 'Legacy'}
+                                </Badge>
+                              </td>
                             </tr>
                           ))}
                           {pagedRecords.length === 0 && (
