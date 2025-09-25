@@ -451,10 +451,17 @@ class SurveyDataAggregationService {
       for (const r of rows) {
         const row_key = this.buildLandownerRowKey(r);
         // Look up any ledger where the landowner section contains the same new survey + CTS
+        // Consider on-chain if there is a block for this survey (new_survey_number) in the same project
+        // OR a block whose landowner section matches both new_survey and CTS exactly.
         const ledger = await MongoBlockchainLedger.findOne({
           project_id: r.project_id,
-          'survey_data.landowner.data.new_survey_number': r.new_survey_number,
-          'survey_data.landowner.data.cts_number': r.cts_number
+          $or: [
+            { survey_number: r.new_survey_number },
+            {
+              'survey_data.landowner.data.new_survey_number': r.new_survey_number,
+              'survey_data.landowner.data.cts_number': r.cts_number
+            }
+          ]
         }).sort({ timestamp: -1 });
 
         results.push({
