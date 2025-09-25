@@ -155,7 +155,7 @@ const LandRecordsManager: React.FC = () => {
         const landRecordData = await response.json();
         toast.success('Land record created successfully');
         
-        // Blockchain creation disabled
+        // Blockchain creation disabled - no calls to blockchain APIs
         
         // Reset form
         setLandRecordForm({
