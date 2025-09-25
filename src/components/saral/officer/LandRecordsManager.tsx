@@ -43,8 +43,6 @@ interface LandRecord {
   total_compensation?: number;
   kyc_status: 'pending' | 'approved' | 'rejected';
   payment_status: 'pending' | 'initiated' | 'completed';
-  blockchain_verified: boolean;
-  blockchain_status?: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain';
 }
 
 const LandRecordsManager: React.FC = () => {
@@ -71,9 +69,7 @@ const LandRecordsManager: React.FC = () => {
     rate: 0,
     total_compensation: 0,
     kyc_status: 'pending',
-    payment_status: 'pending',
-    blockchain_verified: false,
-    blockchain_status: 'not_on_blockchain'
+    payment_status: 'pending'
   });
 
   const API_BASE_URL = config.API_BASE_URL;
@@ -84,112 +80,8 @@ const LandRecordsManager: React.FC = () => {
     }
   }, [selectedProject]); // Only run when selectedProject changes
 
-  // 🔧 Process records sequentially to avoid rate limiting
-  const processRecordsSequentially = async (records: any[]) => {
-    console.log(`🔄 Starting blockchain status processing for ${records.length} records...`);
-    const results = [];
-    
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      try {
-        console.log(`🔍 Processing blockchain status for ${record.survey_number} (${i + 1}/${records.length})`);
-        
-        // 🔍 Check if blockchain block exists
-        const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/search/${record.survey_number}`, {
-          headers: {
-            'Authorization': 'Bearer demo-jwt-token',
-            'x-demo-role': 'officer'
-          }
-        });
-        
-        if (blockchainResponse.ok) {
-          const blockchainData = await blockchainResponse.json();
-          console.log(`🔍 Raw blockchain response for ${record.survey_number}:`, blockchainData);
-          
-          // 🔍 Check the correct response structure
-          const existsOnBlockchain = blockchainData.existsOnBlockchain || blockchainData.data?.existsOnBlockchain || false;
-          const overallStatus = blockchainData.overallStatus || blockchainData.data?.overallStatus || 'unknown';
-          
-          console.log(`🔍 Parsed blockchain status for ${record.survey_number}:`, { existsOnBlockchain, overallStatus });
-          
-          // 🔍 If block exists, verify data integrity
-          let blockchainStatus = 'pending';
-          if (existsOnBlockchain) {
-            try {
-              // Add delay between requests to avoid rate limiting
-              if (i > 0) {
-                await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
-              }
-              
-              // Verify data integrity between DB and blockchain
-              const integrityResponse = await fetch(`${API_BASE_URL}/blockchain/verify-integrity/${record.survey_number}`, {
-                headers: {
-                  'Authorization': 'Bearer demo-jwt-token',
-                  'x-demo-role': 'officer'
-                }
-              });
-              
-              if (integrityResponse.ok) {
-                const integrityData = await integrityResponse.json();
-                console.log(`🔍 Raw integrity response for ${record.survey_number}:`, integrityData);
-                
-                // 🔍 Check the correct response structure
-                const isValid = integrityData.isValid || integrityData.data?.isValid || false;
-                blockchainStatus = isValid ? 'verified' : 'compromised';
-                
-                console.log(`🔍 Parsed integrity status for ${record.survey_number}:`, { isValid, blockchainStatus });
-              } else if (integrityResponse.status === 429) {
-                console.warn(`⚠️ Rate limited for ${record.survey_number}, skipping integrity check`);
-                // Use overallStatus from search API as fallback
-                if (overallStatus === 'synced') {
-                  blockchainStatus = 'verified';
-                } else {
-                  blockchainStatus = 'pending';
-                }
-              } else {
-                // Use overallStatus from search API as fallback
-                if (overallStatus === 'synced') {
-                  blockchainStatus = 'verified';
-                } else {
-                  blockchainStatus = 'pending';
-                }
-              }
-            } catch (integrityError) {
-              console.debug(`Integrity check failed for ${record.survey_number}:`, integrityError);
-              // Use overallStatus from search API as fallback
-              if (overallStatus === 'synced') {
-                blockchainStatus = 'verified';
-              } else {
-                blockchainStatus = 'pending';
-              }
-            }
-          }
-          
-          results.push({
-            ...record,
-            blockchain_verified: existsOnBlockchain,
-            blockchain_status: blockchainStatus
-          });
-        } else {
-          results.push({
-            ...record,
-            blockchain_verified: false,
-            blockchain_status: 'not_on_blockchain'
-          });
-        }
-      } catch (error) {
-        console.debug(`Could not check blockchain status for ${record.survey_number}:`, error);
-        results.push({
-          ...record,
-          blockchain_verified: false,
-          blockchain_status: 'not_on_blockchain'
-        });
-      }
-    }
-    
-    console.log(`✅ Blockchain status processing completed for ${records.length} records`);
-    return results;
-  };
+  // Blockchain verification disabled for performance
+  const processRecordsSequentially = async (records: any[]) => records;
 
   const loadLandRecords = async () => {
     if (!selectedProject) return;
@@ -205,12 +97,8 @@ const LandRecordsManager: React.FC = () => {
         const data = await response.json();
         const records = data.data || [];
         
-        // 🔗 Check blockchain status for each record with rate limiting
-        console.log(`🔄 Processing blockchain status for ${records.length} records...`);
-        const recordsWithBlockchainStatus = await processRecordsSequentially(records);
-        console.log(`✅ Blockchain status processing completed, setting ${recordsWithBlockchainStatus.length} records`);
-        
-        setLandRecords(recordsWithBlockchainStatus);
+        // Use records directly without blockchain verification
+        setLandRecords(records);
       } else {
         toast.error('Failed to load land records');
       }
@@ -267,64 +155,7 @@ const LandRecordsManager: React.FC = () => {
         const landRecordData = await response.json();
         toast.success('Land record created successfully');
         
-        // 🔗 AUTOMATIC BLOCKCHAIN GENERATION
-        try {
-          console.log('🔄 Creating blockchain block for survey:', landRecordForm.survey_number);
-          
-          const blockchainResponse = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`,
-              ...(isDemo ? { 'x-demo-role': 'officer' } : {})
-            },
-            body: JSON.stringify({
-              survey_number: landRecordForm.survey_number,
-              officer_id: isDemo ? 'demo-officer' : (user?.id || ''),
-              project_id: selectedProject,
-              remarks: `Land record created for survey ${landRecordForm.survey_number}`
-            })
-          });
-
-          if (blockchainResponse.ok) {
-            const blockchainResult = await blockchainResponse.json();
-            toast.success(`✅ Blockchain block created successfully for survey ${landRecordForm.survey_number}!`);
-            console.log('Blockchain creation result:', blockchainResult);
-          } else if (blockchainResponse.status === 401) {
-            // Fallback: retry once with demo auth headers in case of stale/invalid JWT
-            console.warn('⚠️ 401 on blockchain create, retrying with demo token...');
-            const retryResp = await fetch(`${API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer demo-jwt-token',
-                'x-demo-role': 'officer'
-              },
-              body: JSON.stringify({
-                survey_number: landRecordForm.survey_number,
-                officer_id: 'demo-officer',
-                project_id: selectedProject,
-                remarks: `Retry with demo token: ${landRecordForm.survey_number}`
-              })
-            });
-            if (retryResp.ok) {
-              const retryData = await retryResp.json();
-              toast.success(`✅ Blockchain block created (retry) for ${landRecordForm.survey_number}`);
-              console.log('Blockchain creation (retry) result:', retryData);
-            } else {
-              const retryErrorText = await retryResp.text();
-              console.warn('⚠️ Blockchain creation failed after retry:', retryErrorText);
-              toast.warning('⚠️ Land record saved but blockchain creation failed (auth)');
-            }
-          } else {
-            const blockchainError = await blockchainResponse.json().catch(() => ({ message: blockchainResponse.statusText }));
-            console.warn('⚠️ Blockchain creation failed:', blockchainError);
-            toast.warning(`⚠️ Land record saved but blockchain creation failed: ${blockchainError.message}`);
-          }
-        } catch (blockchainError) {
-          console.error('❌ Error creating blockchain block:', blockchainError);
-          toast.warning('⚠️ Land record saved but blockchain creation failed');
-        }
+        // Blockchain creation disabled
         
         // Reset form
         setLandRecordForm({
@@ -906,38 +737,20 @@ const LandRecordsManager: React.FC = () => {
                   {landRecords.length > 0 && (
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                       <span>Total: {landRecords.length}</span>
-                      <span className="text-green-600">✅ Verified: {landRecords.filter(r => r.blockchain_status === 'verified').length}</span>
-                      <span className="text-yellow-600">⏳ Pending: {landRecords.filter(r => r.blockchain_status === 'pending').length}</span>
-                      <span className="text-red-600">⚠️ Compromised: {landRecords.filter(r => r.blockchain_status === 'compromised').length}</span>
-                      <span className="text-gray-600">❌ Not on Blockchain: {landRecords.filter(r => r.blockchain_status === 'not_on_blockchain').length}</span>
+                      <span className="text-gray-600">Blockchain verification disabled</span>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button 
-                    onClick={handleBulkBlockchainSync}
-                    variant="outline"
-                    size="sm"
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Sync Missing to Blockchain
-                  </Button>
+                  {/* Blockchain sync disabled */}
                   {syncProgress && (
                     <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
                       {syncProgress.message} ({syncProgress.current}/{syncProgress.total})
                     </div>
                   )}
-                  <Button 
-                    onClick={loadLandRecords}
-                    variant="outline"
-                    size="sm"
-                    disabled={loading}
-                    className="flex items-center gap-2"
-                  >
+                  <Button onClick={loadLandRecords} variant="outline" size="sm" disabled={loading} className="flex items-center gap-2">
                     <RefreshCw className="h-4 w-4" />
-                    Refresh Status
+                    Refresh
                   </Button>
                 </div>
               </div>
