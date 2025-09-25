@@ -16,6 +16,21 @@ class EnhancedBlockchainService {
     this.isInitialized = false;
     this.pollingInterval = null;
     this.lastProcessedBlock = 0;
+    
+    // WebSocket connection management
+    this.wsProvider = null;
+    this.isWebSocketConnected = false;
+    this.connectionRetryCount = 0;
+    this.connectionHealthCheck = null;
+    this.currentProviderIndex = 0;
+    this.providers = [];
+    
+    // Load WebSocket configuration
+    const wsConfig = this.config.getWebSocketConfig();
+    this.maxRetries = wsConfig.maxRetries;
+    this.retryDelay = wsConfig.retryDelay;
+    this.maxRetryDelay = wsConfig.maxRetryDelay;
+    this.healthCheckInterval = wsConfig.healthCheckInterval;
   }
 
   /**
@@ -33,21 +48,8 @@ class EnhancedBlockchainService {
         throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
       }
 
-      // Initialize provider with fallback
-      try {
-        const wsUrl = this.config.getNetworkInfo().wsUrl;
-        this.provider = new ethers.WebSocketProvider(wsUrl);
-        console.log('🌐 WebSocket provider initialized');
-      } catch (wsError) {
-        console.log('⚠️ WebSocket failed, using HTTP provider');
-      this.provider = new ethers.JsonRpcProvider(
-          this.config.getNetworkInfo().rpcUrl,
-          {
-            name: "polygon-amoy",
-            chainId: 80002
-          }
-        );
-      }
+      // Initialize provider with improved WebSocket handling and fallback
+      await this.initializeProvider();
 
       // Initialize wallet
       const walletInfo = this.config.getWalletInfo();
@@ -109,6 +111,288 @@ class EnhancedBlockchainService {
       console.error('❌ Failed to load contract ABI:', error);
       return [];
     }
+  }
+
+  /**
+   * Initialize provider with WebSocket support and fallback
+   */
+  async initializeProvider() {
+    this.providers = this.config.getProviders();
+    console.log(`🔄 Initializing provider with ${this.providers.length} available endpoints`);
+    
+    for (let i = 0; i < this.providers.length; i++) {
+      const provider = this.providers[i];
+      this.currentProviderIndex = i;
+      
+      try {
+        console.log(`🌐 Attempting to connect to ${provider.name} (${provider.wsUrl})`);
+        
+        // Try WebSocket first
+        if (provider.wsUrl && provider.wsUrl.startsWith('wss://')) {
+          try {
+            await this.initializeWebSocketProvider(provider);
+            if (this.isWebSocketConnected) {
+              console.log(`✅ WebSocket connected to ${provider.name}`);
+              this.startConnectionHealthCheck();
+              return;
+            }
+          } catch (wsError) {
+            console.log(`⚠️ WebSocket failed for ${provider.name}: ${wsError.message}`);
+            
+            // If rate limited, try HTTP immediately
+            if (wsError.message.includes('Rate limited') || wsError.message.includes('429')) {
+              console.log(`🔄 Rate limited on WebSocket, trying HTTP for ${provider.name}`);
+              await this.initializeHttpProvider(provider);
+              console.log(`✅ HTTP provider connected to ${provider.name}`);
+              return;
+            }
+            
+            // For other WebSocket errors, try HTTP fallback
+            console.log(`🔄 WebSocket failed for ${provider.name}, trying HTTP fallback`);
+            await this.initializeHttpProvider(provider);
+            console.log(`✅ HTTP provider connected to ${provider.name}`);
+            return;
+          }
+        }
+        
+        // Fallback to HTTP if WebSocket fails
+        console.log(`🔄 WebSocket failed for ${provider.name}, trying HTTP fallback`);
+        await this.initializeHttpProvider(provider);
+        console.log(`✅ HTTP provider connected to ${provider.name}`);
+        return;
+        
+      } catch (error) {
+        console.error(`❌ Failed to connect to ${provider.name}:`, error.message);
+        
+        // Handle rate limiting by waiting longer
+        if (error.message.includes('429') || error.message.includes('rate limit')) {
+          console.log(`⚠️ Rate limited by ${provider.name}, waiting 5 seconds before next provider`);
+          await this.delay(5000);
+        } else {
+          // Wait before trying next provider
+          await this.delay(2000);
+        }
+        
+        // If this is the last provider, throw the error
+        if (i === this.providers.length - 1) {
+          throw new Error(`All providers failed. Last error: ${error.message}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Initialize WebSocket provider with retry logic
+   */
+  async initializeWebSocketProvider(provider) {
+    return new Promise(async (resolve, reject) => {
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      const attemptConnection = async () => {
+        try {
+          console.log(`🔌 Creating WebSocket connection to ${provider.wsUrl}`);
+          this.wsProvider = new ethers.WebSocketProvider(provider.wsUrl);
+          
+          // Wait a moment for the WebSocket to initialize
+          await this.delay(100);
+          
+          // Check if WebSocket is properly initialized
+          if (!this.wsProvider || !this.wsProvider._websocket) {
+            throw new Error('WebSocket provider not properly initialized');
+          }
+          
+          // Set up event listeners
+          this.wsProvider._websocket.on('open', () => {
+            console.log(`🌐 WebSocket connection opened to ${provider.name}`);
+            this.isWebSocketConnected = true;
+            this.connectionRetryCount = 0;
+            this.provider = this.wsProvider;
+            resolve();
+          });
+          
+          this.wsProvider._websocket.on('error', (error) => {
+            console.error(`❌ WebSocket error for ${provider.name}:`, error.message);
+            this.isWebSocketConnected = false;
+            
+            // Handle specific error types
+            if (error.message.includes('429') || error.message.includes('rate limit')) {
+              console.log(`⚠️ Rate limited by ${provider.name}, trying next provider`);
+              reject(new Error(`Rate limited: ${error.message}`));
+              return;
+            }
+            
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`🔄 Retrying WebSocket connection (${retryCount}/${maxRetries})`);
+              setTimeout(attemptConnection, this.retryDelay * retryCount);
+            } else {
+              reject(new Error(`WebSocket connection failed after ${maxRetries} retries: ${error.message}`));
+            }
+          });
+          
+          this.wsProvider._websocket.on('close', (code, reason) => {
+            console.log(`🔌 WebSocket connection closed: ${code} - ${reason}`);
+            this.isWebSocketConnected = false;
+            
+            if (code !== 1000) { // Not a normal closure
+              console.log('🔄 WebSocket closed unexpectedly, will attempt reconnection');
+              this.scheduleReconnection();
+            }
+          });
+          
+          // Set a timeout for the connection attempt
+          setTimeout(() => {
+            if (!this.isWebSocketConnected) {
+              reject(new Error('WebSocket connection timeout'));
+            }
+          }, 10000);
+          
+        } catch (error) {
+          console.error(`❌ WebSocket initialization error for ${provider.name}:`, error.message);
+          
+          // Handle rate limiting errors
+          if (error.message.includes('429') || error.message.includes('rate limit')) {
+            reject(new Error(`Rate limited: ${error.message}`));
+            return;
+          }
+          
+          reject(error);
+        }
+      };
+      
+      await attemptConnection();
+    });
+  }
+
+  /**
+   * Initialize HTTP provider as fallback
+   */
+  async initializeHttpProvider(provider) {
+    this.provider = new ethers.JsonRpcProvider(provider.rpcUrl, {
+      name: "polygon-amoy",
+      chainId: 80002
+    });
+    
+    // Test the connection with retry logic
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount < maxRetries) {
+      try {
+        await this.provider.getBlockNumber();
+        console.log(`✅ HTTP provider connection verified for ${provider.name}`);
+        return;
+      } catch (error) {
+        retryCount++;
+        
+        // Handle rate limiting
+        if (error.message.includes('429') || error.message.includes('rate limit')) {
+          console.log(`⚠️ Rate limited by ${provider.name} HTTP, waiting before retry`);
+          await this.delay(3000 * retryCount);
+          continue;
+        }
+        
+        // Handle other errors
+        if (retryCount >= maxRetries) {
+          throw new Error(`HTTP provider connection test failed after ${maxRetries} retries: ${error.message}`);
+        }
+        
+        console.log(`🔄 HTTP connection test failed, retrying (${retryCount}/${maxRetries})`);
+        await this.delay(1000 * retryCount);
+      }
+    }
+  }
+
+  /**
+   * Start connection health monitoring
+   */
+  startConnectionHealthCheck() {
+    if (this.connectionHealthCheck) {
+      clearInterval(this.connectionHealthCheck);
+    }
+    
+    this.connectionHealthCheck = setInterval(async () => {
+      if (this.isWebSocketConnected && this.wsProvider) {
+        try {
+          await this.wsProvider.getBlockNumber();
+        } catch (error) {
+          console.error('❌ WebSocket health check failed:', error.message);
+          this.isWebSocketConnected = false;
+          this.scheduleReconnection();
+        }
+      }
+    }, this.healthCheckInterval);
+  }
+
+  /**
+   * Schedule reconnection with exponential backoff
+   */
+  scheduleReconnection() {
+    if (this.connectionRetryCount >= this.maxRetries) {
+      console.log('❌ Max reconnection attempts reached, staying with HTTP provider');
+      return;
+    }
+    
+    this.connectionRetryCount++;
+    const delay = Math.min(this.retryDelay * Math.pow(2, this.connectionRetryCount - 1), this.maxRetryDelay);
+    
+    console.log(`🔄 Scheduling reconnection in ${delay}ms (attempt ${this.connectionRetryCount}/${this.maxRetries})`);
+    
+    setTimeout(async () => {
+      try {
+        const currentProvider = this.providers[this.currentProviderIndex];
+        await this.initializeWebSocketProvider(currentProvider);
+        console.log('✅ WebSocket reconnected successfully');
+        this.connectionRetryCount = 0;
+      } catch (error) {
+        console.error('❌ Reconnection failed:', error.message);
+        this.scheduleReconnection();
+      }
+    }, delay);
+  }
+
+  /**
+   * Utility function for delays
+   */
+  delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Cleanup resources and close connections
+   */
+  async cleanup() {
+    console.log('🧹 Cleaning up blockchain service resources...');
+    
+    // Stop health check
+    if (this.connectionHealthCheck) {
+      clearInterval(this.connectionHealthCheck);
+      this.connectionHealthCheck = null;
+    }
+    
+    // Stop event polling
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    
+    // Close WebSocket connection
+    if (this.wsProvider && this.wsProvider._websocket) {
+      try {
+        this.wsProvider._websocket.close(1000, 'Service shutdown');
+        console.log('🔌 WebSocket connection closed');
+      } catch (error) {
+        console.error('❌ Error closing WebSocket:', error.message);
+      }
+    }
+    
+    // Reset connection state
+    this.isWebSocketConnected = false;
+    this.isInitialized = false;
+    this.connectionRetryCount = 0;
+    
+    console.log('✅ Blockchain service cleanup completed');
   }
 
   /**
@@ -690,6 +974,15 @@ class EnhancedBlockchainService {
         }
       }
 
+      // Check WebSocket connection status
+      let connectionStatus = {
+        isWebSocketConnected: this.isWebSocketConnected,
+        currentProvider: this.providers[this.currentProviderIndex]?.name || 'unknown',
+        retryCount: this.connectionRetryCount,
+        maxRetries: this.maxRetries,
+        healthCheckActive: !!this.connectionHealthCheck
+      };
+
       return {
         success: true,
         data: {
@@ -702,8 +995,15 @@ class EnhancedBlockchainService {
             chainId: networkInfo.chainId,
             rpcUrl: networkInfo.rpcUrl,
             wsUrl: networkInfo.wsUrl,
-            explorer: networkInfo.explorer
+            explorer: networkInfo.explorer,
+            availableProviders: networkInfo.providers?.map(p => ({
+              name: p.name,
+              priority: p.priority,
+              rpcUrl: p.rpcUrl,
+              wsUrl: p.wsUrl
+            })) || []
           },
+          connection: connectionStatus,
           wallet: walletStatus,
           contract: contractStatus,
           config: {

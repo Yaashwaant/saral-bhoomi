@@ -484,7 +484,7 @@ const JMRBlockchainForm: React.FC = () => {
                     <SelectContent>
                       {projects.map((project) => (
                         <SelectItem key={project.id} value={project.id.toString()}>
-                          {project.name}
+                          {project.projectName}
                         </SelectItem>
                       ))}
                     </SelectContent>

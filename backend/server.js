@@ -405,10 +405,20 @@ const connectDB = async () => {
   }
 };
 
+// Import blockchain service for cleanup
+import EnhancedBlockchainService from './services/enhancedBlockchainService.js';
+
+// Global blockchain service instance
+let blockchainService = null;
+
 // Start server
 const startServer = async () => {
   try {
     await connectDB();
+    
+    // Initialize blockchain service
+    blockchainService = new EnhancedBlockchainService();
+    await blockchainService.initialize();
     
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
@@ -417,5 +427,45 @@ const startServer = async () => {
     console.error('❌ Failed to start server:', error.message);
   }
 };
+
+// Graceful shutdown handling
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 Received ${signal}, starting graceful shutdown...`);
+  
+  try {
+    // Cleanup blockchain service
+    if (blockchainService) {
+      console.log('🧹 Cleaning up blockchain service...');
+      await blockchainService.cleanup();
+    }
+    
+    // Close MongoDB connection
+    console.log('🧹 Closing database connections...');
+    // Add MongoDB cleanup if needed
+    
+    console.log('✅ Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during graceful shutdown:', error.message);
+    process.exit(1);
+  }
+};
+
+// Handle shutdown signals
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  gracefulShutdown('uncaughtException');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  gracefulShutdown('unhandledRejection');
+});
 
 startServer();

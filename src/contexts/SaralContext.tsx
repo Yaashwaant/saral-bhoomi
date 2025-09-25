@@ -49,25 +49,99 @@ export interface LandownerRecord {
   id: string;
   _id?: string; // MongoDB ObjectId
   projectId: string;
-  खातेदाराचे_नांव: string; // landowner_name
-  सर्वे_नं: string; // survey_number
-  क्षेत्र: string; // area (Ha.Ar)
-  संपादित_क्षेत्र: string; // acquired_area (sq.m / Ha.Ar)
-  दर: string; // rate (₹)
-  संरचना_झाडे_विहिरी_रक्कम: string; // structures_amount
-  एकूण_मोबदला: string; // compensation_amount
-  सोलेशियम_100: string; // solatium
-  अंतिम_रक्कम: string; // final_compensation
+  
+  // BASIC IDENTIFICATION FIELDS
+  serial_number?: string; // अ.क्र
+  survey_number: string; // Primary survey number
+  landowner_name: string; // Primary landowner name
+  
+  // LEGACY FIELDS (for backward compatibility)
+  खातेदाराचे_नांव?: string; // landowner_name (legacy)
+  सर्वे_नं?: string; // survey_number (legacy)
+  क्षेत्र?: string; // area (Ha.Ar) - legacy
+  संपादित_क्षेत्र?: string; // acquired_area (sq.m / Ha.Ar) - legacy
+  दर?: string; // rate (₹) - legacy
+  संरचना_झाडे_विहिरी_रक्कम?: string; // structures_amount - legacy
+  एकूण_मोबदला?: string; // compensation_amount - legacy
+  सोलेशियम_100?: string; // solatium - legacy
+  अंतिम_रक्कम?: string; // final_compensation - legacy
+  
+  // NEW FORMAT IDENTIFICATION FIELDS
+  old_survey_number?: string; // जुना स.नं.
+  new_survey_number?: string; // नविन स.नं.
+  group_number?: string; // गट नंबर
+  cts_number?: string; // सी.टी.एस. नंबर
+  
+  // AREA FIELDS
+  area: number; // Primary area field
+  acquired_area?: number; // Primary acquired area
+  total_area_village_record?: number; // गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)
+  acquired_area_sqm_hectare?: number; // संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)
+  
+  // LAND CLASSIFICATION FIELDS
+  land_category?: string; // जमिनीचा प्रकार
+  land_type_classification?: string; // जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार
+  agricultural_type?: string; // शेती
+  agricultural_classification?: string; // शेती/वर्ग -1
+  
+  // RATE AND MARKET VALUE FIELDS
+  rate?: number; // Primary rate field
+  approved_rate_per_hectare?: number; // मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये
+  market_value_acquired_area?: number; // संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू
+  
+  // SECTION 26 CALCULATION FIELDS
+  section_26_2_factor?: number; // कलम 26 (2) नुसार गावास लागु असलेले गणक Factor
+  section_26_compensation?: number; // कलम 26 नुसार जमिनीचा मोबदला
+  
+  // STRUCTURE COMPENSATION FIELDS
+  structure_trees_wells_amount?: number; // Legacy field
+  buildings_count?: number; // बांधकामे संख्या
+  buildings_amount?: number; // बांधकामे रक्कम रुपये
+  forest_trees_count?: number; // वनझाडे झाडांची संख्या
+  forest_trees_amount?: number; // वनझाडे झाडांची रक्कम रु.
+  fruit_trees_count?: number; // फळझाडे झाडांची संख्या
+  fruit_trees_amount?: number; // फळझाडे झाडांची रक्कम रु.
+  wells_borewells_count?: number; // विहिरी/बोअरवेल संख्या
+  wells_borewells_amount?: number; // विहिरी/बोअरवेल रक्कम रुपये
+  total_structures_amount?: number; // एकुण रक्कम रुपये (16+18+ 20+22)
+  
+  // COMPENSATION CALCULATION FIELDS
+  total_compensation?: number; // Legacy field
+  total_compensation_amount?: number; // एकुण रक्कम (14+23)
+  solatium?: number; // Legacy field
+  solatium_100_percent?: number; // 100 % सोलेशियम (दिलासा रक्कम)
+  determined_compensation?: number; // निर्धारित मोबदला 26 = (24+25)
+  additional_25_percent_compensation?: number; // एकूण रक्कमेवर 25% वाढीव मोबदला
+  total_final_compensation?: number; // एकुण मोबदला (26+ 27)
+  deduction_amount?: number; // वजावट रक्कम रुपये
+  final_amount?: number; // Legacy field
+  final_payable_amount?: number; // हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये
+  
+  // Location
   village: string;
   taluka: string;
   district: string;
+  
+  // Contact information
+  contact_phone?: string;
+  contact_email?: string;
+  contact_address?: string;
+  
+  // Banking information
+  bank_account_number?: string;
+  bank_ifsc_code?: string;
+  bank_name?: string;
+  bank_branch_name?: string;
+  bank_account_holder_name?: string;
+  
+  // Status and tracking
   noticeGenerated: boolean;
   noticeNumber?: string;
   noticeDate?: Date;
   noticeContent?: string;
   noticePdfUrl?: string;
-  kycStatus: 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
-  paymentStatus: 'pending' | 'initiated' | 'success' | 'failed';
+  kycStatus: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'approved' | 'rejected';
+  paymentStatus: 'pending' | 'initiated' | 'completed' | 'success' | 'failed';
   assignedAgent?: string;
   assignedAt?: Date;
   documentsUploaded: boolean;
@@ -75,10 +149,25 @@ export interface LandownerRecord {
   transactionId?: string;
   utrNumber?: string;
   paymentDate?: Date;
-  // Tribal flags
+  
+  // Tribal information
   isTribal?: boolean;
+  is_tribal?: boolean; // Alternative field name
   tribalCertificateNo?: string;
+  tribal_certificate_no?: string; // Alternative field name
   tribalLag?: string;
+  tribal_lag?: string; // Alternative field name
+  
+  // ADDITIONAL FIELDS
+  notes?: string;
+  remarks?: string; // शेरा - remarks from new format
+  
+  // METADATA FIELDS
+  created_by?: string;
+  is_active?: boolean;
+  data_format?: 'legacy' | 'parishisht_k' | 'mixed';
+  source_file_name?: string;
+  import_batch_id?: string;
 }
 
 export interface KYCDocument {

@@ -5,6 +5,20 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  safeGetField, 
+  safeGetNumericField,
+  formatNumber,
+  formatCurrency,
+  getLandownerName,
+  getSurveyNumber,
+  getDisplayArea,
+  getVillageName,
+  getCompensationAmount,
+  getKycStatus,
+  getPaymentStatus,
+  isNewFormat
+} from '../../../utils/fieldMappingUtils';
 
 interface LandownerRecord {
   _id: string;
@@ -346,14 +360,32 @@ const SimpleAgentAssignment: React.FC = () => {
                 {records.map((record) => (
                   <TableRow key={record._id}>
                     <TableCell className="font-medium">
-                      {record.खातेदाराचे_नांव}
+                      <div>{getLandownerName(record)}</div>
+                      {safeGetField(record, 'group_number') && (
+                        <div className="text-xs text-gray-500">Group: {safeGetField(record, 'group_number')}</div>
+                      )}
                     </TableCell>
-                    <TableCell>{record.सर्वे_नं}</TableCell>
-                    <TableCell>{record.village}</TableCell>
-                    <TableCell>{record.क्षेत्र}</TableCell>
-                    <TableCell>₹{record.एकूण_मोबदला}</TableCell>
                     <TableCell>
-                      {record.noticeGenerated ? (
+                      <div className="font-medium">{getSurveyNumber(record)}</div>
+                      {safeGetField(record, 'old_survey_number') && (
+                        <div className="text-xs text-gray-500">Old: {safeGetField(record, 'old_survey_number')}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>{getVillageName(record)}</TableCell>
+                    <TableCell>
+                      <div>{getDisplayArea(record)}</div>
+                      {safeGetNumericField(record, 'acquired_area') > 0 && (
+                        <div className="text-xs text-gray-500">Acq: {formatNumber(safeGetNumericField(record, 'acquired_area'))} Ha</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div>{getCompensationAmount(record)}</div>
+                      {safeGetNumericField(record, 'solatium') > 0 && (
+                        <div className="text-xs text-gray-500">Sol: {formatCurrency(safeGetNumericField(record, 'solatium'))}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {safeGetField(record, 'notice_generated') ? (
                         <Badge variant="default" className="bg-green-500">
                           Notice Generated
                         </Badge>
@@ -362,7 +394,7 @@ const SimpleAgentAssignment: React.FC = () => {
                       )}
                     </TableCell>
                     <TableCell>{getAssignmentStatus(record)}</TableCell>
-                    <TableCell>{getStatusBadge(record.kycStatus)}</TableCell>
+                    <TableCell>{getStatusBadge(getKycStatus(record))}</TableCell>
                     <TableCell>
                       {!record.assignedAgent ? (
                         <Button

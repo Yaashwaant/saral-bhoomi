@@ -4,6 +4,7 @@ import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import XLSX from 'xlsx';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import MongoJMRRecord from '../models/mongo/JMRRecord.js';
@@ -11,11 +12,85 @@ import MongoAward from '../models/mongo/Award.js';
 import { authorize } from '../middleware/auth.js';
 import MongoUser from '../models/mongo/User.js'; // Added import for User
 import { Readable } from 'stream';
+import { normalizeRowEnhanced, NEW_EXCEL_FIELD_MAPPINGS, NEW_TO_LEGACY_MAPPING } from '../utils/excelFieldMappings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
+
+/**
+ * Utility function to read both CSV and Excel files
+ * @param {string} filePath - Path to the file
+ * @param {string} fileType - 'csv' or 'xlsx'
+ * @returns {Promise<Array>} - Array of row objects
+ */
+const readFileData = async (filePath, fileType) => {
+  return new Promise((resolve, reject) => {
+    try {
+      if (fileType === 'xlsx') {
+        // Read Excel file
+        const workbook = XLSX.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // For Parishisht-K format: headers at row 4 (0-indexed row 3), data starts at row 7 (0-indexed row 6)
+        // Skip rows 4 and 5 which contain sub-headers and column numbers
+        const range = XLSX.utils.decode_range(worksheet['!ref']);
+        
+        // Get headers from row 4 (0-indexed row 3)
+        const headers = [];
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const headerCell = worksheet[XLSX.utils.encode_cell({r: 3, c: C})];
+          headers.push(headerCell ? headerCell.v : `Column_${C}`);
+        }
+        
+        // Read data starting from row 7 (0-indexed row 6)
+        const jsonData = [];
+        for (let R = 6; R <= range.e.r; ++R) {
+          const row = {};
+          let hasData = false;
+          
+          for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
+            const header = headers[C - range.s.c];
+            const value = cell ? cell.v : '';
+            
+            if (header && value !== '') {
+              row[header] = value;
+              hasData = true;
+            } else if (header) {
+              row[header] = '';
+            }
+          }
+          
+          // Only add rows that have some data
+          if (hasData) {
+            jsonData.push(row);
+          }
+        }
+        
+        console.log('Excel file read successfully. Rows:', jsonData.length);
+        console.log('Headers found:', headers.slice(0, 10)); // Log first 10 headers
+        console.log('Sample record keys:', Object.keys(jsonData[0] || {}).slice(0, 5));
+        resolve(jsonData);
+      } else {
+        // Read CSV file
+        const results = [];
+        fs.createReadStream(filePath)
+          .pipe(csv())
+          .on('data', (data) => results.push(data))
+          .on('end', () => {
+            console.log('CSV file read successfully. Rows:', results.length);
+            resolve(results);
+          })
+          .on('error', reject);
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
 
 // Normalize a CSV row by mapping English and Marathi variants into canonical keys
 const normalizeRow = (row = {}) => {
@@ -89,6 +164,18 @@ const storage = multer.diskStorage({
   }
 });
 
+// Enhanced storage for both CSV and Excel files
+const enhancedStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, file.fieldname + '-' + uniqueSuffix + extension);
+  }
+});
+
 const upload = multer({
   storage: storage,
   limits: {
@@ -99,6 +186,28 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only CSV files are allowed'));
+    }
+  }
+});
+
+const enhancedUpload = multer({
+  storage: enhancedStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    const allowedExtensions = ['.csv', '.xls', '.xlsx'];
+    
+    if (allowedTypes.includes(file.mimetype) || 
+        allowedExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV and Excel files are allowed'));
     }
   }
 });
@@ -1159,6 +1268,265 @@ router.post('/upload-awards', authorize(['officer', 'admin']), upload.single('fi
       message: 'Error uploading Awards CSV file'
     });
     }
+});
+
+// @desc    Enhanced upload for both CSV and Excel files with new Marathi format support
+// @route   POST /api/csv/upload-enhanced/:projectId
+// @access  Public (temporarily)
+router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { overwrite = false } = req.body;
+    
+    // Check if project exists
+    const project = await MongoProject.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload a CSV or Excel file'
+      });
+    }
+    
+    const records = [];
+    const errors = [];
+    let rowNumber = 1;
+    
+    try {
+      // Determine file type
+      const fileExtension = path.extname(req.file.originalname).toLowerCase();
+      const isExcel = ['.xlsx', '.xls'].includes(fileExtension);
+      
+      console.log(`Processing ${isExcel ? 'Excel' : 'CSV'} file: ${req.file.originalname}`);
+      
+      // Read file data
+      const fileData = await readFileData(req.file.path, isExcel ? 'xlsx' : 'csv');
+      
+      console.log(`File contains ${fileData.length} rows`);
+      
+      // Process each row
+      for (const rawRow of fileData) {
+        rowNumber++;
+        
+        // Use enhanced normalization for new format
+        const row = normalizeRowEnhanced(rawRow);
+        
+        console.log(`Processing row ${rowNumber}:`, {
+          landowner_name: row.landowner_name,
+          survey_number: row.survey_number,
+          area: row.area,
+          acquired_area: row.acquired_area
+        });
+        
+        // Validate required fields
+        const requiredFields = [
+          'landowner_name', 'survey_number', 'area', 'acquired_area',
+          'rate', 'total_compensation', 'solatium', 'final_amount',
+          'village'
+        ];
+        
+        const missingFields = requiredFields.filter(field => !row[field] || row[field].toString().trim() === '');
+        if (missingFields.length > 0) {
+          errors.push({
+            row: rowNumber,
+            error: `Missing required fields: ${missingFields.join(', ')}`
+          });
+          continue;
+        }
+        
+        // Check for duplicate survey number if not overwriting
+        if (!overwrite) {
+          const existingRecord = await MongoLandownerRecord.findOne({ 
+            survey_number: row.survey_number.toString().trim(),
+            project_id: projectId 
+          });
+          
+          if (existingRecord) {
+            errors.push({
+              row: rowNumber,
+              error: `Survey number ${row.survey_number} already exists`
+            });
+            continue;
+          }
+        }
+        
+        // Create record object with ALL new format fields populated
+        const record = {
+          project_id: projectId,
+          
+          // BASIC IDENTIFICATION FIELDS
+          serial_number: row['अ.क्र'] || row.serial_number || '',
+          survey_number: row['नविन स.नं.'] || row.new_survey_number || row.survey_number || '',
+          landowner_name: row['खातेदाराचे नांव'] || row.landowner_name || '',
+          
+          // NEW FORMAT IDENTIFICATION FIELDS
+          old_survey_number: row['जुना स.नं.'] || row.old_survey_number || '',
+          new_survey_number: row['नविन स.नं.'] || row.new_survey_number || '',
+          group_number: row['गट नंबर'] || row.group_number || '',
+          cts_number: row['सी.टी.एस. नंबर'] || row.cts_number || '',
+          
+          // AREA FIELDS
+          area: parseFloat(row['गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)'] || row.total_area_village_record || row.area || 0),
+          acquired_area: parseFloat(row['संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)'] || row.acquired_area_sqm_hectare || row.acquired_area || 0),
+          total_area_village_record: parseFloat(row['गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)'] || row.total_area_village_record || 0),
+          acquired_area_sqm_hectare: parseFloat(row['संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)'] || row.acquired_area_sqm_hectare || 0),
+          
+          // LAND CLASSIFICATION FIELDS
+          land_category: row['जमिनीचा प्रकार'] || row.land_category || '',
+          land_type_classification: row['जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार'] || row.land_type_classification || '',
+          agricultural_type: row['शेती'] || row.agricultural_type || '',
+          agricultural_classification: row['शेती/वर्ग -1'] || row.agricultural_classification || '',
+          
+          // RATE AND MARKET VALUE FIELDS
+          rate: parseFloat(row['मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये'] || row.approved_rate_per_hectare || row.rate || 0),
+          approved_rate_per_hectare: parseFloat(row['मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये'] || row.approved_rate_per_hectare || 0),
+          market_value_acquired_area: parseFloat(row['संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू'] || row.market_value_acquired_area || 0),
+          
+          // SECTION 26 CALCULATION FIELDS
+          section_26_2_factor: parseFloat(row['कलम 26 (2) नुसार गावास लागु असलेले गणक Factor (अ.क्र. 5 X 8)'] || row.section_26_2_factor || 0),
+          section_26_compensation: parseFloat(row['कलम 26 नुसार जमिनीचा मोबदला (9X10)'] || row.section_26_compensation || 0),
+          
+          // STRUCTURE COMPENSATION FIELDS
+          structure_trees_wells_amount: parseFloat(row.structure_trees_wells_amount || 0),
+          buildings_count: parseInt(row['बांधकामे संख्या'] || row.buildings_count || 0),
+          buildings_amount: parseFloat(row['बांधकामे रक्कम रुपये'] || row.buildings_amount || 0),
+          forest_trees_count: parseInt(row['वनझाडे झाडांची संख्या'] || row.forest_trees_count || 0),
+          forest_trees_amount: parseFloat(row['वनझाडे झाडांची रक्कम रु.'] || row.forest_trees_amount || 0),
+          fruit_trees_count: parseInt(row['फळझाडे झाडांची संख्या'] || row.fruit_trees_count || 0),
+          fruit_trees_amount: parseFloat(row['फळझाडे झाडांची रक्कम रु.'] || row.fruit_trees_amount || 0),
+          wells_borewells_count: parseInt(row['विहिरी/बोअरवेल संख्या'] || row.wells_borewells_count || 0),
+          wells_borewells_amount: parseFloat(row['विहिरी/बोअरवेल रक्कम रुपये'] || row.wells_borewells_amount || 0),
+          total_structures_amount: parseFloat(row['एकुण रक्कम रुपये (16+18+ 20+22)'] || row.total_structures_amount || 0),
+          
+          // COMPENSATION CALCULATION FIELDS
+          total_compensation: parseFloat(row['एकुण रक्कम (14+23)'] || row.total_compensation_amount || row.total_compensation || 0),
+          total_compensation_amount: parseFloat(row['एकुण रक्कम (14+23)'] || row.total_compensation_amount || 0),
+          solatium: parseFloat(row['100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5'] || row.solatium_100_percent || row.solatium || 0),
+          solatium_100_percent: parseFloat(row['100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5'] || row.solatium_100_percent || 0),
+          determined_compensation: parseFloat(row['निर्धारित मोबदला 26 = (24+25)'] || row.determined_compensation || 0),
+          additional_25_percent_compensation: parseFloat(row['एकूण रक्कमेवर  25%  वाढीव मोबदला'] || row.additional_25_percent_compensation || 0),
+          total_final_compensation: parseFloat(row['एकुण मोबदला (26+ 27)'] || row.total_final_compensation || 0),
+          deduction_amount: parseFloat(row['वजावट रक्कम रुपये'] || row.deduction_amount || 0),
+          final_amount: parseFloat(row['हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)'] || row.final_payable_amount || row.final_amount || 0),
+          final_payable_amount: parseFloat(row['हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)'] || row.final_payable_amount || 0),
+          
+          // LOCATION FIELDS
+          village: row.village || 'NA',
+          taluka: row.taluka || 'NA',
+          district: row.district || 'NA',
+          
+          // CONTACT FIELDS
+          contact_phone: row.contact_phone || '',
+          contact_email: row.contact_email || '',
+          contact_address: row.contact_address || '',
+          
+          // TRIBAL FIELDS
+          is_tribal: !!row.is_tribal,
+          tribal_certificate_no: row.tribal_certificate_no || '',
+          tribal_lag: row.tribal_lag || '',
+          
+          // BANKING FIELDS
+          bank_account_number: row.bank_account_number || '',
+          bank_ifsc_code: row.bank_ifsc_code || '',
+          bank_name: row.bank_name || '',
+          bank_branch_name: row.bank_branch_name || '',
+          bank_account_holder_name: row.bank_account_holder_name || row.landowner_name || '',
+          
+          // STATUS FIELDS
+          kyc_status: 'pending',
+          payment_status: 'pending',
+          notice_generated: false,
+          assigned_agent: row.assigned_agent || '',
+          
+          // ADDITIONAL FIELDS
+          notes: row.notes || '',
+          remarks: row['शेरा'] || row.remarks || '',
+          
+          // METADATA FIELDS
+          data_format: isExcel ? 'parishisht_k' : 'legacy',
+          source_file_name: req.file.originalname,
+          import_batch_id: Date.now().toString()
+        };
+        
+        records.push(record);
+      }
+      
+      // Save records to database
+      let saved = 0;
+      for (const record of records) {
+        try {
+          if (overwrite) {
+            // Update existing record or create new one
+            await MongoLandownerRecord.findOneAndUpdate(
+              { survey_number: record.survey_number, project_id: projectId },
+              record,
+              { upsert: true, new: true }
+            );
+          } else {
+            // Create new record
+            const newRecord = new MongoLandownerRecord(record);
+            await newRecord.save();
+          }
+          saved++;
+        } catch (error) {
+          console.error(`Error saving record for survey ${record.survey_number}:`, error);
+          errors.push({
+            survey_number: record.survey_number,
+            error: error.message
+          });
+        }
+      }
+      
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+      
+      res.status(200).json({
+        success: true,
+        message: `File upload completed. ${saved} records processed successfully.`,
+        data: {
+          total_rows: fileData.length,
+          processed: records.length,
+          saved: saved,
+          errors: errors.length,
+          error_details: errors.length > 0 ? errors : undefined,
+          file_type: isExcel ? 'Excel' : 'CSV',
+          new_format_detected: isExcel
+        }
+      });
+      
+    } catch (fileError) {
+      console.error('Error processing file:', fileError);
+      
+      // Clean up uploaded file
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error processing file: ' + fileError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error in enhanced upload:', error);
+    
+    // Clean up uploaded file
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error during file upload'
+    });
+  }
 });
 
 export default router; 
