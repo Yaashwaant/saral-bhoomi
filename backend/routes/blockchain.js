@@ -617,6 +617,42 @@ router.get('/surveys-with-complete-status', [
 });
 
 /**
+ * @route GET /api/blockchain/landowners-with-status
+ * @desc List landowner rows (project + new_survey + CTS) with blockchain flags
+ */
+router.get('/landowners-with-status', [ authMiddleware ], async (req, res) => {
+  try {
+    const projectId = req.query.projectId || null;
+    const limit = parseInt(req.query.limit) || 200;
+    const surveyService = new SurveyDataAggregationService();
+    const rows = await surveyService.getLandownerRowsStatus(projectId, limit);
+    res.json({ success: true, data: rows, total: rows.length });
+  } catch (error) {
+    console.error('❌ Failed to list landowner rows status:', error);
+    res.status(500).json({ success: false, message: 'Failed to list landowner rows', error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/verify-landowner-row
+ * @desc Verify one landowner row using (projectId,new_survey_number,cts_number)
+ */
+router.get('/verify-landowner-row', [ authMiddleware ], async (req, res) => {
+  try {
+    const { projectId, newSurveyNumber, ctsNumber } = req.query;
+    if (!projectId || !newSurveyNumber || !ctsNumber) {
+      return res.status(400).json({ success: false, message: 'projectId, newSurveyNumber, ctsNumber are required' });
+    }
+    const surveyService = new SurveyDataAggregationService();
+    const result = await surveyService.verifyLandownerRow(projectId, newSurveyNumber, ctsNumber);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('❌ Failed to verify landowner row:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify landowner row', error: error.message });
+  }
+});
+
+/**
  * @route POST /api/blockchain/rebuild-ledger
  * @desc Delete existing blocks and rebuild from LIVE DB using v2 hashing
  * @access Private (Officers/Admin)

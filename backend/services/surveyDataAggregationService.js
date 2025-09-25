@@ -415,6 +415,111 @@ class SurveyDataAggregationService {
       throw error;
     }
   }
+
+  /**
+   * Build canonical landowner row key based on project + new survey + CTS
+   * This uniquely identifies a row within Parishisht‑K format.
+   */
+  buildLandownerRowKey(record) {
+    const pid = String(record.project_id || 'noproj');
+    const ns = String(record.new_survey_number || 'NA');
+    const cts = String(record.cts_number || 'NA');
+    return `${pid}:${ns}:${cts}`;
+  }
+
+  /**
+   * List all landowner rows with blockchain presence flags
+   */
+  async getLandownerRowsStatus(projectId = null, limit = 200) {
+    try {
+      const filter = {};
+      if (projectId) filter.project_id = projectId;
+      const rows = await MongoLandownerRecord.find(filter, {
+        project_id: 1,
+        serial_number: 1,
+        old_survey_number: 1,
+        new_survey_number: 1,
+        cts_number: 1,
+        landowner_name: 1,
+        village: 1,
+        taluka: 1,
+        district: 1,
+      }).limit(limit);
+
+      const results = [];
+      for (const r of rows) {
+        const row_key = this.buildLandownerRowKey(r);
+        // Look up any ledger where the landowner section contains the same new survey + CTS
+        const ledger = await MongoBlockchainLedger.findOne({
+          project_id: r.project_id,
+          'survey_data.landowner.data.new_survey_number': r.new_survey_number,
+          'survey_data.landowner.data.cts_number': r.cts_number
+        }).sort({ timestamp: -1 });
+
+        results.push({
+          row_key,
+          project_id: r.project_id,
+          serial_number: r.serial_number,
+          landowner_name: r.landowner_name,
+          old_survey_number: r.old_survey_number,
+          new_survey_number: r.new_survey_number,
+          cts_number: r.cts_number,
+          location: { village: r.village, taluka: r.taluka, district: r.district },
+          exists_on_blockchain: !!ledger,
+          blockchain_block_id: ledger?.block_id || null,
+          blockchain_hash: ledger?.current_hash || null,
+          blockchain_last_updated: ledger?.updatedAt || null
+        });
+      }
+      return results;
+    } catch (error) {
+      console.error('❌ Failed to get landowner rows status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a specific landowner row by recomputing its landowner section hash
+   */
+  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber) {
+    try {
+      const record = await MongoLandownerRecord.findOne({
+        project_id: projectId,
+        new_survey_number: newSurveyNumber,
+        cts_number: ctsNumber
+      });
+      if (!record) {
+        return { isValid: false, reason: 'row_not_found' };
+      }
+
+      const cleanData = this.cleanDataForSerialization(record.toObject());
+      const liveHash = this.generateDataHash(cleanData);
+
+      const ledger = await MongoBlockchainLedger.findOne({
+        project_id: projectId,
+        'survey_data.landowner.data.new_survey_number': newSurveyNumber,
+        'survey_data.landowner.data.cts_number': ctsNumber
+      }).sort({ timestamp: -1 });
+
+      if (!ledger) {
+        return { isValid: false, reason: 'not_on_blockchain', live_hash: liveHash };
+      }
+
+      const chainHash = ledger?.survey_data?.landowner?.hash || null;
+      const isValid = !!chainHash && chainHash === liveHash;
+      return {
+        isValid,
+        reason: isValid ? 'ok' : 'hash_mismatch',
+        live_hash: liveHash,
+        chain_hash: chainHash,
+        block_id: ledger.block_id,
+        last_updated: ledger.updatedAt
+      };
+    } catch (error) {
+      console.error('❌ verifyLandownerRow error:', error);
+      return { isValid: false, reason: 'error', error: error.message };
+    }
+  }
 }
 
 export default SurveyDataAggregationService;

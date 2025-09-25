@@ -92,31 +92,30 @@ const BlockchainDashboard: React.FC = () => {
   const fetchSurveyOverview = async () => {
     try {
       setOverviewLoading(true);
-      const resp = await fetch(`${config.API_BASE_URL}/blockchain/surveys-with-complete-status`, {
+      // Prefer landowner row-based uniqueness (projectId:newSurvey:CTS)
+      const resp = await fetch(`${config.API_BASE_URL}/blockchain/landowners-with-status?limit=200`, {
         headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
       });
       if (!resp.ok) throw new Error('Failed to fetch overview');
       const data = await resp.json();
       // Normalize various possible response shapes to an array
-      const list = Array.isArray(data?.surveys)
-        ? data.surveys
-        : Array.isArray(data?.data?.surveys)
-          ? data.data.surveys
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-              ? data
-              : [];
+      const list = Array.isArray(data?.data) ? data.data : [];
       // Initialize status to a quick value without deep integrity
       const normalized = (list || []).map((r: any) => ({
-        survey_number: r.survey_number,
-        exists_on_blockchain: r.exists_on_blockchain ?? r.existsOnBlockchain ?? false,
+        row_key: r.row_key,
+        project_id: r.project_id,
+        serial_number: r.serial_number,
+        landowner_name: r.landowner_name,
+        old_survey_number: r.old_survey_number,
+        new_survey_number: r.new_survey_number,
+        cts_number: r.cts_number,
+        survey_number: r.new_survey_number || r.old_survey_number,
+        exists_on_blockchain: r.exists_on_blockchain ?? false,
         blockchain_last_updated: r.blockchain_last_updated || null,
         blockchain_block_id: r.blockchain_block_id || null,
         blockchain_hash: r.blockchain_hash || null,
-        survey_data_summary: r.survey_data_summary || {},
-        total_sections: r.total_sections || 5,
-        sections_with_data: r.sections_with_data || 0,
+        total_sections: 1,
+        sections_with_data: r.exists_on_blockchain ? 1 : 0,
         blockchain_status: (r.exists_on_blockchain ?? r.existsOnBlockchain) ? 'pending' : 'not_on_blockchain'
       }));
       setSurveyOverview(normalized);
@@ -793,8 +792,10 @@ const BlockchainDashboard: React.FC = () => {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="text-left border-b">
-                        <th className="p-2">Survey No.</th>
-                        <th className="p-2">Sections</th>
+                        <th className="p-2">Row Key</th>
+                        <th className="p-2">Owner</th>
+                        <th className="p-2">New Survey</th>
+                        <th className="p-2">CTS</th>
                         <th className="p-2">Blockchain</th>
                         <th className="p-2">Status</th>
                         <th className="p-2">Last Updated</th>
@@ -803,9 +804,11 @@ const BlockchainDashboard: React.FC = () => {
                     </thead>
                     <tbody>
                       {surveyOverview.map((s) => (
-                        <tr key={`${s.survey_number}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}`} className="border-b">
-                          <td className="p-2 font-medium">{s.survey_number}</td>
-                          <td className="p-2">{s.sections_with_data}/{s.total_sections}</td>
+                        <tr key={`${s.row_key}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}`} className="border-b">
+                          <td className="p-2 font-mono text-xs">{s.row_key}</td>
+                          <td className="p-2">{s.landowner_name || '-'}</td>
+                          <td className="p-2">{s.new_survey_number || '-'}</td>
+                          <td className="p-2">{s.cts_number || '-'}</td>
                           <td className="p-2">{s.exists_on_blockchain ? 'Yes' : 'No'}</td>
                           <td className="p-2">{getStatusBadge(s.blockchain_status)}</td>
                           <td className="p-2">{s.blockchain_last_updated ? new Date(s.blockchain_last_updated).toLocaleString() : '-'}</td>
@@ -814,14 +817,15 @@ const BlockchainDashboard: React.FC = () => {
                               size="sm"
                               variant="outline"
                               onClick={async () => {
-                                // one-off verify
+                                // one-off row verify via (projectId,newSurvey,CTS)
                                 try {
-                                  const resp = await fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(s.survey_number)}`, {
+                                  const qs = new URLSearchParams({ projectId: String(s.project_id || ''), newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
+                                  const resp = await fetch(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, {
                                     headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
                                   });
                                   if (resp.ok) {
                                     const r = await resp.json();
-                                    const status = r?.isValid ? 'verified' : 'compromised';
+                                    const status = r?.data?.isValid ? 'verified' : (s.exists_on_blockchain ? 'compromised' : 'not_on_blockchain');
                                     setSurveyOverview((prev) => prev.map((x) => x.survey_number === s.survey_number ? { ...x, blockchain_status: status } : x));
                                   } else {
                                     toast.error('Integrity verify failed');
@@ -842,7 +846,7 @@ const BlockchainDashboard: React.FC = () => {
                                     const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-                                      body: JSON.stringify({ survey_number: s.survey_number, officer_id: 'demo-officer', project_id: 'demo-project', remarks: 'one-off sync' })
+                                      body: JSON.stringify({ survey_number: String(s.new_survey_number || s.survey_number || ''), officer_id: 'demo-officer', project_id: String(s.project_id || ''), remarks: 'one-off sync (landowner row based)' })
                                     });
                                     if (resp.ok) {
                                       toast.success(`Synced ${s.survey_number}`);
