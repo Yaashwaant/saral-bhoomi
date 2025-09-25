@@ -424,7 +424,8 @@ class SurveyDataAggregationService {
     const pid = String(record.project_id || 'noproj');
     const ns = String(record.new_survey_number || 'NA');
     const cts = String(record.cts_number || 'NA');
-    return `${pid}:${ns}:${cts}`;
+    const sn = String(record.serial_number || 'NA');
+    return `${pid}:${ns}:${cts}:${sn}`;
   }
 
   /**

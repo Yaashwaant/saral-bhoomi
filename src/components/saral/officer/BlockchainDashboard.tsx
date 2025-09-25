@@ -803,8 +803,8 @@ const BlockchainDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {surveyOverview.map((s) => (
-                        <tr key={`${s.row_key}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}`} className="border-b">
+                      {surveyOverview.map((s, idx) => (
+                        <tr key={`${s.row_key || 'rk'}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}-${idx}`} className="border-b">
                           <td className="p-2 font-mono text-xs">{s.row_key}</td>
                           <td className="p-2">{s.landowner_name || '-'}</td>
                           <td className="p-2">{s.new_survey_number || '-'}</td>
