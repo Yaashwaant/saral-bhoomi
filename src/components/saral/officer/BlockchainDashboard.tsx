@@ -803,7 +803,7 @@ const BlockchainDashboard: React.FC = () => {
                     </thead>
                     <tbody>
                       {surveyOverview.map((s) => (
-                        <tr key={s.survey_number} className="border-b">
+                        <tr key={`${s.survey_number}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}`} className="border-b">
                           <td className="p-2 font-medium">{s.survey_number}</td>
                           <td className="p-2">{s.sections_with_data}/{s.total_sections}</td>
                           <td className="p-2">{s.exists_on_blockchain ? 'Yes' : 'No'}</td>
@@ -1216,7 +1216,10 @@ const BlockchainDashboard: React.FC = () => {
                          {/* Display actual timeline events */}
                   <div className="space-y-3">
                            {searchResults.timeline.map((event, index) => (
-                             <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
+                            <div
+                              key={`${event?.timestamp || event?.block_id || event?.current_hash || event?.data_hash || index}-${event?.event_type || event?.action || 'evt'}`}
+                              className="flex items-center gap-3 p-3 border rounded-lg bg-white"
+                            >
                         <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                         <div className="flex-1">
                                  <p className="font-medium">{event.event_type || event.action || `Event #${index + 1}`}</p>
