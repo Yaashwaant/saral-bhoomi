@@ -97,7 +97,16 @@ const BlockchainDashboard: React.FC = () => {
       });
       if (!resp.ok) throw new Error('Failed to fetch overview');
       const data = await resp.json();
-      const list = Array.isArray(data?.data) ? data.data : data; // tolerate different shapes
+      // Normalize various possible response shapes to an array
+      const list = Array.isArray(data?.surveys)
+        ? data.surveys
+        : Array.isArray(data?.data?.surveys)
+          ? data.data.surveys
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
       // Initialize status to a quick value without deep integrity
       const normalized = (list || []).map((r: any) => ({
         survey_number: r.survey_number,
