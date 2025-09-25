@@ -826,7 +826,7 @@ const BlockchainDashboard: React.FC = () => {
                                   if (resp.ok) {
                                     const r = await resp.json();
                                     const status = r?.data?.isValid ? 'verified' : (s.exists_on_blockchain ? 'compromised' : 'not_on_blockchain');
-                                    setSurveyOverview((prev) => prev.map((x) => x.survey_number === s.survey_number ? { ...x, blockchain_status: status } : x));
+                                    setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
                                   } else {
                                     toast.error('Integrity verify failed');
                                   }
@@ -846,10 +846,10 @@ const BlockchainDashboard: React.FC = () => {
                                     const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-                                      body: JSON.stringify({ survey_number: String(s.new_survey_number || s.survey_number || ''), officer_id: 'demo-officer', project_id: String(s.project_id || ''), remarks: 'one-off sync (landowner row based)' })
+                                      body: JSON.stringify({ survey_number: String(s.new_survey_number || s.survey_number || ''), officer_id: 'demo-officer', project_id: String(s.project_id || ''), remarks: `landowner row sync ${s.row_key}` })
                                     });
                                     if (resp.ok) {
-                                      toast.success(`Synced ${s.survey_number}`);
+                                      toast.success(`Synced row ${s.row_key}`);
                                       await fetchSurveyOverview();
                                     } else {
                                       toast.error('Sync failed');

@@ -459,7 +459,7 @@ class SurveyDataAggregationService {
 
         results.push({
           row_key,
-          project_id: r.project_id,
+          project_id: String(r.project_id || ''),
           serial_number: r.serial_number,
           landowner_name: r.landowner_name,
           old_survey_number: r.old_survey_number,
