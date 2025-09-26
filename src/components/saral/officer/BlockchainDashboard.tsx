@@ -34,6 +34,53 @@ const BlockchainDashboard: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any>(null);
   const [timelineAction, setTimelineAction] = useState('');
   const [timelineRemarks, setTimelineRemarks] = useState('');
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [surveyOverview, setSurveyOverview] = useState<any[]>([]);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+
+  // Small helper to avoid hanging calls
+  const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 8000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...(options || {}), signal: controller.signal });
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
+  // ---- Persist last known status per row across reloads ----
+  const STATUS_CACHE_KEY = 'saral_bc_row_status_v1';
+  const readStatusCache = (): Record<string, { status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'; ts: number }> => {
+    try {
+      const raw = localStorage.getItem(STATUS_CACHE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {} as any;
+    }
+  };
+  const writeStatusCache = (cache: Record<string, { status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'; ts: number }>) => {
+    try { localStorage.setItem(STATUS_CACHE_KEY, JSON.stringify(cache)); } catch {}
+  };
+  const mergeCachedStatuses = (list: any[]) => {
+    const cache = readStatusCache();
+    return (list || []).map((s) => {
+      const c = cache[s.row_key];
+      if (c && c.status) return { ...s, blockchain_status: c.status };
+      return s;
+    });
+  };
+  const updateCacheForRow = (rowKey: string, status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain') => {
+    const cache = readStatusCache();
+    cache[rowKey] = { status, ts: Date.now() };
+    writeStatusCache(cache);
+  };
+  const updateCacheForMany = (map: Map<string, 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'>) => {
+    if (!map || map.size === 0) return;
+    const cache = readStatusCache();
+    map.forEach((status, key) => { cache[key] = { status, ts: Date.now() }; });
+    writeStatusCache(cache);
+  };
 
   const loadBlockchainStatus = async () => {
     try {
@@ -66,6 +113,182 @@ const BlockchainDashboard: React.FC = () => {
       return defaultValue;
     }
     return value;
+  };
+
+  // ---- Utility copied from Land Records (adapted) ----
+  const getStatusBadge = (status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain') => {
+    const map: Record<string, { cls: string; text: string; icon: JSX.Element } > = {
+      verified: { cls: 'bg-green-100 text-green-800', text: 'Verified', icon: <CheckCircle className="h-3 w-3" /> },
+      pending: { cls: 'bg-yellow-100 text-yellow-800', text: 'Pending', icon: <Clock className="h-3 w-3" /> },
+      compromised: { cls: 'bg-red-100 text-red-800', text: 'Compromised', icon: <AlertTriangle className="h-3 w-3" /> },
+      not_on_blockchain: { cls: 'bg-gray-100 text-gray-600', text: 'Not on Blockchain', icon: <XCircle className="h-3 w-3" /> }
+    };
+    const cfg = map[status] || map.not_on_blockchain;
+    return (
+      <Badge variant="secondary" className={`flex items-center gap-1 ${cfg.cls}`}>
+        {cfg.icon}
+        {cfg.text}
+      </Badge>
+    );
+  };
+
+  // Fetch surveys with basic blockchain presence (fast)
+  const fetchSurveyOverview = async () => {
+    try {
+      setOverviewLoading(true);
+      // Prefer landowner row-based uniqueness (projectId:newSurvey:CTS)
+      const resp = await fetch(`${config.API_BASE_URL}/blockchain/landowners-with-status?limit=200`, {
+        headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
+      });
+      if (!resp.ok) throw new Error('Failed to fetch overview');
+      const data = await resp.json();
+      // Normalize various possible response shapes to an array
+      const list = Array.isArray(data?.data) ? data.data : [];
+      // Initialize status to a quick value without deep integrity
+      const normalized = (list || []).map((r: any) => ({
+        row_key: r.row_key,
+        project_id: r.project_id,
+        serial_number: r.serial_number,
+        landowner_name: r.landowner_name,
+        old_survey_number: r.old_survey_number,
+        new_survey_number: r.new_survey_number,
+        cts_number: r.cts_number,
+        survey_number: r.new_survey_number || r.old_survey_number,
+        exists_on_blockchain: r.exists_on_blockchain ?? false,
+        blockchain_last_updated: r.blockchain_last_updated || null,
+        blockchain_block_id: r.blockchain_block_id || null,
+        blockchain_hash: r.blockchain_hash || null,
+        total_sections: 1,
+        sections_with_data: r.exists_on_blockchain ? 1 : 0,
+        blockchain_status: (r.exists_on_blockchain ?? r.existsOnBlockchain) ? 'pending' : 'not_on_blockchain'
+      }));
+      // Apply cached last-known statuses so they persist across reloads
+      setSurveyOverview(mergeCachedStatuses(normalized));
+    } catch (e: any) {
+      console.error('Overview load failed:', e);
+      toast.error('Failed to load survey overview');
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  // Sequentially verify integrity (copied pattern from Land Records)
+  const refreshSurveyIntegrity = async () => {
+    try {
+      if (!surveyOverview.length) {
+        await fetchSurveyOverview();
+      }
+      setOverviewLoading(true);
+      // Skip verification for items not on chain; mark them immediately
+      const base = surveyOverview.map((s) => s.exists_on_blockchain ? s : { ...s, blockchain_status: 'not_on_blockchain' });
+
+      // Concurrency-limited parallel verification for rows that are on-chain
+      const onChain = base.filter((s) => s.exists_on_blockchain);
+      const concurrency = Math.min(8, Math.max(2, navigator?.hardwareConcurrency || 6));
+      const queue = [...onChain];
+      const results = new Map<string, 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'>();
+
+      const worker = async () => {
+        while (queue.length) {
+          const s = queue.shift();
+          if (!s) break;
+          try {
+            const projectId = String(s.project_id || '');
+            const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
+            const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`,
+              { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
+            let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = 'pending';
+            if (resp.ok) {
+              const r = await resp.json();
+              if (r?.data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
+              else if (r?.data?.isValid === true) status = 'verified';
+              else if (r?.data?.isValid === false) status = 'compromised';
+              else status = 'pending';
+            } else {
+              status = 'pending';
+            }
+            results.set(s.row_key, status);
+          } catch {
+            results.set(s.row_key, 'pending');
+          }
+        }
+      };
+
+      await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()));
+
+      const merged = base.map((s) => results.has(s.row_key) ? { ...s, blockchain_status: results.get(s.row_key)! } : s);
+      updateCacheForMany(results);
+      setSurveyOverview(merged);
+      toast.success('Blockchain status refreshed');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to refresh blockchain status');
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  // Sync missing surveys (similar utility as Land Records bulk sync)
+  const syncMissingToBlockchain = async () => {
+    const missing = surveyOverview.filter(s => !s.exists_on_blockchain || s.blockchain_status === 'not_on_blockchain');
+    if (missing.length === 0) {
+      toast.info('All surveys already on blockchain');
+      return;
+    }
+    setSyncProgress({ current: 0, total: missing.length, message: 'Starting sync...' });
+    try {
+      for (let i = 0; i < missing.length; i++) {
+        const s = missing[i];
+        setSyncProgress({ current: i + 1, total: missing.length, message: `Creating block for ${s.row_key}` });
+        try {
+          const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+            body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: 'Overview sync' })
+          });
+          if (resp.ok) {
+            setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending' } : x));
+            updateCacheForRow(s.row_key, 'pending');
+          } else {
+            console.warn('Sync failed for', s.row_key);
+          }
+        } catch (err) {
+          console.error('Sync error for', s.row_key, err);
+        }
+      }
+      await fetchSurveyOverview();
+      toast.success('Sync completed');
+    } finally {
+      setSyncProgress(null);
+    }
+  };
+
+  // Verify a single row and only update that row's status + cache
+  const verifySingleRow = async (s: any) => {
+    try {
+      const projectId = String(s.project_id || '');
+      const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || ''), serialNumber: String(s.serial_number || ''), rowKey: String(s.row_key || '') });
+      const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
+      let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
+      if (resp.ok) {
+        const r = await resp.json();
+        console.log('Row verify details:', { row_key: s.row_key, api: r?.data });
+        if (r?.data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
+        else if (r?.data?.isValid === true) status = 'verified';
+        else if (r?.data?.isValid === false) {
+          status = 'compromised';
+          const lh = (r?.data?.live_hash || '').slice(0, 8) + '...' + (r?.data?.live_hash || '').slice(-6);
+          const llh = (r?.data?.legacy_live_hash || '').slice(0, 8) + '...' + (r?.data?.legacy_live_hash || '').slice(-6);
+          const ch = (r?.data?.chain_hash || '').slice(0, 8) + '...' + (r?.data?.chain_hash || '').slice(-6);
+          toast.warning(`Hash mismatch for ${s.row_key}: live ${lh} | legacy ${llh} vs chain ${ch}`);
+        }
+      }
+      setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
+      updateCacheForRow(s.row_key, status);
+      toast.success('Row verified');
+    } catch (e) {
+      toast.error('Verify failed');
+    }
   };
 
   const handleSearch = async () => {
@@ -628,6 +851,136 @@ const BlockchainDashboard: React.FC = () => {
             </Card>
           </div>
 
+          {/* Surveys Overview - mirrors Land Records utilities */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Surveys Overview</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button onClick={fetchSurveyOverview} variant="outline" disabled={overviewLoading}>
+                    {overviewLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Load
+                  </Button>
+                  <Button onClick={refreshSurveyIntegrity} variant="outline" disabled={overviewLoading || surveyOverview.length === 0}>
+                    {overviewLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Verify All
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        setOverviewLoading(true);
+                        const resp = await fetch(`${config.API_BASE_URL}/blockchain/bulk-landowner-row-sync`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+                          body: JSON.stringify({ officer_id: 'demo-officer' })
+                        });
+                        if (resp.ok) {
+                          const data = await resp.json();
+                          toast.success(`Row blocks synced: ${data.processed}/${data.total}`);
+                          await fetchSurveyOverview();
+                        } else {
+                          const e = await resp.json().catch(() => ({}));
+                          toast.error(`Bulk row sync failed: ${e.message || resp.status}`);
+                        }
+                      } catch (e: any) {
+                        toast.error(`Bulk row sync error: ${e.message}`);
+                      } finally {
+                        setOverviewLoading(false);
+                      }
+                    }}
+                    variant="outline"
+                    disabled={overviewLoading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Re-Sync All Rows
+                  </Button>
+                  <Button onClick={syncMissingToBlockchain} variant="outline" disabled={overviewLoading || surveyOverview.length === 0}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Sync Missing
+                  </Button>
+                  {syncProgress && (
+                    <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
+                      {syncProgress.message} ({syncProgress.current}/{syncProgress.total})
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {overviewLoading ? (
+                <div className="py-6 text-center text-gray-500">Loading overview...</div>
+              ) : surveyOverview.length === 0 ? (
+                <div className="py-6 text-center text-gray-500">Click Load to fetch survey statuses</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="p-2">Row Key</th>
+                        <th className="p-2">Owner</th>
+                        <th className="p-2">New Survey</th>
+                        <th className="p-2">CTS</th>
+                        <th className="p-2">Blockchain</th>
+                        <th className="p-2">Status</th>
+                        <th className="p-2">Last Updated</th>
+                        <th className="p-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {surveyOverview.map((s, idx) => (
+                        <tr key={`${s.row_key || 'rk'}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}-${idx}`} className="border-b">
+                          <td className="p-2 font-mono text-xs">{s.row_key}</td>
+                          <td className="p-2">{s.landowner_name || '-'}</td>
+                          <td className="p-2">{s.new_survey_number || '-'}</td>
+                          <td className="p-2">{s.cts_number || '-'}</td>
+                          <td className="p-2">{s.exists_on_blockchain ? 'Yes' : 'No'}</td>
+                          <td className="p-2">{getStatusBadge(s.blockchain_status)}</td>
+                          <td className="p-2">{s.blockchain_last_updated ? new Date(s.blockchain_last_updated).toLocaleString() : '-'}</td>
+                          <td className="p-2 flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => verifySingleRow(s)}>Verify</Button>
+                            {(!s.exists_on_blockchain || s.blockchain_status === 'not_on_blockchain') && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  try {
+                                    const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+                                      body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: `landowner row sync ${s.row_key}` })
+                                    });
+                                    if (resp.ok) {
+                                      const json = await resp.json().catch(() => null);
+                                      const blockId = json?.data?.block_id || null;
+                                      const hash = json?.data?.hash || null;
+                                      toast.success(`Synced row ${s.row_key}`);
+                                      // Update only this row locally without reloading the whole overview
+                                      setSurveyOverview((prev) => prev.map((x) => 
+                                        x.row_key === s.row_key 
+                                          ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending', blockchain_block_id: blockId || x.blockchain_block_id, blockchain_hash: hash || x.blockchain_hash }
+                                          : x
+                                      ));
+                                      updateCacheForRow(s.row_key, 'pending');
+                                    } else {
+                                      toast.error('Sync failed');
+                                    }
+                                  } catch (e) {
+                                    toast.error('Sync error');
+                                  }
+                                }}
+                              >
+                                Sync
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Additional Status Info */}
           {blockchainStatus && (
             <Card>
@@ -976,7 +1329,10 @@ const BlockchainDashboard: React.FC = () => {
                          {/* Display actual timeline events */}
                   <div className="space-y-3">
                            {searchResults.timeline.map((event, index) => (
-                             <div key={index} className="flex items-center gap-3 p-3 border rounded-lg bg-white">
+                            <div
+                              key={`${event?.timestamp || event?.block_id || event?.current_hash || event?.data_hash || index}-${event?.event_type || event?.action || 'evt'}`}
+                              className="flex items-center gap-3 p-3 border rounded-lg bg-white"
+                            >
                         <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                         <div className="flex-1">
                                  <p className="font-medium">{event.event_type || event.action || `Event #${index + 1}`}</p>

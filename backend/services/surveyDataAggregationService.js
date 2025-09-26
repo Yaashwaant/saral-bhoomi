@@ -5,6 +5,7 @@ import MongoPayment from '../models/mongo/Payment.js';
 import MongoAward from '../models/mongo/Award.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import crypto from 'crypto';
+import { hashJsonStable, legacyHash } from './hashing.js';
 
 class SurveyDataAggregationService {
   constructor() {
@@ -349,11 +350,8 @@ class SurveyDataAggregationService {
     if (!data) return null;
     try {
       const cleanData = this.cleanDataForSerialization(data);
-      // 🔧 Use stable ordering of keys to match verification logic
-      return crypto
-        .createHash('sha256')
-        .update(JSON.stringify(cleanData, Object.keys(cleanData).sort()))
-        .digest('hex');
+      // Use the same stable hashing as ledger v2 to ensure verify == stored
+      return hashJsonStable(cleanData);
     } catch (error) {
       console.error('❌ Failed to generate data hash:', error);
       return null;
@@ -413,6 +411,133 @@ class SurveyDataAggregationService {
     } catch (error) {
       console.error('❌ Failed to get surveys with blockchain status:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Build canonical landowner row key based on project + new survey + CTS
+   * This uniquely identifies a row within Parishisht‑K format.
+   */
+  buildLandownerRowKey(record) {
+    const pid = String(record.project_id || 'noproj');
+    const ns = String(record.new_survey_number || 'NA');
+    const cts = String(record.cts_number || 'NA');
+    const sn = String(record.serial_number || 'NA');
+    return `${pid}:${ns}:${cts}:${sn}`;
+  }
+
+  /**
+   * List all landowner rows with blockchain presence flags
+   */
+  async getLandownerRowsStatus(projectId = null, limit = 200) {
+    try {
+      const filter = {};
+      if (projectId) filter.project_id = projectId;
+      const rows = await MongoLandownerRecord.find(filter, {
+        project_id: 1,
+        serial_number: 1,
+        old_survey_number: 1,
+        new_survey_number: 1,
+        cts_number: 1,
+        landowner_name: 1,
+        village: 1,
+        taluka: 1,
+        district: 1,
+      }).limit(limit);
+
+      const results = [];
+      for (const r of rows) {
+        const row_key = this.buildLandownerRowKey(r);
+        // Look up any ledger that likely corresponds to this row.
+        // Project ID may have been saved as ObjectId or string, or omitted; support all cases.
+        const projectMatch = {
+          $or: [
+            { project_id: r.project_id },
+            { project_id: String(r.project_id) },
+            { project_id: null },
+            { project_id: { $exists: false } }
+          ]
+        };
+        // STRICT row-level match: require landowner section with same new_survey + CTS (+ serial when available)
+        const rowMatch = {
+          'survey_data.landowner.data.new_survey_number': r.new_survey_number,
+          'survey_data.landowner.data.cts_number': r.cts_number,
+          ...(r.serial_number ? { 'survey_data.landowner.data.serial_number': r.serial_number } : {})
+        };
+        // Accept either a landowner data match OR a survey-level block tagged with LANDOWNER_RECORD_CREATED
+        const ledger = await MongoBlockchainLedger.findOne({
+          $and: [
+            projectMatch,
+            { $or: [ rowMatch, { survey_number: r.new_survey_number, event_type: 'LANDOWNER_RECORD_CREATED' } ] }
+          ]
+        }).sort({ timestamp: -1 });
+
+        results.push({
+          row_key,
+          project_id: String(r.project_id || ''),
+          serial_number: r.serial_number,
+          landowner_name: r.landowner_name,
+          old_survey_number: r.old_survey_number,
+          new_survey_number: r.new_survey_number,
+          cts_number: r.cts_number,
+          location: { village: r.village, taluka: r.taluka, district: r.district },
+          exists_on_blockchain: !!ledger,
+          blockchain_block_id: ledger?.block_id || null,
+          blockchain_hash: ledger?.current_hash || null,
+          blockchain_last_updated: ledger?.updatedAt || null
+        });
+      }
+      return results;
+    } catch (error) {
+      console.error('❌ Failed to get landowner rows status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a specific landowner row by recomputing its landowner section hash
+   */
+  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber = null) {
+    try {
+      const record = await MongoLandownerRecord.findOne({
+        project_id: projectId,
+        new_survey_number: newSurveyNumber,
+        cts_number: ctsNumber,
+        ...(serialNumber ? { serial_number: serialNumber } : {})
+      });
+      if (!record) {
+        return { isValid: false, reason: 'row_not_found' };
+      }
+
+      const cleanData = this.cleanDataForSerialization(record.toObject());
+      const liveHash = this.generateDataHash(cleanData);
+      const legacyLiveHash = legacyHash(cleanData);
+
+      const ledger = await MongoBlockchainLedger.findOne({
+        $and: [
+          { $or: [ { project_id: projectId }, { project_id: String(projectId) }, { project_id: null }, { project_id: { $exists: false } } ] },
+          { 'survey_data.landowner.data.new_survey_number': newSurveyNumber, 'survey_data.landowner.data.cts_number': ctsNumber, ...(serialNumber ? { 'survey_data.landowner.data.serial_number': serialNumber } : {}) }
+        ]
+      }).sort({ timestamp: -1 });
+
+      if (!ledger) {
+        return { isValid: false, reason: 'not_on_blockchain', live_hash: liveHash };
+      }
+
+      const chainHash = ledger?.survey_data?.landowner?.hash || null;
+      const isValid = !!chainHash && (chainHash === liveHash || chainHash === legacyLiveHash);
+      return {
+        isValid,
+        reason: isValid ? 'ok' : 'hash_mismatch',
+        live_hash: liveHash,
+        legacy_live_hash: legacyLiveHash,
+        chain_hash: chainHash,
+        block_id: ledger.block_id,
+        last_updated: ledger.updatedAt
+      };
+    } catch (error) {
+      console.error('❌ verifyLandownerRow error:', error);
+      return { isValid: false, reason: 'error', error: error.message };
     }
   }
 }

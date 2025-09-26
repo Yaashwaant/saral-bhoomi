@@ -4,6 +4,7 @@ import EnhancedBlockchainService from '../services/enhancedBlockchainService.js'
 import LedgerV2Service from '../services/ledgerV2Service.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import SurveyDataAggregationService from '../services/surveyDataAggregationService.js';
+import { HASH_VERSION, hashJsonStable } from '../services/hashing.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -78,6 +79,68 @@ router.get('/status', async (req, res) => {
         }
       }
     });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/bulk-landowner-row-sync
+ * @desc Create row-level blockchain blocks for all landowner rows (optionally by project)
+ * @access Private (Officers only)
+ */
+router.post('/bulk-landowner-row-sync', [
+  authMiddleware,
+  body('officer_id').notEmpty().withMessage('officer_id is required'),
+  body('project_id').optional(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { officer_id, project_id } = req.body;
+    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const surveyService = new SurveyDataAggregationService();
+    const filter = {};
+    if (project_id) filter.project_id = project_id;
+    const rows = await MongoLandownerRecord.find(filter).lean();
+
+    let processed = 0;
+    const results = [];
+
+    for (const r of rows) {
+      try {
+        const canonicalRow = surveyService.cleanDataForSerialization(r);
+        const landHash = hashJsonStable(canonicalRow);
+        const latest = await MongoBlockchainLedger.findOne({ survey_number: String(r.new_survey_number || r.survey_number || '') }).sort({ timestamp: -1 });
+        const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+
+        const block = new MongoBlockchainLedger({
+          block_id: `BLOCK_${String(r.new_survey_number || r.survey_number || 'NA')}_${Date.now()}`,
+          survey_number: String(r.new_survey_number || r.survey_number || ''),
+          event_type: 'LANDOWNER_RECORD_CREATED',
+          officer_id,
+          project_id: String(r.project_id || ''),
+          hash_version: HASH_VERSION,
+          data_root: landHash,
+          survey_data: { landowner: { data: canonicalRow, hash: landHash, last_updated: new Date(), status: 'created' } },
+          timeline_history: [ { action: 'LANDOWNER_RECORD_CREATED', timestamp: new Date(), officer_id, data_hash: landHash, previous_hash: previousHash, metadata: { source: 'bulk_landowner_row_sync' }, remarks: `Bulk row sync ${String(r.project_id)}:${String(r.new_survey_number)}:${String(r.cts_number)}:${String(r.serial_number || '')}` } ],
+          metadata: { source: 'bulk_landowner_row_sync' },
+          remarks: 'Bulk landowner row sync',
+          timestamp: new Date(),
+          previous_hash: previousHash,
+          nonce: Math.floor(Math.random() * 1_000_000)
+        });
+
+        await block.save();
+        processed++;
+        results.push({ ok: true, row_key: `${r.project_id}:${r.new_survey_number}:${r.cts_number}:${r.serial_number || ''}`, block_id: block.block_id });
+      } catch (e) {
+        results.push({ ok: false, error: e.message, row: { project_id: r.project_id, new_survey_number: r.new_survey_number, cts_number: r.cts_number, serial_number: r.serial_number } });
+      }
+    }
+
+    return res.json({ success: true, processed, total: rows.length, results });
+  } catch (error) {
+    console.error('❌ bulk-landowner-row-sync error:', error);
+    return res.status(500).json({ success: false, message: 'Failed bulk landowner row sync', error: error.message });
   }
 });
 
@@ -617,6 +680,54 @@ router.get('/surveys-with-complete-status', [
 });
 
 /**
+ * @route GET /api/blockchain/landowners-with-status
+ * @desc List landowner rows (project + new_survey + CTS) with blockchain flags
+ */
+router.get('/landowners-with-status', [ authMiddleware ], async (req, res) => {
+  try {
+    const projectId = req.query.projectId || null;
+    const limit = parseInt(req.query.limit) || 200;
+    const surveyService = new SurveyDataAggregationService();
+    const rows = await surveyService.getLandownerRowsStatus(projectId, limit);
+    res.json({ success: true, data: rows, total: rows.length });
+  } catch (error) {
+    console.error('❌ Failed to list landowner rows status:', error);
+    res.status(500).json({ success: false, message: 'Failed to list landowner rows', error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/verify-landowner-row
+ * @desc Verify one landowner row using (projectId,new_survey_number,cts_number)
+ */
+router.get('/verify-landowner-row', [ authMiddleware ], async (req, res) => {
+  try {
+    let { projectId, newSurveyNumber, ctsNumber, serialNumber, rowKey } = req.query;
+    // Fallback: allow rowKey="projectId:newSurvey:cts:serial"
+    if ((!projectId || !newSurveyNumber || !ctsNumber) && rowKey) {
+      try {
+        const parts = String(rowKey).split(':');
+        if (parts.length >= 4) {
+          projectId = projectId || parts[0];
+          newSurveyNumber = newSurveyNumber || parts[1];
+          ctsNumber = ctsNumber || parts[2];
+          serialNumber = serialNumber || parts[3];
+        }
+      } catch {}
+    }
+    if (!projectId || !newSurveyNumber || !ctsNumber) {
+      return res.status(400).json({ success: false, message: 'projectId, newSurveyNumber, ctsNumber are required' });
+    }
+    const surveyService = new SurveyDataAggregationService();
+    const result = await surveyService.verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber || null);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('❌ Failed to verify landowner row:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify landowner row', error: error.message });
+  }
+});
+
+/**
  * @route POST /api/blockchain/rebuild-ledger
  * @desc Delete existing blocks and rebuild from LIVE DB using v2 hashing
  * @access Private (Officers/Admin)
@@ -675,6 +786,86 @@ router.post('/rebuild-ledger', [
   } catch (error) {
     console.error('❌ Rebuild ledger error:', error);
     res.status(500).json({ success: false, message: 'Failed to rebuild ledger', error: error.message });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/create-landowner-row-block
+ * @desc Create a blockchain block for a specific landowner row (project + new_survey + CTS [+ serial])
+ * @access Private (Officers only)
+ */
+router.post('/create-landowner-row-block', [
+  authMiddleware,
+  body('project_id').notEmpty().withMessage('project_id is required'),
+  body('new_survey_number').notEmpty().withMessage('new_survey_number is required'),
+  body('cts_number').notEmpty().withMessage('cts_number is required'),
+  body('officer_id').notEmpty().withMessage('officer_id is required'),
+  body('serial_number').optional(),
+  body('remarks').optional(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { project_id, new_survey_number, cts_number, serial_number, officer_id, remarks } = req.body;
+
+    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+
+    const filter = { project_id, new_survey_number, cts_number };
+    if (serial_number) filter.serial_number = serial_number;
+    const record = await MongoLandownerRecord.findOne(filter);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Landowner row not found for given identifiers' });
+    }
+
+    // Prepare deterministic landowner data and hash
+    const row = record.toObject({ depopulate: true, getters: false, virtuals: false });
+    const aggregator = new SurveyDataAggregationService();
+    const canonicalRow = aggregator.cleanDataForSerialization(row);
+    const landHash = hashJsonStable(canonicalRow);
+
+    // Link into same survey chain using previous hash from latest block for this survey
+    const latest = await MongoBlockchainLedger.findOne({ survey_number: String(new_survey_number) }).sort({ timestamp: -1 });
+    const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+
+    const block = new MongoBlockchainLedger({
+      block_id: `BLOCK_${String(new_survey_number)}_${Date.now()}`,
+      survey_number: String(new_survey_number),
+      event_type: 'LANDOWNER_RECORD_CREATED',
+      officer_id,
+      project_id: String(project_id),
+      hash_version: HASH_VERSION,
+      data_root: landHash,
+      survey_data: {
+        landowner: {
+          data: canonicalRow,
+          hash: landHash,
+          last_updated: new Date(),
+          status: 'created'
+        }
+      },
+      timeline_history: [
+        {
+          action: 'LANDOWNER_RECORD_CREATED',
+          timestamp: new Date(),
+          officer_id,
+          data_hash: landHash,
+          previous_hash: previousHash,
+          metadata: { source: 'landowner_row_sync', project_id: String(project_id) },
+          remarks: remarks || `Landowner row synced: ${String(project_id)}:${String(new_survey_number)}:${String(cts_number)}:${String(serial_number || '')}`
+        }
+      ],
+      metadata: { source: 'landowner_row_sync' },
+      remarks: remarks || 'Landowner row synced to blockchain',
+      timestamp: new Date(),
+      previous_hash: previousHash,
+      nonce: Math.floor(Math.random() * 1_000_000)
+    });
+
+    const saved = await block.save();
+    return res.json({ success: true, message: 'Landowner row block created', data: { block_id: saved.block_id, hash: saved.current_hash } });
+  } catch (error) {
+    console.error('❌ create-landowner-row-block error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create landowner row block', error: error.message });
   }
 });
 
