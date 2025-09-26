@@ -873,7 +873,8 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     try {
       console.log('Fetching assigned records for agent:', agentId);
       
-      const response = await apiCall('/agents/assigned');
+      // Pass agentId so backend can filter records for the specific field officer
+      const response = await apiCall(`/agents/assigned?agentId=${encodeURIComponent(agentId || '')}`);
       console.log('API response for assigned records:', response);
       
       if (response.success) {

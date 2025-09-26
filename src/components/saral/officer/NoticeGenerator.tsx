@@ -881,12 +881,12 @@ const NoticeGenerator: React.FC = () => {
       });
 
       // Use the enhanced agent assignment with notice data
-      const success = await assignAgentWithNotice(selectedNoticeForKyc.landownerId, agentId, {
+      const success = await assignAgentWithNotice(String(selectedNoticeForKyc.landownerId), String(agentId), {
         noticeNumber: selectedNoticeForKyc.noticeNumber,
         noticeDate: selectedNoticeForKyc.noticeDate,
         noticeContent: selectedNoticeForKyc.content
       }, { 
-        projectId: selectedProject 
+        projectId: String(selectedProject) 
       });
 
       if (success) {

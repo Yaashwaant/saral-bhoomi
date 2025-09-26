@@ -42,6 +42,7 @@ import EnhancedAwardManager from './EnhancedAwardManager';
 import LandRecordsManager from './LandRecordsManager';
 import EnhancedPaymentManager from './EnhancedPaymentManager';
 import EnhancedDashboard from './EnhancedDashboard';
+import GlobalDashboard from './GlobalDashboard';
 import DocumentUploadPortal from './DocumentUploadPortal';
 import PaymentSlipGenerator from './PaymentSlipGenerator';
 import BlockchainDashboard from './BlockchainDashboard';
@@ -49,7 +50,7 @@ import BlockchainDashboard from './BlockchainDashboard';
 const OfficerDashboard = () => {
   const { user } = useAuth();
   const { getProjectStats, projects, landownerRecords } = useSaral();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
   
   const stats = getProjectStats();
 
@@ -241,15 +242,23 @@ const OfficerDashboard = () => {
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                          <TabsList className="flex w-full bg-blue-50 overflow-x-auto">
-               <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+               <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
                  letterSpacing: '0.2px'
                }}>
                  <BarChart3 className="h-4 w-4 mr-1" />
-                 Overview
+                Dashboard
                </TabsTrigger>
-               <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+              <TabsTrigger value="overview" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>
+                <FileText className="h-4 w-4 mr-1" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="projects" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 500,
                 letterSpacing: '0.2px'
@@ -314,10 +323,14 @@ const OfficerDashboard = () => {
                   Blockchain
                 </TabsTrigger>
              </TabsList>
+            
+                        <TabsContent value="dashboard" className="space-y-6 mt-6">
+              <GlobalDashboard />
+            </TabsContent>
 
-                         <TabsContent value="overview" className="space-y-6 mt-6">
-               <EnhancedDashboard />
-             </TabsContent>
+            <TabsContent value="overview" className="space-y-6 mt-6">
+              <EnhancedDashboard />
+            </TabsContent>
 
             <TabsContent value="projects" className="mt-6">
               <ProjectManagement />

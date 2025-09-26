@@ -11,10 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDown, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { config } from '../../../config';
 import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RPieChart, Pie, Cell, LabelList } from 'recharts';
 import { 
   safeGetField, 
   safeGetNumericField,
@@ -114,6 +115,55 @@ const EnhancedDashboard: React.FC = () => {
       if (r.paymentStatus === 'success') add(r.paymentDate, 'payments', parseFloat(String(r.अंतिम_रक्कम || '0')) || 0);
     });
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredRecords]);
+
+  // Colors for charts
+  const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
+
+  // Payment status distribution for pie chart
+  const paymentStatusData = React.useMemo(() => {
+    const counters: Record<string, number> = { completed: 0, pending: 0, initiated: 0, failed: 0, reversed: 0 };
+    filteredRecords.forEach((r: any) => {
+      const s = String(r.paymentStatus || '').toLowerCase();
+      if (s === 'completed' || s === 'success') counters.completed++;
+      else if (s === 'pending') counters.pending++;
+      else if (s === 'initiated') counters.initiated++;
+      else if (s === 'failed') counters.failed++;
+      else if (s === 'reversed') counters.reversed++;
+    });
+    return [
+      { name: 'Completed', value: counters.completed },
+      { name: 'Pending', value: counters.pending },
+      { name: 'Initiated', value: counters.initiated },
+      { name: 'Failed', value: counters.failed },
+      { name: 'Reversed', value: counters.reversed },
+    ].filter(d => d.value > 0);
+  }, [filteredRecords]);
+
+  // Tribal vs Non-Tribal distribution
+  const tribalData = React.useMemo(() => {
+    let tribal = 0; let nontribal = 0;
+    filteredRecords.forEach((r: any) => {
+      const isT = (r as any).isTribal ? true : false;
+      if (isT) tribal++; else nontribal++;
+    });
+    return [
+      { name: 'Tribal', value: tribal },
+      { name: 'Non-Tribal', value: nontribal }
+    ];
+  }, [filteredRecords]);
+
+  // Top 10 villages by records for bar chart
+  const villageTopData = React.useMemo(() => {
+    const map = new Map<string, number>();
+    filteredRecords.forEach((r: any) => {
+      const v = String(r.village || r.Village || '').trim() || 'Unknown';
+      map.set(v, (map.get(v) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
   }, [filteredRecords]);
 
   const loadDashboardData = useCallback(async () => {
@@ -247,6 +297,89 @@ const EnhancedDashboard: React.FC = () => {
     }
   };
 
+  // KYC flow helpers
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const [kycRecord, setKycRecord] = useState<any>(null);
+  type PersonUpload = { name: string; aadhar?: File | null; pan?: File | null };
+  const [persons, setPersons] = useState<PersonUpload[]>([{ name: '', aadhar: null, pan: null }]);
+
+  const openKycUploader = (record: any) => {
+    setKycRecord(record);
+    setPersons([{ name: '', aadhar: null, pan: null }]);
+    setKycDialogOpen(true);
+  };
+
+  const addPersonRow = () => setPersons(prev => [...prev, { name: '', aadhar: null, pan: null }]);
+  const updatePerson = (idx: number, patch: Partial<PersonUpload>) => {
+    setPersons(prev => prev.map((p, i) => i === idx ? { ...p, ...patch } : p));
+  };
+  const removePerson = (idx: number) => setPersons(prev => prev.filter((_, i) => i !== idx));
+
+  const uploadAllPersons = async () => {
+    if (!kycRecord) return;
+    let uploaded = 0;
+    for (const p of persons) {
+      if (p.aadhar) { await uploadSingleKycDoc(kycRecord, p.aadhar, 'aadhaar', p.name); uploaded++; }
+      if (p.pan) { await uploadSingleKycDoc(kycRecord, p.pan, 'pan', p.name); uploaded++; }
+    }
+    if (uploaded > 0) toast.success(`Uploaded ${uploaded} document(s)`);
+    setKycDialogOpen(false);
+    await loadDashboardData();
+  };
+
+  const uploadSingleKycDoc = async (record: any, file: File, explicitType?: string, personName?: string) => {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('documentType', explicitType || inferDocTypeFromName(file.name));
+      if (personName) form.append('notes', `person:${personName}`);
+      const resp = await fetch(`${config.API_BASE_URL}/kyc/upload-multipart/${record.id || record._id}`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+        body: form
+      });
+      if (resp.ok) {
+        toast.success(`Uploaded ${file.name}`);
+        await loadDashboardData();
+      } else {
+        toast.error(`Upload failed for ${file.name}`);
+      }
+    } catch (e) {
+      toast.error('Upload error');
+    }
+  };
+
+  const inferDocTypeFromName = (name: string): string => {
+    const n = name.toLowerCase();
+    if (n.includes('aadhar') || n.includes('aadhaar')) return 'aadhaar';
+    if (n.includes('pan')) return 'pan';
+    return 'document';
+  };
+
+  const approveKycRecord = async (record: any) => {
+    try {
+      // simple client-side approval; in a full setup call backend approve
+      // reflect immediately in UI by updating local list
+      (record.kycStatus) ? record.kycStatus = 'approved' : record.kyc_status = 'approved';
+      toast.success('KYC approved');
+      await loadDashboardData();
+    } catch (e) {
+      toast.error('Failed to approve KYC');
+    }
+  };
+
+  const goToPaymentSlip = (record: any) => {
+    // Navigate to Payment Slips tab via URL hash so state remains in SPA
+    window.location.hash = '#paymentSlips';
+    toast.info('Opening Payment Slips with prefill');
+    // Optionally store prefill in sessionStorage
+    sessionStorage.setItem('paymentSlipPrefill', JSON.stringify({
+      landownerId: record.id || record._id,
+      surveyNumber: getSurveyNumber(record),
+      beneficiary: getLandownerName(record),
+      amount: safeGetNumericField(record, 'final_amount') || safeGetNumericField(record, 'total_compensation') || 0
+    }));
+  };
   return (
     <div className="space-y-6">
       <Card>
@@ -486,6 +619,8 @@ const EnhancedDashboard: React.FC = () => {
                             <th className="p-2 text-left">Payment</th>
                             <th className="p-2 text-left">Notice</th>
                             <th className="p-2 text-left">Format</th>
+                            <th className="p-2 text-left">KYC</th>
+                            <th className="p-2 text-left">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -541,6 +676,21 @@ const EnhancedDashboard: React.FC = () => {
                                   {isNewFormat(r) ? 'New' : 'Legacy'}
                                 </Badge>
                               </td>
+                              <td className="p-2">
+                                <div className="text-xs">
+                                  {(r.kycStatus || r.kyc_status || 'pending')}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex flex-col gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => openKycUploader(r)}>Upload KYC</Button>
+                                  {(r.kycStatus === 'completed' || r.kyc_status === 'completed' || r.kycStatus === 'approved' || r.kyc_status === 'approved') ? (
+                                    <Button size="sm" onClick={() => goToPaymentSlip(r)}>Generate Payment Slip</Button>
+                                  ) : (
+                                    <Button size="sm" onClick={() => approveKycRecord(r)} variant="default">Approve KYC</Button>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                           ))}
                           {pagedRecords.length === 0 && (
@@ -571,28 +721,100 @@ const EnhancedDashboard: React.FC = () => {
                   <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Daily Notices vs Payments</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <RBarChart data={timeseries}>
+                          <RBarChart data={timeseries} barSize={28}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis />
-                            <Tooltip />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [v.toLocaleString('en-IN'), n]} />
                             <Legend />
-                            <Bar dataKey="notices" name="Notices" fill="#f59e0b" />
-                            <Bar dataKey="payments" name="Payments" fill="#10b981" />
+                            <defs>
+                              <linearGradient id="gradNotices" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#fde68a" />
+                                <stop offset="100%" stopColor="#f59e0b" />
+                              </linearGradient>
+                              <linearGradient id="gradPayments" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6ee7b7" />
+                                <stop offset="100%" stopColor="#10b981" />
+                              </linearGradient>
+                            </defs>
+                            <Bar dataKey="notices" name="Notices" fill="url(#gradNotices)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="notices" position="top" className="text-xs" />
+                            </Bar>
+                            <Bar dataKey="payments" name="Payments" fill="url(#gradPayments)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="payments" position="top" className="text-xs" />
+                            </Bar>
                           </RBarChart>
                         </ResponsiveContainer>
                       </div>
                       <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Paid Amount Trend</div>
                         <ResponsiveContainer width="100%" height="100%">
                           <RLineChart data={timeseries}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis />
-                            <Tooltip />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [n === 'Paid Amount' ? `₹${Number(v).toLocaleString('en-IN')}` : Number(v).toLocaleString('en-IN'), n]} />
                             <Legend />
                             <Line type="monotone" dataKey="amount" name="Paid Amount" stroke="#3b82f6" strokeWidth={2} dot={false} />
                           </RLineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Payment Status</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RPieChart>
+                            <Tooltip formatter={(v: number, n: string) => [`${v.toLocaleString('en-IN')}`, n]} />
+                            <Legend />
+                            <Pie data={paymentStatusData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90}
+                                 label={(d: any) => `${d.name} ${(d.percent*100).toFixed(0)}%`}>
+                              {paymentStatusData.map((entry, index) => (
+                                <Cell key={`ps-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </RPieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Tribal vs Non-Tribal</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RPieChart>
+                            <Tooltip formatter={(v: number, n: string) => [`${v.toLocaleString('en-IN')}`, n]} />
+                            <Legend />
+                            <Pie data={tribalData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90}
+                                 label={(d: any) => `${(d.percent*100).toFixed(0)}%`}>
+                              {tribalData.map((entry, index) => (
+                                <Cell key={`tr-${index}`} fill={COLORS[(index+3) % COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </RPieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Top Villages by Records</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RBarChart data={villageTopData} barSize={24}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [v.toLocaleString('en-IN'), n]} />
+                            <Legend />
+                            <defs>
+                              <linearGradient id="gradVillage" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#a5b4fc" />
+                                <stop offset="100%" stopColor="#6366f1" />
+                              </linearGradient>
+                            </defs>
+                            <Bar dataKey="value" name="Records" fill="url(#gradVillage)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="value" position="top" className="text-xs" />
+                            </Bar>
+                          </RBarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
@@ -610,6 +832,37 @@ const EnhancedDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+      {/* KYC Upload Dialog */}
+      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload KYC Documents</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {persons.map((p, idx) => (
+              <div key={idx} className="border p-3 rounded-md space-y-2">
+                <div className="flex gap-2 items-center">
+                  <Label className="w-28">Person Name</Label>
+                  <Input value={p.name} onChange={e => updatePerson(idx, { name: e.target.value })} placeholder="e.g., Ram Patil" />
+                  <Button variant="outline" onClick={() => removePerson(idx)} disabled={persons.length===1}>Remove</Button>
+                </div>
+                <div className="flex gap-3 items-center">
+                  <Label className="w-28">Aadhaar</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={e => updatePerson(idx, { aadhar: e.target.files?.[0] || null })} />
+                </div>
+                <div className="flex gap-3 items-center">
+                  <Label className="w-28">PAN</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={e => updatePerson(idx, { pan: e.target.files?.[0] || null })} />
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={addPersonRow}>Add Person</Button>
+              <Button onClick={uploadAllPersons}>Upload & Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* AI Assistant Launcher */}
       <OfficerAIAssistant projectId={selectedProject || undefined} />
     </div>

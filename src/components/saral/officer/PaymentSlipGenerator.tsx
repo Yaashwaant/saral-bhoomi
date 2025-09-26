@@ -165,11 +165,7 @@ const PaymentSlipGenerator: React.FC = () => {
             setKycCompletedRecords(completedRecords);
           } else if (import.meta.env.DEV) {
             // Fallback demo data in dev for showcasing pending reason feature
-            setKycCompletedRecords([
-              { id: 'demo-1', survey_number: '40', landowner_name: 'कमळी कमळाकर मंडळ', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'completed', kyc_completed_at: new Date().toISOString(), payment_status: 'pending', pending_reason: 'Bank details verification pending', total_compensation: 8021026, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
-              { id: 'demo-2', survey_number: '41', landowner_name: 'राम शामराव पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-86400000).toISOString(), payment_status: 'pending', total_compensation: 9200000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName },
-              { id: 'demo-3', survey_number: '44', landowner_name: 'मीरा बाई पाटील', village: 'उंबरपाडा', taluka: 'पालघर', district: 'पालघर', kyc_status: 'approved', kyc_completed_at: new Date(Date.now()-2*86400000).toISOString(), payment_status: 'generated', total_compensation: 10400000, project_id: selectedProject, project_name: projects.find(p => p.id === selectedProject)?.projectName }
-            ] as LandownerRecord[]);
+            setKycCompletedRecords([] as LandownerRecord[]);
           }
         }
       }
@@ -216,8 +212,9 @@ const PaymentSlipGenerator: React.FC = () => {
           loadKYCCompletedRecords(); // Refresh the list
         }
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message || 'Failed to generate payment slip');
+        let message = 'Failed to generate payment slip';
+        try { const errorData = await response.json(); message = errorData.message || message; } catch {}
+        toast.error(message);
       }
     } catch (error) {
       console.error('Error generating payment slip:', error);
