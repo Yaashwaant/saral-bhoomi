@@ -899,7 +899,7 @@ const BlockchainDashboard: React.FC = () => {
                           <td className="p-2">{s.blockchain_last_updated ? new Date(s.blockchain_last_updated).toLocaleString() : '-'}</td>
                           <td className="p-2 flex gap-2">
                             <Button size="sm" variant="outline" onClick={() => verifySingleRow(s)}>Verify</Button>
-                            {!s.exists_on_blockchain && (
+                            {(!s.exists_on_blockchain || s.blockchain_status === 'not_on_blockchain') && (
                               <Button
                                 size="sm"
                                 variant="outline"
