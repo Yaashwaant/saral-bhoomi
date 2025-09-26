@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,7 +35,7 @@ interface ProjectFormData {
   videoUrl: string;
   description?: string;
   ministry?: string;
-  applicableLaws?: string; // comma-separated input
+  applicableLaws?: string[]; // multiple laws
   projectAim?: string;
 }
 
@@ -56,9 +57,19 @@ const ProjectManagement = () => {
     videoUrl: '',
     description: '',
     ministry: '',
-    applicableLaws: '',
+    applicableLaws: [],
     projectAim: ''
   });
+
+  const LAND_ACQUISITION_LAWS: { value: string; label: string }[] = [
+    { value: 'LARR_2013', label: 'Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement Act, 2013' },
+    { value: 'MH_LandRevenue_Code_1966', label: 'Maharashtra Land Revenue Code, 1966' },
+    { value: 'NH_Act_1956', label: 'National Highways Act, 1956' },
+    { value: 'Railways_Act_1989', label: 'Railways Act, 1989' },
+    { value: 'Metro_Railways_Act', label: 'Metro Railways (Construction of Works) Act' },
+    { value: 'State_Specific_R&R', label: 'State-specific R&R / Notifications' },
+  ];
+  const [customLaw, setCustomLaw] = useState('');
 
   const translations = {
     marathi: {
@@ -217,10 +228,7 @@ const ProjectManagement = () => {
         description: formData.description,
         descriptionDetails: {
           ministry: formData.ministry || undefined,
-          applicableLaws: (formData.applicableLaws || '')
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean),
+          applicableLaws: (formData.applicableLaws || []).filter(Boolean),
           projectAim: formData.projectAim || undefined,
         },
         status: {
@@ -253,7 +261,7 @@ const ProjectManagement = () => {
         videoUrl: '',
         description: '',
         ministry: '',
-        applicableLaws: '',
+        applicableLaws: [],
         projectAim: ''
       });
     } catch (error) {
@@ -275,7 +283,7 @@ const ProjectManagement = () => {
       description: project.description || '',
       billPassedDate: project.descriptionDetails?.billPassedDate ? String(project.descriptionDetails.billPassedDate).slice(0,10) : '',
       ministry: project.descriptionDetails?.ministry || '',
-      applicableLaws: (project.descriptionDetails?.applicableLaws || []).join(', '),
+      applicableLaws: (project.descriptionDetails?.applicableLaws || []) as string[],
       projectAim: project.descriptionDetails?.projectAim || ''
     });
     setIsDialogOpen(true);
@@ -425,22 +433,46 @@ const ProjectManagement = () => {
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="applicableLaws">{t.applicableLaws}</Label>
-                      <Select
-                        onValueChange={(value: string) => setFormData({ ...formData, applicableLaws: value })}
-                        value={formData.applicableLaws}
-                      >
-                        <SelectTrigger id="applicableLaws">
-                          <SelectValue placeholder="कायदा निवडा" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="LARR_2013">The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement Act, 2013</SelectItem>
-                          <SelectItem value="MH_LandRevenue_Code_1966">Maharashtra Land Revenue Code, 1966</SelectItem>
-                          <SelectItem value="NH_Act_1956">National Highways Act, 1956 (for highway projects)</SelectItem>
-                          <SelectItem value="Railways_Act_1989">Railways Act, 1989 (for railway projects)</SelectItem>
-                          <SelectItem value="Metro_Railways_Act">Metro Railways (Construction of Works) Act</SelectItem>
-                          <SelectItem value="State_Specific_R&R">State-specific R&R / Notifications</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="grid grid-cols-1 gap-2 p-2 border rounded-md">
+                        {LAND_ACQUISITION_LAWS.map((law) => (
+                          <label key={law.value} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={formData.applicableLaws?.includes(law.value)}
+                              onCheckedChange={(checked) => {
+                                const set = new Set(formData.applicableLaws || []);
+                                if (checked) set.add(law.value); else set.delete(law.value);
+                                setFormData({ ...formData, applicableLaws: Array.from(set) });
+                              }}
+                            />
+                            <span>{law.label}</span>
+                          </label>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="Add custom act"
+                            value={customLaw}
+                            onChange={(e) => setCustomLaw(e.target.value)}
+                          />
+                          <Button type="button" variant="outline" onClick={() => {
+                            const v = customLaw.trim();
+                            if (!v) return;
+                            const next = new Set(formData.applicableLaws || []);
+                            next.add(v);
+                            setFormData({ ...formData, applicableLaws: Array.from(next) });
+                            setCustomLaw('');
+                          }}>Add</Button>
+                        </div>
+                        {formData.applicableLaws && formData.applicableLaws.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {formData.applicableLaws.map((law) => (
+                              <Badge key={law} variant="secondary" className="cursor-pointer" onClick={() => {
+                                const next = (formData.applicableLaws || []).filter(x => x !== law);
+                                setFormData({ ...formData, applicableLaws: next });
+                              }}>{law}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="projectAim">{t.projectAim}</Label>
