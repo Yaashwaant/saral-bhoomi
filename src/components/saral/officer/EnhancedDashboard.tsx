@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDown, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { config } from '../../../config';
 import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -248,27 +250,41 @@ const EnhancedDashboard: React.FC = () => {
   };
 
   // KYC flow helpers
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const [kycRecord, setKycRecord] = useState<any>(null);
+  type PersonUpload = { name: string; aadhar?: File | null; pan?: File | null };
+  const [persons, setPersons] = useState<PersonUpload[]>([{ name: '', aadhar: null, pan: null }]);
+
   const openKycUploader = (record: any) => {
-    // Navigate to Land Records Manager with preselected project and record? For now show toast hint
-    toast.info('Open KYC upload in Land Records → coming soon. Using inline file picker.');
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*,application/pdf';
-    input.multiple = true;
-    input.onchange = async () => {
-      const files = Array.from(input.files || []);
-      for (const file of files) {
-        await uploadSingleKycDoc(record, file);
-      }
-    };
-    input.click();
+    setKycRecord(record);
+    setPersons([{ name: '', aadhar: null, pan: null }]);
+    setKycDialogOpen(true);
   };
 
-  const uploadSingleKycDoc = async (record: any, file: File) => {
+  const addPersonRow = () => setPersons(prev => [...prev, { name: '', aadhar: null, pan: null }]);
+  const updatePerson = (idx: number, patch: Partial<PersonUpload>) => {
+    setPersons(prev => prev.map((p, i) => i === idx ? { ...p, ...patch } : p));
+  };
+  const removePerson = (idx: number) => setPersons(prev => prev.filter((_, i) => i !== idx));
+
+  const uploadAllPersons = async () => {
+    if (!kycRecord) return;
+    let uploaded = 0;
+    for (const p of persons) {
+      if (p.aadhar) { await uploadSingleKycDoc(kycRecord, p.aadhar, 'aadhaar', p.name); uploaded++; }
+      if (p.pan) { await uploadSingleKycDoc(kycRecord, p.pan, 'pan', p.name); uploaded++; }
+    }
+    if (uploaded > 0) toast.success(`Uploaded ${uploaded} document(s)`);
+    setKycDialogOpen(false);
+    await loadDashboardData();
+  };
+
+  const uploadSingleKycDoc = async (record: any, file: File, explicitType?: string, personName?: string) => {
     try {
       const form = new FormData();
       form.append('file', file);
-      form.append('documentType', inferDocTypeFromName(file.name));
+      form.append('documentType', explicitType || inferDocTypeFromName(file.name));
+      if (personName) form.append('notes', `person:${personName}`);
       const resp = await fetch(`${config.API_BASE_URL}/kyc/upload-multipart/${record.id || record._id}`, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
@@ -697,6 +713,37 @@ const EnhancedDashboard: React.FC = () => {
           )}
         </CardContent>
       </Card>
+      {/* KYC Upload Dialog */}
+      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload KYC Documents</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {persons.map((p, idx) => (
+              <div key={idx} className="border p-3 rounded-md space-y-2">
+                <div className="flex gap-2 items-center">
+                  <Label className="w-28">Person Name</Label>
+                  <Input value={p.name} onChange={e => updatePerson(idx, { name: e.target.value })} placeholder="e.g., Ram Patil" />
+                  <Button variant="outline" onClick={() => removePerson(idx)} disabled={persons.length===1}>Remove</Button>
+                </div>
+                <div className="flex gap-3 items-center">
+                  <Label className="w-28">Aadhaar</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={e => updatePerson(idx, { aadhar: e.target.files?.[0] || null })} />
+                </div>
+                <div className="flex gap-3 items-center">
+                  <Label className="w-28">PAN</Label>
+                  <Input type="file" accept="image/*,application/pdf" onChange={e => updatePerson(idx, { pan: e.target.files?.[0] || null })} />
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={addPersonRow}>Add Person</Button>
+              <Button onClick={uploadAllPersons}>Upload & Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* AI Assistant Launcher */}
       <OfficerAIAssistant projectId={selectedProject || undefined} />
     </div>
