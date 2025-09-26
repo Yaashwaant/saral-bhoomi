@@ -216,7 +216,6 @@ const ProjectManagement = () => {
     e.preventDefault();
     
     try {
-      const createdByNumeric = Number.parseInt((user?.id as any) || '1', 10) || 1;
       const nowIso = new Date().toISOString();
       const projectData = {
         projectName: formData.projectName,
@@ -246,15 +245,18 @@ const ProjectManagement = () => {
         allocatedBudget: 0,
         currency: 'INR',
         startDate: nowIso,
-        expectedCompletion: nowIso,
-        createdBy: createdByNumeric
+        expectedCompletion: nowIso
       };
 
       if (editingProject) {
         await updateProject(editingProject.id, projectData);
         toast.success('Project updated successfully');
       } else {
-        await createProject(projectData);
+        // Attach auth headers for creation to avoid role errors
+        const token = localStorage.getItem('authToken') || 'demo-jwt-token';
+        const role = (localStorage.getItem('saral_user') && JSON.parse(localStorage.getItem('saral_user') as string)?.role) || 'officer';
+        // createProject uses apiCall globally which now includes Authorization and x-demo-role
+        await createProject(projectData as any);
         toast.success('Project created successfully');
       }
 
