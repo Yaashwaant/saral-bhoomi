@@ -216,6 +216,8 @@ const ProjectManagement = () => {
     e.preventDefault();
     
     try {
+      const createdByNumeric = Number.parseInt((user?.id as any) || '1', 10) || 1;
+      const nowIso = new Date().toISOString();
       const projectData = {
         projectName: formData.projectName,
         pmisCode: formData.pmisCode,
@@ -231,13 +233,21 @@ const ProjectManagement = () => {
           applicableLaws: (formData.applicableLaws || []).filter(Boolean),
           projectAim: formData.projectAim || undefined,
         },
-        status: {
-          stage3A: 'pending',
-          stage3D: 'pending',
-          corrigendum: 'pending',
-          award: 'pending'
-        } as const,
-        createdBy: user?.email || ''
+        // Flattened status fields for local Sequelize backend
+        stage3A: 'pending',
+        stage3D: 'pending',
+        corrigendum: 'pending',
+        award: 'pending',
+        // Provide required backend fields with safe defaults if not yet captured in UI
+        district: 'Unknown',
+        taluka: 'Unknown',
+        villages: ['Unknown'],
+        estimatedCost: 0,
+        allocatedBudget: 0,
+        currency: 'INR',
+        startDate: nowIso,
+        expectedCompletion: nowIso,
+        createdBy: createdByNumeric
       };
 
       if (editingProject) {
