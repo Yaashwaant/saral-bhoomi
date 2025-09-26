@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "migrate:projects-status": "node scripts/migrateProjectsStatus.js",
     "db:add-tribal-columns": "node scripts/addTribalColumns.js",
     "seed": "node seed-demo-users.js",
     "firebase:test": "node test-firebase.js",

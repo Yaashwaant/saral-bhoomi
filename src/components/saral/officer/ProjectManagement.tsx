@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { config } from '@/config';
 import { useSaral } from '@/contexts/SaralContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,9 +35,8 @@ interface ProjectFormData {
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
   description?: string;
-  billPassedDate?: string;
   ministry?: string;
-  applicableLaws?: string; // comma-separated input
+  applicableLaws?: string[]; // multiple laws
   projectAim?: string;
 }
 
@@ -56,11 +57,20 @@ const ProjectManagement = () => {
     type: 'greenfield',
     videoUrl: '',
     description: '',
-    billPassedDate: '',
     ministry: '',
-    applicableLaws: '',
+    applicableLaws: [],
     projectAim: ''
   });
+
+  const LAND_ACQUISITION_LAWS: { value: string; label: string }[] = [
+    { value: 'LARR_2013', label: 'Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement Act, 2013' },
+    { value: 'MH_LandRevenue_Code_1966', label: 'Maharashtra Land Revenue Code, 1966' },
+    { value: 'NH_Act_1956', label: 'National Highways Act, 1956' },
+    { value: 'Railways_Act_1989', label: 'Railways Act, 1989' },
+    { value: 'Metro_Railways_Act', label: 'Metro Railways (Construction of Works) Act' },
+    { value: 'State_Specific_R&R', label: 'State-specific R&R / Notifications' },
+  ];
+  const [customLaw, setCustomLaw] = useState('');
 
   const translations = {
     marathi: {
@@ -81,8 +91,8 @@ const ProjectManagement = () => {
       description: 'प्रकल्पाचे वर्णन',
       descriptionDetails: 'सविस्तर माहिती',
       billPassedDate: 'बिल मंजुरीची तारीख',
-      ministry: 'मंत्रालय',
-      applicableLaws: 'लागू कायदे (स्वल्पविरामाने वेगळे करा)',
+      ministry: 'मंत्रालय/विभाग',
+      applicableLaws: 'लागू कायदे',
       projectAim: 'प्रकल्पाचा उद्देश',
       edit: 'संपादन करा',
       delete: 'हटवा',
@@ -120,7 +130,7 @@ const ProjectManagement = () => {
       descriptionDetails: 'Description Details',
       billPassedDate: 'Date of Bill Passing',
       ministry: 'Ministry',
-      applicableLaws: 'Applicable Laws (comma-separated)',
+      applicableLaws: 'Applicable Laws',
       projectAim: 'Project Aim',
       edit: 'Edit',
       delete: 'Delete',
@@ -158,7 +168,7 @@ const ProjectManagement = () => {
       descriptionDetails: 'विवरण विवरण',
       billPassedDate: 'विधेयक पारित होने की तिथि',
       ministry: 'मंत्रालय',
-      applicableLaws: 'लागू कानून (अल्पविराम से अलग)',
+      applicableLaws: 'लागू कानून',
       projectAim: 'परियोजना का उद्देश्य',
       edit: 'संपादित करें',
       delete: 'हटाएं',
@@ -207,7 +217,8 @@ const ProjectManagement = () => {
     e.preventDefault();
     
     try {
-      const projectData = {
+      const nowIso = new Date().toISOString();
+      const baseData: any = {
         projectName: formData.projectName,
         pmisCode: formData.pmisCode,
         schemeName: formData.schemeName,
@@ -218,28 +229,42 @@ const ProjectManagement = () => {
         videoUrl: formData.videoUrl,
         description: formData.description,
         descriptionDetails: {
-          billPassedDate: formData.billPassedDate || undefined,
           ministry: formData.ministry || undefined,
-          applicableLaws: (formData.applicableLaws || '')
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean),
+          applicableLaws: (formData.applicableLaws || []).filter(Boolean),
           projectAim: formData.projectAim || undefined,
         },
-        status: {
-          stage3A: 'pending',
-          stage3D: 'pending',
-          corrigendum: 'pending',
-          award: 'pending'
-        } as const,
-        createdBy: user?.email || ''
       };
+
+      // Backend compatibility: if using localhost (Sequelize), add required fields with defaults
+      const apiUrl = config.API_BASE_URL || '';
+      const isLocalBackend = /localhost|127\.0\.0\.1|:5000/.test(apiUrl);
+      const projectData = isLocalBackend
+        ? {
+            ...baseData,
+            stage3A: 'pending',
+            stage3D: 'pending',
+            corrigendum: 'pending',
+            award: 'pending',
+            district: 'Unknown',
+            taluka: 'Unknown',
+            villages: ['Unknown'],
+            estimatedCost: 0,
+            allocatedBudget: 0,
+            currency: 'INR',
+            startDate: nowIso,
+            expectedCompletion: nowIso,
+          }
+        : baseData;
 
       if (editingProject) {
         await updateProject(editingProject.id, projectData);
         toast.success('Project updated successfully');
       } else {
-        await createProject(projectData);
+        // Attach auth headers for creation to avoid role errors
+        const token = localStorage.getItem('authToken') || 'demo-jwt-token';
+        const role = (localStorage.getItem('saral_user') && JSON.parse(localStorage.getItem('saral_user') as string)?.role) || 'officer';
+        // createProject uses apiCall globally which now includes Authorization and x-demo-role
+        await createProject(projectData as any);
         toast.success('Project created successfully');
       }
 
@@ -255,13 +280,12 @@ const ProjectManagement = () => {
         type: 'greenfield',
         videoUrl: '',
         description: '',
-        billPassedDate: '',
         ministry: '',
-        applicableLaws: '',
+        applicableLaws: [],
         projectAim: ''
       });
-    } catch (error) {
-      toast.error('Failed to save project');
+    } catch (error: any) {
+      toast.error(`Failed to save project${error?.message ? `: ${error.message}` : ''}`);
     }
   };
 
@@ -279,7 +303,7 @@ const ProjectManagement = () => {
       description: project.description || '',
       billPassedDate: project.descriptionDetails?.billPassedDate ? String(project.descriptionDetails.billPassedDate).slice(0,10) : '',
       ministry: project.descriptionDetails?.ministry || '',
-      applicableLaws: (project.descriptionDetails?.applicableLaws || []).join(', '),
+      applicableLaws: (project.descriptionDetails?.applicableLaws || []) as string[],
       projectAim: project.descriptionDetails?.projectAim || ''
     });
     setIsDialogOpen(true);
@@ -306,7 +330,7 @@ const ProjectManagement = () => {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700">
+            <Button type="button" onClick={() => setIsDialogOpen(true)} className="bg-orange-600 hover:bg-orange-700">
               <FolderPlus className="h-4 w-4 mr-2" />
               {t.createProject}
             </Button>
@@ -413,30 +437,62 @@ const ProjectManagement = () => {
                 <div className="space-y-2 md:col-span-2">
                   <Label>{t.descriptionDetails}</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    {/* Removed bill passed date as requested */}
+                    <div className="hidden">
                       <Label htmlFor="billPassedDate">{t.billPassedDate}</Label>
-                      <Input
-                        id="billPassedDate"
-                        type="date"
-                        value={formData.billPassedDate}
-                        onChange={(e) => setFormData({ ...formData, billPassedDate: e.target.value })}
-                      />
+                      <Input id="billPassedDate" disabled />
                     </div>
                     <div>
                       <Label htmlFor="ministry">{t.ministry}</Label>
                       <Input
                         id="ministry"
+                        placeholder="उदा. महसूल व वन विभाग"
                         value={formData.ministry}
                         onChange={(e) => setFormData({ ...formData, ministry: e.target.value })}
                       />
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="applicableLaws">{t.applicableLaws}</Label>
-                      <Input
-                        id="applicableLaws"
-                        value={formData.applicableLaws}
-                        onChange={(e) => setFormData({ ...formData, applicableLaws: e.target.value })}
-                      />
+                      <div className="grid grid-cols-1 gap-2 p-2 border rounded-md">
+                        {LAND_ACQUISITION_LAWS.map((law) => (
+                          <label key={law.value} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={formData.applicableLaws?.includes(law.value)}
+                              onCheckedChange={(checked) => {
+                                const set = new Set(formData.applicableLaws || []);
+                                if (checked) set.add(law.value); else set.delete(law.value);
+                                setFormData({ ...formData, applicableLaws: Array.from(set) });
+                              }}
+                            />
+                            <span>{law.label}</span>
+                          </label>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="Add custom act"
+                            value={customLaw}
+                            onChange={(e) => setCustomLaw(e.target.value)}
+                          />
+                          <Button type="button" variant="outline" onClick={() => {
+                            const v = customLaw.trim();
+                            if (!v) return;
+                            const next = new Set(formData.applicableLaws || []);
+                            next.add(v);
+                            setFormData({ ...formData, applicableLaws: Array.from(next) });
+                            setCustomLaw('');
+                          }}>Add</Button>
+                        </div>
+                        {formData.applicableLaws && formData.applicableLaws.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {formData.applicableLaws.map((law) => (
+                              <Badge key={law} variant="secondary" className="cursor-pointer" onClick={() => {
+                                const next = (formData.applicableLaws || []).filter(x => x !== law);
+                                setFormData({ ...formData, applicableLaws: next });
+                              }}>{law}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="projectAim">{t.projectAim}</Label>

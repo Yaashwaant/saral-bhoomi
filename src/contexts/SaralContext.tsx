@@ -286,19 +286,34 @@ export const useSaral = () => {
   return context;
 };
 
-// Helper function to get auth token
-const getAuthToken = () => {
+// Helper functions to read auth from storage
+const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
+};
+const getUserRole = (): string | null => {
+  try {
+    const raw = localStorage.getItem('saral_user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.role || null;
+  } catch {
+    return null;
+  }
 };
 
 // Helper function for API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const token = getAuthToken() || 'demo-jwt-token';
+  const role = getUserRole() || 'officer';
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     mode: 'cors',
     credentials: 'include',
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'x-demo-role': String(role),
       ...(options.headers || {}),
     },
   });

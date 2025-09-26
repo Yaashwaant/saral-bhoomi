@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
@@ -25,8 +26,8 @@ router.get('/', async (req, res) => {
     if (district) filter.district = district;
     if (taluka) filter.taluka = taluka;
     if (type) filter.type = type;
-    if (status) filter.status = status;
-    if (isActive !== undefined) filter.is_active = isActive === 'true';
+    if (status) filter['status.overall'] = status;
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -171,7 +172,8 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       budget,
       timeline,
       stakeholders,
-      videoUrl
+      videoUrl,
+      status
     } = req.body;
     
     // Check if PMIS code already exists
@@ -183,7 +185,19 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       });
     }
     
+    // Normalize status (supports both new nested object and legacy root fields)
+    const normalizedStatus = {
+      overall: status?.overall || 'planning',
+      stage3A: status?.stage3A || req.body.stage3A || 'pending',
+      stage3D: status?.stage3D || req.body.stage3D || 'pending',
+      corrigendum: status?.corrigendum || req.body.corrigendum || 'pending',
+      award: status?.award || req.body.award || 'pending'
+    };
+
     // Create project
+    // Determine createdBy only if a valid ObjectId is available
+    const createdBy = (req.user && mongoose.isValidObjectId(req.user.id)) ? req.user.id : undefined;
+
     const project = await MongoProject.create({
       projectName,
       pmisCode,
@@ -202,9 +216,10 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       currency: budget?.currency,
       startDate: timeline?.startDate,
       expectedCompletion: timeline?.expectedCompletion,
+      status: normalizedStatus,
       stakeholders,
       videoUrl,
-      createdBy: req.user.id
+      ...(createdBy ? { createdBy } : {})
     });
     
     const populatedProject = await MongoProject.findById(project._id)
@@ -249,10 +264,19 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     });
   } catch (error) {
     console.error('Create project error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    // Handle duplicate PMIS code from unique index
+    if (error && (error.code === 11000 || error.code === '11000')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project with this PMIS code already exists'
+      });
+    }
+    // Handle validation errors
+    if (error && error.name === 'ValidationError') {
+      const errors = Object.values(error.errors || {}).map((e) => e.message);
+      return res.status(400).json({ success: false, message: errors.join(', ') || 'Validation failed' });
+    }
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -304,16 +328,23 @@ router.put('/:id', authorize(['officer', 'admin']), async (req, res) => {
       if (req.body.timeline.expectedCompletion) updateData.expectedCompletion = req.body.timeline.expectedCompletion;
     }
     
-    // Update status if provided
+    // Update status if provided (nested under status.*) and accept legacy root keys
     if (req.body.status) {
-      Object.keys(req.body.status).forEach(key => {
-        if (['stage3A', 'stage3D', 'corrigendum', 'award'].includes(key)) {
-          updateData[key] = req.body.status[key];
-        }
-      });
+      const st = req.body.status;
+      if (st.overall) updateData['status.overall'] = st.overall;
+      if (st.stage3A) updateData['status.stage3A'] = st.stage3A;
+      if (st.stage3D) updateData['status.stage3D'] = st.stage3D;
+      if (st.corrigendum) updateData['status.corrigendum'] = st.corrigendum;
+      if (st.award) updateData['status.award'] = st.award;
     }
-    
-    await project.update(updateData);
+    if (req.body.stage3A) updateData['status.stage3A'] = req.body.stage3A;
+    if (req.body.stage3D) updateData['status.stage3D'] = req.body.stage3D;
+    if (req.body.corrigendum) updateData['status.corrigendum'] = req.body.corrigendum;
+    if (req.body.award) updateData['status.award'] = req.body.award;
+
+    // Use document set/save for reliability with dotted paths
+    project.set(updateData);
+    await project.save();
     const updatedProject = await MongoProject.findById(project._id).populate('createdBy', 'name email');
     res.status(200).json({
       success: true,
@@ -401,7 +432,7 @@ router.get('/stats/overview', async (req, res) => {
     // Calculate stats manually
     const stats = [{
       totalProjects: allProjects.length,
-      activeProjects: allProjects.filter(p => p.isActive).length,
+      activeProjects: allProjects.filter(p => p.isActive || p?.status?.overall === 'active').length,
       totalLandRequired: allProjects.reduce((sum, p) => sum + (parseFloat(p.landRequired) || 0), 0),
       totalLandAvailable: allProjects.reduce((sum, p) => sum + (parseFloat(p.landAvailable) || 0), 0),
       totalLandToBeAcquired: allProjects.reduce((sum, p) => sum + (parseFloat(p.landToBeAcquired) || 0), 0),
@@ -409,10 +440,10 @@ router.get('/stats/overview', async (req, res) => {
     }];
     
     const statusStats = [{
-      stage3AApproved: allProjects.filter(p => p.stage3AStatus === 'approved').length,
-      stage3DApproved: allProjects.filter(p => p.stage3DStatus === 'approved').length,
-      corrigendumApproved: allProjects.filter(p => p.corrigendumStatus === 'approved').length,
-      awardApproved: allProjects.filter(p => p.awardStatus === 'approved').length
+      stage3AApproved: allProjects.filter(p => p?.status?.stage3A === 'approved').length,
+      stage3DApproved: allProjects.filter(p => p?.status?.stage3D === 'approved').length,
+      corrigendumApproved: allProjects.filter(p => p?.status?.corrigendum === 'approved').length,
+      awardApproved: allProjects.filter(p => p?.status?.award === 'approved').length
     }];
     
     // Group by type
