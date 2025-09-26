@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { config } from '@/config';
 import { useSaral } from '@/contexts/SaralContext';
+import { listMaharashtraDistricts, loadMaharashtraTalukas, loadMaharashtraVillages } from '@/utils/locationData';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 
@@ -63,6 +64,16 @@ const BlockchainDashboard: React.FC = () => {
   const MAHARASHTRA_DISTRICTS = [
     'Ahmednagar','Akola','Amravati','Aurangabad','Beed','Bhandara','Buldhana','Chandrapur','Dhule','Gadchiroli','Gondia','Hingoli','Jalgaon','Jalna','Kolhapur','Latur','Mumbai City','Mumbai Suburban','Nagpur','Nanded','Nandurbar','Nashik','Osmanabad','Palghar','Parbhani','Pune','Raigad','Ratnagiri','Sangli','Satara','Sindhudurg','Solapur','Thane','Wardha','Washim','Yavatmal'
   ];
+
+  // Fallback canonical lists where API/data may be missing
+  const TALUKAS_BY_DISTRICT: Record<string, string[]> = {
+    Palghar: ['Palghar', 'Vasai', 'Dahanu', 'Talasari', 'Jawhar', 'Mokhada', 'Vikramgad', 'Wada']
+  };
+
+  // Common alias fixes for districts (handles typos like "plaghar")
+  const DISTRICT_ALIASES: Record<string, string[]> = {
+    Palghar: ['palghar','plaghar','palgar','palgahr','palgher','palghr']
+  };
 
   // Small helper to avoid hanging calls
   const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 8000) => {
@@ -137,10 +148,7 @@ const BlockchainDashboard: React.FC = () => {
   const loadDistricts = async () => {
     try {
       setLoadingLocations(true);
-      const res = await getLocationOptions({});
-      const apiDistricts = Array.isArray(res?.districts) ? res.districts : [];
-      const datasetDistricts = Array.from(new Set((landownerRecords || []).map(r => r.district).filter(Boolean)));
-      const list = Array.from(new Set([...(apiDistricts || []), ...MAHARASHTRA_DISTRICTS, ...datasetDistricts])).sort();
+      const list = await listMaharashtraDistricts();
       setDistrictOptions(list);
     } catch {
       setDistrictOptions(MAHARASHTRA_DISTRICTS);
@@ -153,15 +161,16 @@ const BlockchainDashboard: React.FC = () => {
     if (!d) { setTalukaOptions([]); return; }
     try {
       setLoadingLocations(true);
-      const res = await getLocationOptions({ district: d });
-      let t = res?.talukas || [];
-      if (!t || t.length === 0) {
-        t = Array.from(new Set((landownerRecords || [])
-          .filter(r => (r.district || '').toLowerCase() === (d || '').toLowerCase())
-          .map(r => r.taluka)
-          .filter(Boolean)
-        ));
+      // Resolve to a known canonical district if user typed a variant
+      let canonical = d;
+      const hit = Object.entries(DISTRICT_ALIASES).find(([canon, aliases]) => aliases.includes((d || '').toLowerCase()));
+      if (hit) {
+        canonical = hit[0];
+        if (canonical !== district) setDistrict(canonical);
       }
+
+      let t = await loadMaharashtraTalukas(canonical);
+      if ((!t || t.length === 0) && TALUKAS_BY_DISTRICT[canonical as keyof typeof TALUKAS_BY_DISTRICT]) t = TALUKAS_BY_DISTRICT[canonical as keyof typeof TALUKAS_BY_DISTRICT];
       setTalukaOptions((t || []).sort());
     } catch { setTalukaOptions([]); }
     finally { setLoadingLocations(false); }
@@ -171,15 +180,12 @@ const BlockchainDashboard: React.FC = () => {
     if (!d || !t) { setVillageOptions([]); return; }
     try {
       setLoadingLocations(true);
-      const res = await getLocationOptions({ district: d, taluka: t });
-      let v = res?.villages || [];
-      if (!v || v.length === 0) {
-        v = Array.from(new Set((landownerRecords || [])
-          .filter(r => (r.district || '').toLowerCase() === (d || '').toLowerCase() && (r.taluka || '').toLowerCase() === (t || '').toLowerCase())
-          .map(r => r.village)
-          .filter(Boolean)
-        ));
-      }
+      // Apply canonical district mapping like above
+      let canonical = d;
+      const hit = Object.entries(DISTRICT_ALIASES).find(([canon, aliases]) => aliases.includes((d || '').toLowerCase()));
+      if (hit) canonical = hit[0];
+
+      let v = await loadMaharashtraVillages(canonical, t);
       setVillageOptions((v || []).sort());
     } catch { setVillageOptions([]); }
     finally { setLoadingLocations(false); }
