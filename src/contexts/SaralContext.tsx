@@ -286,9 +286,19 @@ export const useSaral = () => {
   return context;
 };
 
-// Helper function to get auth token
-const getAuthToken = () => {
+// Helper functions to read auth from storage
+const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
+};
+const getUserRole = (): string | null => {
+  try {
+    const raw = localStorage.getItem('saral_user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.role || null;
+  } catch {
+    return null;
+  }
 };
 
 // Helper function for API calls
@@ -299,6 +309,9 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {}),
+      ...(getUserRole() ? { 'x-demo-role': String(getUserRole()) } : {}),
       ...(options.headers || {}),
     },
   });
