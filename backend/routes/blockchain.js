@@ -640,12 +640,12 @@ router.get('/landowners-with-status', [ authMiddleware ], async (req, res) => {
  */
 router.get('/verify-landowner-row', [ authMiddleware ], async (req, res) => {
   try {
-    const { projectId, newSurveyNumber, ctsNumber } = req.query;
+    const { projectId, newSurveyNumber, ctsNumber, serialNumber } = req.query;
     if (!projectId || !newSurveyNumber || !ctsNumber) {
       return res.status(400).json({ success: false, message: 'projectId, newSurveyNumber, ctsNumber are required' });
     }
     const surveyService = new SurveyDataAggregationService();
-    const result = await surveyService.verifyLandownerRow(projectId, newSurveyNumber, ctsNumber);
+    const result = await surveyService.verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber || null);
     res.json({ success: true, data: result });
   } catch (error) {
     console.error('❌ Failed to verify landowner row:', error);

@@ -458,16 +458,13 @@ class SurveyDataAggregationService {
             { project_id: { $exists: false } }
           ]
         };
-        const surveyMatch = {
-          $or: [
-            { survey_number: r.new_survey_number },
-            {
-              'survey_data.landowner.data.new_survey_number': r.new_survey_number,
-              'survey_data.landowner.data.cts_number': r.cts_number
-            }
-          ]
+        // STRICT row-level match: require landowner section with same new_survey + CTS (+ serial when available)
+        const rowMatch = {
+          'survey_data.landowner.data.new_survey_number': r.new_survey_number,
+          'survey_data.landowner.data.cts_number': r.cts_number,
+          ...(r.serial_number ? { 'survey_data.landowner.data.serial_number': r.serial_number } : {})
         };
-        const ledger = await MongoBlockchainLedger.findOne({ $and: [projectMatch, surveyMatch] }).sort({ timestamp: -1 });
+        const ledger = await MongoBlockchainLedger.findOne({ $and: [projectMatch, rowMatch] }).sort({ timestamp: -1 });
 
         results.push({
           row_key,
@@ -494,12 +491,13 @@ class SurveyDataAggregationService {
   /**
    * Verify a specific landowner row by recomputing its landowner section hash
    */
-  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber) {
+  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber = null) {
     try {
       const record = await MongoLandownerRecord.findOne({
         project_id: projectId,
         new_survey_number: newSurveyNumber,
-        cts_number: ctsNumber
+        cts_number: ctsNumber,
+        ...(serialNumber ? { serial_number: serialNumber } : {})
       });
       if (!record) {
         return { isValid: false, reason: 'row_not_found' };
@@ -511,7 +509,7 @@ class SurveyDataAggregationService {
       const ledger = await MongoBlockchainLedger.findOne({
         $and: [
           { $or: [ { project_id: projectId }, { project_id: String(projectId) }, { project_id: null }, { project_id: { $exists: false } } ] },
-          { 'survey_data.landowner.data.new_survey_number': newSurveyNumber, 'survey_data.landowner.data.cts_number': ctsNumber }
+          { 'survey_data.landowner.data.new_survey_number': newSurveyNumber, 'survey_data.landowner.data.cts_number': ctsNumber, ...(serialNumber ? { 'survey_data.landowner.data.serial_number': serialNumber } : {}) }
         ]
       }).sort({ timestamp: -1 });
 
