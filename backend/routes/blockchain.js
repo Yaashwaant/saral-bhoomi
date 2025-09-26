@@ -83,6 +83,68 @@ router.get('/status', async (req, res) => {
 });
 
 /**
+ * @route POST /api/blockchain/bulk-landowner-row-sync
+ * @desc Create row-level blockchain blocks for all landowner rows (optionally by project)
+ * @access Private (Officers only)
+ */
+router.post('/bulk-landowner-row-sync', [
+  authMiddleware,
+  body('officer_id').notEmpty().withMessage('officer_id is required'),
+  body('project_id').optional(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { officer_id, project_id } = req.body;
+    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const surveyService = new SurveyDataAggregationService();
+    const filter = {};
+    if (project_id) filter.project_id = project_id;
+    const rows = await MongoLandownerRecord.find(filter).lean();
+
+    let processed = 0;
+    const results = [];
+
+    for (const r of rows) {
+      try {
+        const canonicalRow = surveyService.cleanDataForSerialization(r);
+        const landHash = hashJsonStable(canonicalRow);
+        const latest = await MongoBlockchainLedger.findOne({ survey_number: String(r.new_survey_number || r.survey_number || '') }).sort({ timestamp: -1 });
+        const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+
+        const block = new MongoBlockchainLedger({
+          block_id: `BLOCK_${String(r.new_survey_number || r.survey_number || 'NA')}_${Date.now()}`,
+          survey_number: String(r.new_survey_number || r.survey_number || ''),
+          event_type: 'LANDOWNER_RECORD_CREATED',
+          officer_id,
+          project_id: String(r.project_id || ''),
+          hash_version: HASH_VERSION,
+          data_root: landHash,
+          survey_data: { landowner: { data: canonicalRow, hash: landHash, last_updated: new Date(), status: 'created' } },
+          timeline_history: [ { action: 'LANDOWNER_RECORD_CREATED', timestamp: new Date(), officer_id, data_hash: landHash, previous_hash: previousHash, metadata: { source: 'bulk_landowner_row_sync' }, remarks: `Bulk row sync ${String(r.project_id)}:${String(r.new_survey_number)}:${String(r.cts_number)}:${String(r.serial_number || '')}` } ],
+          metadata: { source: 'bulk_landowner_row_sync' },
+          remarks: 'Bulk landowner row sync',
+          timestamp: new Date(),
+          previous_hash: previousHash,
+          nonce: Math.floor(Math.random() * 1_000_000)
+        });
+
+        await block.save();
+        processed++;
+        results.push({ ok: true, row_key: `${r.project_id}:${r.new_survey_number}:${r.cts_number}:${r.serial_number || ''}`, block_id: block.block_id });
+      } catch (e) {
+        results.push({ ok: false, error: e.message, row: { project_id: r.project_id, new_survey_number: r.new_survey_number, cts_number: r.cts_number, serial_number: r.serial_number } });
+      }
+    }
+
+    return res.json({ success: true, processed, total: rows.length, results });
+  } catch (error) {
+    console.error('❌ bulk-landowner-row-sync error:', error);
+    return res.status(500).json({ success: false, message: 'Failed bulk landowner row sync', error: error.message });
+  }
+});
+
+/**
  * @route GET /api/blockchain/health
  * @desc Health check for blockchain service
  * @access Public
