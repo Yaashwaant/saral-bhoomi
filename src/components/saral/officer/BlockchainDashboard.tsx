@@ -20,11 +20,15 @@ import {
   ExternalLink,
   FileText,
   Award,
-  RefreshCw
+  RefreshCw,
+  ChevronsUpDown,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { config } from '@/config';
 import { useSaral } from '@/contexts/SaralContext';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 
 const BlockchainDashboard: React.FC = () => {
   const { getLocationOptions } = useSaral();
@@ -48,6 +52,9 @@ const BlockchainDashboard: React.FC = () => {
   const [talukaOptions, setTalukaOptions] = useState<string[]>([]);
   const [villageOptions, setVillageOptions] = useState<string[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
+  const [openDistrictCombo, setOpenDistrictCombo] = useState(false);
+  const [openTalukaCombo, setOpenTalukaCombo] = useState(false);
+  const [openVillageCombo, setOpenVillageCombo] = useState(false);
 
   // Static fallback: All Maharashtra districts
   const MAHARASHTRA_DISTRICTS = [
@@ -1090,46 +1097,97 @@ const BlockchainDashboard: React.FC = () => {
             <CardContent className="space-y-4">
               {/* Cascading location filters + survey number */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                {/* District combobox */}
                 <div className="col-span-1">
-                  <Input
-                    placeholder="District"
-                    list="district-options"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                  />
-                  <datalist id="district-options">
-                    {districtOptions.map((d) => (
-                      <option key={`d-${d}`} value={d} />
-                    ))}
-                  </datalist>
+                  <Popover open={openDistrictCombo} onOpenChange={setOpenDistrictCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={loadingLocations}
+                      >
+                        {district || 'Select district'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search district..." />
+                        <CommandList>
+                          <CommandEmpty>No district found.</CommandEmpty>
+                          {districtOptions.map((d) => (
+                            <CommandItem key={`d-${d}`} value={d} onSelect={() => { setDistrict(d); setOpenDistrictCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${district === d ? 'opacity-100' : 'opacity-0'}`} />
+                              {d}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
+
+                {/* Taluka combobox */}
                 <div className="col-span-1">
-                  <Input
-                    placeholder="Taluka"
-                    list="taluka-options"
-                    value={taluka}
-                    onChange={(e) => setTaluka(e.target.value)}
-                    disabled={!district}
-                  />
-                  <datalist id="taluka-options">
-                    {talukaOptions.map((t) => (
-                      <option key={`t-${t}`} value={t} />
-                    ))}
-                  </datalist>
+                  <Popover open={openTalukaCombo} onOpenChange={setOpenTalukaCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={!district || loadingLocations}
+                      >
+                        {taluka || 'Select taluka'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search taluka..." />
+                        <CommandList>
+                          <CommandEmpty>No taluka found.</CommandEmpty>
+                          {talukaOptions.map((t) => (
+                            <CommandItem key={`t-${t}`} value={t} onSelect={() => { setTaluka(t); setOpenTalukaCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${taluka === t ? 'opacity-100' : 'opacity-0'}`} />
+                              {t}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
+
+                {/* Village combobox */}
                 <div className="col-span-1">
-                  <Input
-                    placeholder="Village"
-                    list="village-options"
-                    value={village}
-                    onChange={(e) => setVillage(e.target.value)}
-                    disabled={!taluka}
-                  />
-                  <datalist id="village-options">
-                    {villageOptions.map((v) => (
-                      <option key={`v-${v}`} value={v} />
-                    ))}
-                  </datalist>
+                  <Popover open={openVillageCombo} onOpenChange={setOpenVillageCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={!taluka || loadingLocations}
+                      >
+                        {village || 'Select village'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search village..." />
+                        <CommandList>
+                          <CommandEmpty>No village found.</CommandEmpty>
+                          {villageOptions.map((v) => (
+                            <CommandItem key={`v-${v}`} value={v} onSelect={() => { setVillage(v); setOpenVillageCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${village === v ? 'opacity-100' : 'opacity-0'}`} />
+                              {v}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="col-span-1">
                   <Input
