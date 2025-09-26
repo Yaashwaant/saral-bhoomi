@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
@@ -194,6 +195,9 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     };
 
     // Create project
+    // Determine createdBy only if a valid ObjectId is available
+    const createdBy = (req.user && mongoose.isValidObjectId(req.user.id)) ? req.user.id : undefined;
+
     const project = await MongoProject.create({
       projectName,
       pmisCode,
@@ -215,7 +219,7 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       status: normalizedStatus,
       stakeholders,
       videoUrl,
-      createdBy: req.user.id
+      ...(createdBy ? { createdBy } : {})
     });
     
     const populatedProject = await MongoProject.findById(project._id)
