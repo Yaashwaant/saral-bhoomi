@@ -145,27 +145,45 @@ const BlockchainDashboard: React.FC = () => {
         await fetchSurveyOverview();
       }
       setOverviewLoading(true);
-      const updated: any[] = [];
-      for (let i = 0; i < surveyOverview.length; i++) {
-        const s = surveyOverview[i];
-        try {
-          // Small delay to avoid rate-limits
-          if (i > 0) await new Promise(r => setTimeout(r, 75));
-          const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(s.survey_number)}`,
-            { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
-          let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
-          if (resp.ok) {
-            const res = await resp.json();
-            if (res?.isValid === true) status = 'verified';
-            else if (res?.isValid === false) status = 'compromised';
+      // Skip verification for items not on chain; mark them immediately
+      const base = surveyOverview.map((s) => s.exists_on_blockchain ? s : { ...s, blockchain_status: 'not_on_blockchain' });
+
+      // Concurrency-limited parallel verification for rows that are on-chain
+      const onChain = base.filter((s) => s.exists_on_blockchain);
+      const concurrency = Math.min(8, Math.max(2, navigator?.hardwareConcurrency || 6));
+      const queue = [...onChain];
+      const results = new Map<string, 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'>();
+
+      const worker = async () => {
+        while (queue.length) {
+          const s = queue.shift();
+          if (!s) break;
+          try {
+            const projectId = String(s.project_id || '');
+            const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
+            const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`,
+              { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
+            let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = 'pending';
+            if (resp.ok) {
+              const r = await resp.json();
+              if (r?.data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
+              else if (r?.data?.isValid === true) status = 'verified';
+              else if (r?.data?.isValid === false) status = 'compromised';
+              else status = 'pending';
+            } else {
+              status = 'pending';
+            }
+            results.set(s.row_key, status);
+          } catch {
+            results.set(s.row_key, 'pending');
           }
-          updated.push({ ...s, blockchain_status: status });
-        } catch (e) {
-          // Timeout or network error: do not hang; mark as pending if on-chain, else not_on_blockchain
-          updated.push({ ...s, blockchain_status: s.exists_on_blockchain ? 'pending' : 'not_on_blockchain' });
         }
-      }
-      setSurveyOverview(updated);
+      };
+
+      await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()));
+
+      const merged = base.map((s) => results.has(s.row_key) ? { ...s, blockchain_status: results.get(s.row_key)! } : s);
+      setSurveyOverview(merged);
       toast.success('Blockchain status refreshed');
     } catch (e) {
       console.error(e);
