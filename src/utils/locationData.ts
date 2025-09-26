@@ -16,6 +16,11 @@ const FALLBACK_DISTRICT_TALUKA: Record<string, string[]> = {
   Palghar: ['Palghar', 'Vasai', 'Dahanu', 'Talasari', 'Jawhar', 'Mokhada', 'Vikramgad', 'Wada'],
 };
 
+// Full Maharashtra district list to ensure dropdown always has all options
+const ALL_DISTRICTS: string[] = [
+  'Ahmednagar','Akola','Amravati','Aurangabad','Beed','Bhandara','Buldhana','Chandrapur','Dhule','Gadchiroli','Gondia','Hingoli','Jalgaon','Jalna','Kolhapur','Latur','Mumbai City','Mumbai Suburban','Nagpur','Nanded','Nandurbar','Nashik','Osmanabad','Palghar','Parbhani','Pune','Raigad','Ratnagiri','Sangli','Satara','Sindhudurg','Solapur','Thane','Wardha','Washim','Yavatmal'
+];
+
 type DistrictTalukaMap = Record<string, string[]>;
 
 async function safeFetchJson(url: string): Promise<any | null> {
@@ -89,7 +94,8 @@ export async function loadDistrictTalukaMap(): Promise<DistrictTalukaMap> {
 
 export async function listMaharashtraDistricts(): Promise<string[]> {
   const map = await loadDistrictTalukaMap();
-  return Object.keys(map).sort();
+  const union = new Set<string>([...ALL_DISTRICTS, ...Object.keys(map)]);
+  return Array.from(union).sort();
 }
 
 export async function loadMaharashtraTalukas(district: string): Promise<string[]> {

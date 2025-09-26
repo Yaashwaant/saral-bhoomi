@@ -8,7 +8,8 @@ const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_URL || 'https://saral-bhoomi-1.onrender.com/api';
   }
   // In development, use environment variable or localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  // Prefer production API by default to avoid local backend mismatches
+  return import.meta.env.VITE_API_URL || 'https://saral-bhoomi-1.onrender.com/api';
 };
 
 export const config = {

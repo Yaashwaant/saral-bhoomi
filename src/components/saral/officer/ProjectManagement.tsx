@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { config } from '@/config';
 import { useSaral } from '@/contexts/SaralContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -217,7 +218,7 @@ const ProjectManagement = () => {
     
     try {
       const nowIso = new Date().toISOString();
-      const projectData = {
+      const baseData: any = {
         projectName: formData.projectName,
         pmisCode: formData.pmisCode,
         schemeName: formData.schemeName,
@@ -232,21 +233,28 @@ const ProjectManagement = () => {
           applicableLaws: (formData.applicableLaws || []).filter(Boolean),
           projectAim: formData.projectAim || undefined,
         },
-        // Flattened status fields for local Sequelize backend
-        stage3A: 'pending',
-        stage3D: 'pending',
-        corrigendum: 'pending',
-        award: 'pending',
-        // Provide required backend fields with safe defaults if not yet captured in UI
-        district: 'Unknown',
-        taluka: 'Unknown',
-        villages: ['Unknown'],
-        estimatedCost: 0,
-        allocatedBudget: 0,
-        currency: 'INR',
-        startDate: nowIso,
-        expectedCompletion: nowIso
       };
+
+      // Backend compatibility: if using localhost (Sequelize), add required fields with defaults
+      const apiUrl = config.API_BASE_URL || '';
+      const isLocalBackend = /localhost|127\.0\.0\.1|:5000/.test(apiUrl);
+      const projectData = isLocalBackend
+        ? {
+            ...baseData,
+            stage3A: 'pending',
+            stage3D: 'pending',
+            corrigendum: 'pending',
+            award: 'pending',
+            district: 'Unknown',
+            taluka: 'Unknown',
+            villages: ['Unknown'],
+            estimatedCost: 0,
+            allocatedBudget: 0,
+            currency: 'INR',
+            startDate: nowIso,
+            expectedCompletion: nowIso,
+          }
+        : baseData;
 
       if (editingProject) {
         await updateProject(editingProject.id, projectData);
@@ -276,8 +284,8 @@ const ProjectManagement = () => {
         applicableLaws: [],
         projectAim: ''
       });
-    } catch (error) {
-      toast.error('Failed to save project');
+    } catch (error: any) {
+      toast.error(`Failed to save project${error?.message ? `: ${error.message}` : ''}`);
     }
   };
 

@@ -49,13 +49,16 @@ const BlockchainDashboard: React.FC = () => {
   const [district, setDistrict] = useState('');
   const [taluka, setTaluka] = useState('');
   const [village, setVillage] = useState('');
+  const [projectId, setProjectId] = useState<string>('');
   const [districtOptions, setDistrictOptions] = useState<string[]>([]);
   const [talukaOptions, setTalukaOptions] = useState<string[]>([]);
   const [villageOptions, setVillageOptions] = useState<string[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
+  const [openProjectCombo, setOpenProjectCombo] = useState(false);
   const [openDistrictCombo, setOpenDistrictCombo] = useState(false);
   const [openTalukaCombo, setOpenTalukaCombo] = useState(false);
   const [openVillageCombo, setOpenVillageCombo] = useState(false);
+  const [projectQuery, setProjectQuery] = useState('');
   const [districtQuery, setDistrictQuery] = useState('');
   const [talukaQuery, setTalukaQuery] = useState('');
   const [villageQuery, setVillageQuery] = useState('');
@@ -148,10 +151,21 @@ const BlockchainDashboard: React.FC = () => {
   const loadDistricts = async () => {
     try {
       setLoadingLocations(true);
-      const list = await listMaharashtraDistricts();
-      setDistrictOptions(list);
+      // DATASET-ONLY: From projects + landowner records (optionally filtered by project)
+      const s = new Set<string>();
+      (projects || []).forEach((p: any) => {
+        if (!projectId || String(p.id) === String(projectId)) {
+          if (p.district) s.add(String(p.district));
+        }
+      });
+      (landownerRecords || []).forEach((r: any) => {
+        if (!projectId || String(r.projectId ?? r.project_id) === String(projectId)) {
+          if (r.district) s.add(String(r.district));
+        }
+      });
+      setDistrictOptions(Array.from(s).filter(Boolean).sort());
     } catch {
-      setDistrictOptions(MAHARASHTRA_DISTRICTS);
+      setDistrictOptions([]);
     } finally {
       setLoadingLocations(false);
     }
@@ -169,7 +183,12 @@ const BlockchainDashboard: React.FC = () => {
         if (canonical !== district) setDistrict(canonical);
       }
 
-      let t = await loadMaharashtraTalukas(canonical);
+      // DATASET-ONLY: derive from dataset (optionally filter by project)
+      let t = Array.from(new Set((landownerRecords || [])
+        .filter(r => (!projectId || String(r.projectId ?? r.project_id) === String(projectId)) && (r.district || '').toLowerCase() === (canonical || '').toLowerCase())
+        .map(r => r.taluka)
+        .filter(Boolean)
+      ));
       if ((!t || t.length === 0) && TALUKAS_BY_DISTRICT[canonical as keyof typeof TALUKAS_BY_DISTRICT]) t = TALUKAS_BY_DISTRICT[canonical as keyof typeof TALUKAS_BY_DISTRICT];
       setTalukaOptions((t || []).sort());
     } catch { setTalukaOptions([]); }
@@ -185,7 +204,12 @@ const BlockchainDashboard: React.FC = () => {
       const hit = Object.entries(DISTRICT_ALIASES).find(([canon, aliases]) => aliases.includes((d || '').toLowerCase()));
       if (hit) canonical = hit[0];
 
-      let v = await loadMaharashtraVillages(canonical, t);
+      // DATASET-ONLY: derive from dataset (optionally filter by project)
+      let v = Array.from(new Set((landownerRecords || [])
+        .filter(r => (!projectId || String(r.projectId ?? r.project_id) === String(projectId)) && (r.district || '').toLowerCase() === (canonical || '').toLowerCase() && (r.taluka || '').toLowerCase() === (t || '').toLowerCase())
+        .map(r => r.village)
+        .filter(Boolean)
+      ));
       setVillageOptions((v || []).sort());
     } catch { setVillageOptions([]); }
     finally { setLoadingLocations(false); }
@@ -883,6 +907,18 @@ const BlockchainDashboard: React.FC = () => {
   useEffect(() => { if (openDistrictCombo) setDistrictQuery(''); }, [openDistrictCombo]);
   useEffect(() => { if (openTalukaCombo) setTalukaQuery(''); }, [openTalukaCombo]);
   useEffect(() => { if (openVillageCombo) setVillageQuery(''); }, [openVillageCombo]);
+  useEffect(() => { if (openProjectCombo) setProjectQuery(''); }, [openProjectCombo]);
+
+  useEffect(() => {
+    // When project changes, reset location chain and reload districts strictly from dataset
+    setDistrict('');
+    setTaluka('');
+    setVillage('');
+    setDistrictOptions([]);
+    setTalukaOptions([]);
+    setVillageOptions([]);
+    loadDistricts();
+  }, [projectId]);
 
   return (
     <div className="space-y-6">
@@ -1148,7 +1184,36 @@ const BlockchainDashboard: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Cascading location filters + survey number */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                {/* Project combobox */}
+                <div className="col-span-1">
+                  <Popover open={openProjectCombo} onOpenChange={setOpenProjectCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {projectId ? (projects.find(p => String(p.id) === String(projectId))?.projectName || 'Project') : 'All Projects'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search project..." value={projectQuery} onValueChange={setProjectQuery} />
+                        <CommandList>
+                          <CommandItem value="__all__" onSelect={() => { setProjectId(''); setOpenProjectCombo(false); }}>All Projects</CommandItem>
+                          {(projects || []).map((p: any) => (
+                            <CommandItem key={`p-${p.id}`} value={String(p.projectName || p.pmisCode || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${String(projectId) === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
+                              {p.projectName}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 {/* District combobox */}
                 <div className="col-span-1">
                   <Popover open={openDistrictCombo} onOpenChange={setOpenDistrictCombo}>
@@ -1254,17 +1319,17 @@ const BlockchainDashboard: React.FC = () => {
                   </Popover>
                 </div>
                 <div className="col-span-1">
-                  <Input
-                    placeholder="Enter Survey Number"
-                    value={searchSurvey}
-                    onChange={(e) => setSearchSurvey(e.target.value)}
-                  />
+                <Input
+                  placeholder="Enter Survey Number"
+                  value={searchSurvey}
+                  onChange={(e) => setSearchSurvey(e.target.value)}
+                />
                 </div>
                 <div className="col-span-1 flex">
                   <Button className="w-full" onClick={handleSearch} disabled={loading || loadingLocations || !searchSurvey.trim()}>
-                    <Search className="h-4 w-4 mr-2" />
-                    Search
-                  </Button>
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
                 </div>
               </div>
 
@@ -1530,18 +1595,157 @@ const BlockchainDashboard: React.FC = () => {
               <CardDescription>Search for a survey number to view its complete timeline</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Search Input for Timeline */}
-              <div className="flex gap-2">
+              {/* Filters for Timeline - same as Search tab */}
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                {/* Project combobox */}
+                <div className="col-span-1">
+                  <Popover open={openProjectCombo} onOpenChange={setOpenProjectCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {projectId ? (projects.find(p => String(p.id) === String(projectId))?.projectName || 'Project') : 'All Projects'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search project..." value={projectQuery} onValueChange={setProjectQuery} />
+                        <CommandList>
+                          <CommandItem value="__all__" onSelect={() => { setProjectId(''); setOpenProjectCombo(false); }}>All Projects</CommandItem>
+                          {(projects || []).map((p: any) => (
+                            <CommandItem key={`p2-${p.id}`} value={String(p.projectName || p.pmisCode || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${String(projectId) === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
+                              {p.projectName}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* District combobox */}
+                <div className="col-span-1">
+                  <Popover open={openDistrictCombo} onOpenChange={setOpenDistrictCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={loadingLocations}
+                      >
+                        {district || 'Select district'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search district..." value={districtQuery} onValueChange={setDistrictQuery} />
+                        <CommandList>
+                          {districtQuery && (
+                            <CommandItem value={districtQuery} onSelect={() => { setDistrict(districtQuery); setOpenDistrictCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{districtQuery}"
+                            </CommandItem>
+                          )}
+                          {districtOptions.map((d) => (
+                            <CommandItem key={`d2-${d}`} value={d} onSelect={() => { setDistrict(d); setOpenDistrictCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${district === d ? 'opacity-100' : 'opacity-0'}`} />
+                              {d}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Taluka combobox */}
+                <div className="col-span-1">
+                  <Popover open={openTalukaCombo} onOpenChange={setOpenTalukaCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={!district || loadingLocations}
+                      >
+                        {taluka || 'Select taluka'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search taluka..." value={talukaQuery} onValueChange={setTalukaQuery} />
+                        <CommandList>
+                          {talukaQuery && (
+                            <CommandItem value={talukaQuery} onSelect={() => { setTaluka(talukaQuery); setOpenTalukaCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{talukaQuery}"
+                            </CommandItem>
+                          )}
+                          {talukaOptions.map((t) => (
+                            <CommandItem key={`t2-${t}`} value={t} onSelect={() => { setTaluka(t); setOpenTalukaCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${taluka === t ? 'opacity-100' : 'opacity-0'}`} />
+                              {t}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Village combobox */}
+                <div className="col-span-1">
+                  <Popover open={openVillageCombo} onOpenChange={setOpenVillageCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                        disabled={!taluka || loadingLocations}
+                      >
+                        {village || 'Select village'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search village..." value={villageQuery} onValueChange={setVillageQuery} />
+                        <CommandList>
+                          {villageQuery && (
+                            <CommandItem value={villageQuery} onSelect={() => { setVillage(villageQuery); setOpenVillageCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{villageQuery}"
+                            </CommandItem>
+                          )}
+                          {villageOptions.map((v) => (
+                            <CommandItem key={`v2-${v}`} value={v} onSelect={() => { setVillage(v); setOpenVillageCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${village === v ? 'opacity-100' : 'opacity-0'}`} />
+                              {v}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Survey input */}
+                <div className="col-span-1">
                 <Input
-                  placeholder="Enter Survey Number to view timeline"
+                    placeholder="Enter Survey Number"
                   value={searchSurvey}
                   onChange={(e) => setSearchSurvey(e.target.value)}
-                  className="flex-1"
                 />
-                <Button onClick={handleSearch} disabled={loading}>
+                </div>
+                <div className="col-span-1 flex">
+                  <Button className="w-full" onClick={handleSearch} disabled={loading || !searchSurvey.trim()}>
                   <Search className="h-4 w-4 mr-2" />
                   Search Timeline
                 </Button>
+                </div>
               </div>
 
               {/* Timeline Results */}

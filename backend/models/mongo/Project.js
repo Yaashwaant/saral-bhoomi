@@ -64,10 +64,13 @@ const projectSchema = new mongoose.Schema({
     type: Date,
     required: false
   },
+  // Status subdocument to reflect multi-stage lifecycle
   status: {
-    type: String,
-    enum: ['planning', 'active', 'completed', 'on-hold', 'cancelled'],
-    default: 'planning'
+    overall: { type: String, enum: ['planning', 'active', 'completed', 'on-hold', 'cancelled'], default: 'planning' },
+    stage3A: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    stage3D: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    corrigendum: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    award: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -76,6 +79,7 @@ const projectSchema = new mongoose.Schema({
   },
   description: String,
   descriptionDetails: {
+    // Keeping billPassedDate optional for backward compatibility
     billPassedDate: { type: Date },
     ministry: { type: String, trim: true },
     applicableLaws: [{ type: String, trim: true }],
@@ -104,9 +108,9 @@ const projectSchema = new mongoose.Schema({
 
 // Indexes
 projectSchema.index({ projectName: 1 });
-projectSchema.index({ pmisCode: 1 });
+projectSchema.index({ pmisCode: 1 }, { unique: true, sparse: true });
 projectSchema.index({ district: 1, taluka: 1 });
-projectSchema.index({ status: 1 });
+projectSchema.index({ 'status.overall': 1 });
 projectSchema.index({ createdBy: 1 });
 
 export default mongoose.model('Project', projectSchema);
