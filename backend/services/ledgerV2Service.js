@@ -171,9 +171,10 @@ class LedgerV2Service {
 				continue;
 			}
 
-      const currentLiveHash = hashJsonStable(this.aggregator.cleanDataForSerialization(liveEntry.data));
+      const cleaned = this.aggregator.cleanDataForSerialization(liveEntry.data);
+      const currentLiveHash = hashJsonStable(cleaned);
       // Accept v2 exact match OR legacy v1 match for backward compatibility
-      const isMatch = stored.hash === currentLiveHash || stored.hash === legacyHash(liveEntry.data);
+      const isMatch = stored.hash === currentLiveHash || stored.hash === legacyHash(cleaned);
 			dataIntegrity[section] = {
 				isValid: isMatch,
 				storedHash: stored.hash,

@@ -5,7 +5,7 @@ import MongoPayment from '../models/mongo/Payment.js';
 import MongoAward from '../models/mongo/Award.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import crypto from 'crypto';
-import { hashJsonStable } from './hashing.js';
+import { hashJsonStable, legacyHash } from './hashing.js';
 
 class SurveyDataAggregationService {
   constructor() {
@@ -511,6 +511,7 @@ class SurveyDataAggregationService {
 
       const cleanData = this.cleanDataForSerialization(record.toObject());
       const liveHash = this.generateDataHash(cleanData);
+      const legacyLiveHash = legacyHash(cleanData);
 
       const ledger = await MongoBlockchainLedger.findOne({
         $and: [
@@ -524,11 +525,12 @@ class SurveyDataAggregationService {
       }
 
       const chainHash = ledger?.survey_data?.landowner?.hash || null;
-      const isValid = !!chainHash && !!liveHash && chainHash === liveHash;
+      const isValid = !!chainHash && (chainHash === liveHash || chainHash === legacyLiveHash);
       return {
         isValid,
         reason: isValid ? 'ok' : 'hash_mismatch',
         live_hash: liveHash,
+        legacy_live_hash: legacyLiveHash,
         chain_hash: chainHash,
         block_id: ledger.block_id,
         last_updated: ledger.updatedAt

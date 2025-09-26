@@ -278,8 +278,9 @@ const BlockchainDashboard: React.FC = () => {
         else if (r?.data?.isValid === false) {
           status = 'compromised';
           const lh = (r?.data?.live_hash || '').slice(0, 8) + '...' + (r?.data?.live_hash || '').slice(-6);
+          const llh = (r?.data?.legacy_live_hash || '').slice(0, 8) + '...' + (r?.data?.legacy_live_hash || '').slice(-6);
           const ch = (r?.data?.chain_hash || '').slice(0, 8) + '...' + (r?.data?.chain_hash || '').slice(-6);
-          toast.warning(`Hash mismatch for ${s.row_key}: live ${lh} vs chain ${ch}`);
+          toast.warning(`Hash mismatch for ${s.row_key}: live ${lh} | legacy ${llh} vs chain ${ch}`);
         }
       }
       setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
