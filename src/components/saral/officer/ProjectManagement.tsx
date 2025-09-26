@@ -33,7 +33,6 @@ interface ProjectFormData {
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
   description?: string;
-  billPassedDate?: string;
   ministry?: string;
   applicableLaws?: string; // comma-separated input
   projectAim?: string;
@@ -56,7 +55,6 @@ const ProjectManagement = () => {
     type: 'greenfield',
     videoUrl: '',
     description: '',
-    billPassedDate: '',
     ministry: '',
     applicableLaws: '',
     projectAim: ''
@@ -81,8 +79,8 @@ const ProjectManagement = () => {
       description: 'प्रकल्पाचे वर्णन',
       descriptionDetails: 'सविस्तर माहिती',
       billPassedDate: 'बिल मंजुरीची तारीख',
-      ministry: 'मंत्रालय',
-      applicableLaws: 'लागू कायदे (स्वल्पविरामाने वेगळे करा)',
+      ministry: 'मंत्रालय/विभाग',
+      applicableLaws: 'लागू कायदे',
       projectAim: 'प्रकल्पाचा उद्देश',
       edit: 'संपादन करा',
       delete: 'हटवा',
@@ -120,7 +118,7 @@ const ProjectManagement = () => {
       descriptionDetails: 'Description Details',
       billPassedDate: 'Date of Bill Passing',
       ministry: 'Ministry',
-      applicableLaws: 'Applicable Laws (comma-separated)',
+      applicableLaws: 'Applicable Laws',
       projectAim: 'Project Aim',
       edit: 'Edit',
       delete: 'Delete',
@@ -158,7 +156,7 @@ const ProjectManagement = () => {
       descriptionDetails: 'विवरण विवरण',
       billPassedDate: 'विधेयक पारित होने की तिथि',
       ministry: 'मंत्रालय',
-      applicableLaws: 'लागू कानून (अल्पविराम से अलग)',
+      applicableLaws: 'लागू कानून',
       projectAim: 'परियोजना का उद्देश्य',
       edit: 'संपादित करें',
       delete: 'हटाएं',
@@ -218,7 +216,6 @@ const ProjectManagement = () => {
         videoUrl: formData.videoUrl,
         description: formData.description,
         descriptionDetails: {
-          billPassedDate: formData.billPassedDate || undefined,
           ministry: formData.ministry || undefined,
           applicableLaws: (formData.applicableLaws || '')
             .split(',')
@@ -255,7 +252,6 @@ const ProjectManagement = () => {
         type: 'greenfield',
         videoUrl: '',
         description: '',
-        billPassedDate: '',
         ministry: '',
         applicableLaws: '',
         projectAim: ''
@@ -413,30 +409,38 @@ const ProjectManagement = () => {
                 <div className="space-y-2 md:col-span-2">
                   <Label>{t.descriptionDetails}</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    {/* Removed bill passed date as requested */}
+                    <div className="hidden">
                       <Label htmlFor="billPassedDate">{t.billPassedDate}</Label>
-                      <Input
-                        id="billPassedDate"
-                        type="date"
-                        value={formData.billPassedDate}
-                        onChange={(e) => setFormData({ ...formData, billPassedDate: e.target.value })}
-                      />
+                      <Input id="billPassedDate" disabled />
                     </div>
                     <div>
                       <Label htmlFor="ministry">{t.ministry}</Label>
                       <Input
                         id="ministry"
+                        placeholder="उदा. महसूल व वन विभाग"
                         value={formData.ministry}
                         onChange={(e) => setFormData({ ...formData, ministry: e.target.value })}
                       />
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="applicableLaws">{t.applicableLaws}</Label>
-                      <Input
-                        id="applicableLaws"
+                      <Select
+                        onValueChange={(value: string) => setFormData({ ...formData, applicableLaws: value })}
                         value={formData.applicableLaws}
-                        onChange={(e) => setFormData({ ...formData, applicableLaws: e.target.value })}
-                      />
+                      >
+                        <SelectTrigger id="applicableLaws">
+                          <SelectValue placeholder="कायदा निवडा" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="LARR_2013">The Right to Fair Compensation and Transparency in Land Acquisition, Rehabilitation and Resettlement Act, 2013</SelectItem>
+                          <SelectItem value="MH_LandRevenue_Code_1966">Maharashtra Land Revenue Code, 1966</SelectItem>
+                          <SelectItem value="NH_Act_1956">National Highways Act, 1956 (for highway projects)</SelectItem>
+                          <SelectItem value="Railways_Act_1989">Railways Act, 1989 (for railway projects)</SelectItem>
+                          <SelectItem value="Metro_Railways_Act">Metro Railways (Construction of Works) Act</SelectItem>
+                          <SelectItem value="State_Specific_R&R">State-specific R&R / Notifications</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="projectAim">{t.projectAim}</Label>
