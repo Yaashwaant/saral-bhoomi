@@ -24,8 +24,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { config } from '@/config';
+import { useSaral } from '@/contexts/SaralContext';
 
 const BlockchainDashboard: React.FC = () => {
+  const { getLocationOptions } = useSaral();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchSurvey, setSearchSurvey] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,6 +39,20 @@ const BlockchainDashboard: React.FC = () => {
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [surveyOverview, setSurveyOverview] = useState<any[]>([]);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+
+  // Cascading location filters
+  const [district, setDistrict] = useState('');
+  const [taluka, setTaluka] = useState('');
+  const [village, setVillage] = useState('');
+  const [districtOptions, setDistrictOptions] = useState<string[]>([]);
+  const [talukaOptions, setTalukaOptions] = useState<string[]>([]);
+  const [villageOptions, setVillageOptions] = useState<string[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+
+  // Static fallback: All Maharashtra districts
+  const MAHARASHTRA_DISTRICTS = [
+    'Ahmednagar','Akola','Amravati','Aurangabad','Beed','Bhandara','Buldhana','Chandrapur','Dhule','Gadchiroli','Gondia','Hingoli','Jalgaon','Jalna','Kolhapur','Latur','Mumbai City','Mumbai Suburban','Nagpur','Nanded','Nandurbar','Nashik','Osmanabad','Palghar','Parbhani','Pune','Raigad','Ratnagiri','Sangli','Satara','Sindhudurg','Solapur','Thane','Wardha','Washim','Yavatmal'
+  ];
 
   // Small helper to avoid hanging calls
   const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 8000) => {
@@ -105,6 +121,40 @@ const BlockchainDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load location options
+  const loadDistricts = async () => {
+    try {
+      setLoadingLocations(true);
+      const res = await getLocationOptions({});
+      const list = Array.isArray(res?.districts) && res.districts.length > 0 ? res.districts : MAHARASHTRA_DISTRICTS;
+      setDistrictOptions(list);
+    } catch {
+      setDistrictOptions(MAHARASHTRA_DISTRICTS);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const loadTalukas = async (d: string) => {
+    if (!d) { setTalukaOptions([]); return; }
+    try {
+      setLoadingLocations(true);
+      const res = await getLocationOptions({ district: d });
+      setTalukaOptions(res?.talukas || []);
+    } catch { setTalukaOptions([]); }
+    finally { setLoadingLocations(false); }
+  };
+
+  const loadVillages = async (d: string, t: string) => {
+    if (!d || !t) { setVillageOptions([]); return; }
+    try {
+      setLoadingLocations(true);
+      const res = await getLocationOptions({ district: d, taluka: t });
+      setVillageOptions(res?.villages || []);
+    } catch { setVillageOptions([]); }
+    finally { setLoadingLocations(false); }
   };
 
   // Helper function to handle missing data
@@ -300,17 +350,22 @@ const BlockchainDashboard: React.FC = () => {
       
       // Get complete survey data using new aggregation endpoints
       const demoHeaders = { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } as const;
+      const qs = new URLSearchParams();
+      if (district) qs.set('district', district);
+      if (taluka) qs.set('taluka', taluka);
+      if (village) qs.set('village', village);
+
       const [completeDataResponse, searchResponse, timelineResponse, integrityResponse] = await Promise.all([
-        fetch(`${config.API_BASE_URL}/blockchain/survey-complete-data/${encodeURIComponent(searchSurvey)}`, {
+        fetch(`${config.API_BASE_URL}/blockchain/survey-complete-data/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
           headers: demoHeaders
         }),
-        fetch(`${config.API_BASE_URL}/blockchain/search/${encodeURIComponent(searchSurvey)}?includeIntegrity=true`, {
+        fetch(`${config.API_BASE_URL}/blockchain/search/${encodeURIComponent(searchSurvey)}?includeIntegrity=true${qs.toString() ? `&${qs.toString()}` : ''}`, {
           headers: demoHeaders
         }),
-        fetch(`${config.API_BASE_URL}/blockchain/survey-timeline/${encodeURIComponent(searchSurvey)}`, {
+        fetch(`${config.API_BASE_URL}/blockchain/survey-timeline/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
           headers: demoHeaders
         }),
-        fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(searchSurvey)}`, {
+        fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
           headers: demoHeaders
         })
       ]);
@@ -753,7 +808,22 @@ const BlockchainDashboard: React.FC = () => {
 
   useEffect(() => {
     loadBlockchainStatus();
+    loadDistricts();
   }, []);
+
+  useEffect(() => {
+    // When district changes, reset and load talukas
+    setTaluka('');
+    setVillage('');
+    setVillageOptions([]);
+    loadTalukas(district.trim());
+  }, [district]);
+
+  useEffect(() => {
+    // When taluka changes, reset and load villages
+    setVillage('');
+    loadVillages(district.trim(), taluka.trim());
+  }, [taluka]);
 
   return (
     <div className="space-y-6">
@@ -1018,17 +1088,62 @@ const BlockchainDashboard: React.FC = () => {
               <CardTitle>Search Survey on Blockchain</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter Survey Number"
-                  value={searchSurvey}
-                  onChange={(e) => setSearchSurvey(e.target.value)}
-                  className="flex-1"
-                />
-                <Button onClick={handleSearch} disabled={loading}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Search
-                </Button>
+              {/* Cascading location filters + survey number */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                <div className="col-span-1">
+                  <Input
+                    placeholder="District"
+                    list="district-options"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                  />
+                  <datalist id="district-options">
+                    {districtOptions.map((d) => (
+                      <option key={`d-${d}`} value={d} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="col-span-1">
+                  <Input
+                    placeholder="Taluka"
+                    list="taluka-options"
+                    value={taluka}
+                    onChange={(e) => setTaluka(e.target.value)}
+                    disabled={!district}
+                  />
+                  <datalist id="taluka-options">
+                    {talukaOptions.map((t) => (
+                      <option key={`t-${t}`} value={t} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="col-span-1">
+                  <Input
+                    placeholder="Village"
+                    list="village-options"
+                    value={village}
+                    onChange={(e) => setVillage(e.target.value)}
+                    disabled={!taluka}
+                  />
+                  <datalist id="village-options">
+                    {villageOptions.map((v) => (
+                      <option key={`v-${v}`} value={v} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="col-span-1">
+                  <Input
+                    placeholder="Enter Survey Number"
+                    value={searchSurvey}
+                    onChange={(e) => setSearchSurvey(e.target.value)}
+                  />
+                </div>
+                <div className="col-span-1 flex">
+                  <Button className="w-full" onClick={handleSearch} disabled={loading || loadingLocations || !searchSurvey.trim()}>
+                    <Search className="h-4 w-4 mr-2" />
+                    Search
+                  </Button>
+                </div>
               </div>
 
               {/* Enhanced Search Results with Complete Survey Data */}
