@@ -38,6 +38,17 @@ const BlockchainDashboard: React.FC = () => {
   const [surveyOverview, setSurveyOverview] = useState<any[]>([]);
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
 
+  // Small helper to avoid hanging calls
+  const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 8000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...(options || {}), signal: controller.signal });
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
   const loadBlockchainStatus = async () => {
     try {
       setLoading(true);
@@ -140,9 +151,8 @@ const BlockchainDashboard: React.FC = () => {
         try {
           // Small delay to avoid rate-limits
           if (i > 0) await new Promise(r => setTimeout(r, 75));
-          const resp = await fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(s.survey_number)}`, {
-            headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
-          });
+          const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(s.survey_number)}`,
+            { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
           let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
           if (resp.ok) {
             const res = await resp.json();
@@ -151,6 +161,7 @@ const BlockchainDashboard: React.FC = () => {
           }
           updated.push({ ...s, blockchain_status: status });
         } catch (e) {
+          // Timeout or network error: do not hang; mark as pending if on-chain, else not_on_blockchain
           updated.push({ ...s, blockchain_status: s.exists_on_blockchain ? 'pending' : 'not_on_blockchain' });
         }
       }
