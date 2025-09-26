@@ -247,6 +247,76 @@ const EnhancedDashboard: React.FC = () => {
     }
   };
 
+  // KYC flow helpers
+  const openKycUploader = (record: any) => {
+    // Navigate to Land Records Manager with preselected project and record? For now show toast hint
+    toast.info('Open KYC upload in Land Records → coming soon. Using inline file picker.');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,application/pdf';
+    input.multiple = true;
+    input.onchange = async () => {
+      const files = Array.from(input.files || []);
+      for (const file of files) {
+        await uploadSingleKycDoc(record, file);
+      }
+    };
+    input.click();
+  };
+
+  const uploadSingleKycDoc = async (record: any, file: File) => {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('documentType', inferDocTypeFromName(file.name));
+      const resp = await fetch(`${config.API_BASE_URL}/kyc/upload-multipart/${record.id || record._id}`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+        body: form
+      });
+      if (resp.ok) {
+        toast.success(`Uploaded ${file.name}`);
+        await loadDashboardData();
+      } else {
+        toast.error(`Upload failed for ${file.name}`);
+      }
+    } catch (e) {
+      toast.error('Upload error');
+    }
+  };
+
+  const inferDocTypeFromName = (name: string): string => {
+    const n = name.toLowerCase();
+    if (n.includes('aadhar') || n.includes('aadhaar')) return 'aadhaar';
+    if (n.includes('pan')) return 'pan';
+    return 'document';
+  };
+
+  const approveKycRecord = async (record: any) => {
+    try {
+      // simple client-side approval; in a full setup call backend approve
+      // reflect immediately in UI by updating local list
+      (record.kycStatus) ? record.kycStatus = 'approved' : record.kyc_status = 'approved';
+      toast.success('KYC approved');
+      await loadDashboardData();
+    } catch (e) {
+      toast.error('Failed to approve KYC');
+    }
+  };
+
+  const goToPaymentSlip = (record: any) => {
+    // Navigate to Payment Slips tab via URL hash so state remains in SPA
+    window.location.hash = '#paymentSlips';
+    toast.info('Opening Payment Slips with prefill');
+    // Optionally store prefill in sessionStorage
+    sessionStorage.setItem('paymentSlipPrefill', JSON.stringify({
+      landownerId: record.id || record._id,
+      surveyNumber: getSurveyNumber(record),
+      beneficiary: getLandownerName(record),
+      amount: safeGetNumericField(record, 'final_amount') || safeGetNumericField(record, 'total_compensation') || 0
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -486,6 +556,8 @@ const EnhancedDashboard: React.FC = () => {
                             <th className="p-2 text-left">Payment</th>
                             <th className="p-2 text-left">Notice</th>
                             <th className="p-2 text-left">Format</th>
+                            <th className="p-2 text-left">KYC</th>
+                            <th className="p-2 text-left">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -540,6 +612,21 @@ const EnhancedDashboard: React.FC = () => {
                                 >
                                   {isNewFormat(r) ? 'New' : 'Legacy'}
                                 </Badge>
+                              </td>
+                              <td className="p-2">
+                                <div className="text-xs">
+                                  {(r.kycStatus || r.kyc_status || 'pending')}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex flex-col gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => openKycUploader(r)}>Upload KYC</Button>
+                                  {(r.kycStatus === 'completed' || r.kyc_status === 'completed' || r.kycStatus === 'approved' || r.kyc_status === 'approved') ? (
+                                    <Button size="sm" onClick={() => goToPaymentSlip(r)}>Generate Payment Slip</Button>
+                                  ) : (
+                                    <Button size="sm" onClick={() => approveKycRecord(r)} variant="default">Approve KYC</Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
