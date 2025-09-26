@@ -826,11 +826,16 @@ const BlockchainDashboard: React.FC = () => {
                                       body: JSON.stringify({ survey_number: String(s.new_survey_number || s.survey_number || ''), officer_id: 'demo-officer', project_id: String(s.project_id || ''), remarks: `landowner row sync ${s.row_key}` })
                                     });
                                     if (resp.ok) {
+                                      const json = await resp.json().catch(() => null);
+                                      const blockId = json?.data?.block_id || null;
+                                      const hash = json?.data?.hash || null;
                                       toast.success(`Synced row ${s.row_key}`);
-                                      // Optimistically set on-chain + pending
-                                      setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending' } : x));
-                                      await new Promise(r => setTimeout(r, 250));
-                                      await fetchSurveyOverview();
+                                      // Update only this row locally without reloading the whole overview
+                                      setSurveyOverview((prev) => prev.map((x) => 
+                                        x.row_key === s.row_key 
+                                          ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending', blockchain_block_id: blockId || x.blockchain_block_id, blockchain_hash: hash || x.blockchain_hash }
+                                          : x
+                                      ));
                                     } else {
                                       toast.error('Sync failed');
                                     }
