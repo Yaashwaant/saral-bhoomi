@@ -464,7 +464,13 @@ class SurveyDataAggregationService {
           'survey_data.landowner.data.cts_number': r.cts_number,
           ...(r.serial_number ? { 'survey_data.landowner.data.serial_number': r.serial_number } : {})
         };
-        const ledger = await MongoBlockchainLedger.findOne({ $and: [projectMatch, rowMatch] }).sort({ timestamp: -1 });
+        // Accept either a landowner data match OR a survey-level block tagged with LANDOWNER_RECORD_CREATED
+        const ledger = await MongoBlockchainLedger.findOne({
+          $and: [
+            projectMatch,
+            { $or: [ rowMatch, { survey_number: r.new_survey_number, event_type: 'LANDOWNER_RECORD_CREATED' } ] }
+          ]
+        }).sort({ timestamp: -1 });
 
         results.push({
           row_key,

@@ -230,7 +230,7 @@ const BlockchainDashboard: React.FC = () => {
 
   // Sync missing surveys (similar utility as Land Records bulk sync)
   const syncMissingToBlockchain = async () => {
-    const missing = surveyOverview.filter(s => !s.exists_on_blockchain);
+    const missing = surveyOverview.filter(s => !s.exists_on_blockchain || s.blockchain_status === 'not_on_blockchain');
     if (missing.length === 0) {
       toast.info('All surveys already on blockchain');
       return;
@@ -239,18 +239,21 @@ const BlockchainDashboard: React.FC = () => {
     try {
       for (let i = 0; i < missing.length; i++) {
         const s = missing[i];
-        setSyncProgress({ current: i + 1, total: missing.length, message: `Creating block for ${s.survey_number}` });
+        setSyncProgress({ current: i + 1, total: missing.length, message: `Creating block for ${s.row_key}` });
         try {
-          const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+          const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-            body: JSON.stringify({ survey_number: s.survey_number, officer_id: 'demo-officer', project_id: 'demo-project', remarks: 'Overview sync' })
+            body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: 'Overview sync' })
           });
-          if (!resp.ok) {
-            console.warn('Sync failed for', s.survey_number);
+          if (resp.ok) {
+            setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending' } : x));
+            updateCacheForRow(s.row_key, 'pending');
+          } else {
+            console.warn('Sync failed for', s.row_key);
           }
         } catch (err) {
-          console.error('Sync error for', s.survey_number, err);
+          console.error('Sync error for', s.row_key, err);
         }
       }
       await fetchSurveyOverview();
