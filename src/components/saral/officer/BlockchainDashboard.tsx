@@ -55,6 +55,9 @@ const BlockchainDashboard: React.FC = () => {
   const [openDistrictCombo, setOpenDistrictCombo] = useState(false);
   const [openTalukaCombo, setOpenTalukaCombo] = useState(false);
   const [openVillageCombo, setOpenVillageCombo] = useState(false);
+  const [districtQuery, setDistrictQuery] = useState('');
+  const [talukaQuery, setTalukaQuery] = useState('');
+  const [villageQuery, setVillageQuery] = useState('');
 
   // Static fallback: All Maharashtra districts
   const MAHARASHTRA_DISTRICTS = [
@@ -870,6 +873,11 @@ const BlockchainDashboard: React.FC = () => {
     loadVillages(district.trim(), taluka.trim());
   }, [taluka]);
 
+  // Reset search queries when opening comboboxes
+  useEffect(() => { if (openDistrictCombo) setDistrictQuery(''); }, [openDistrictCombo]);
+  useEffect(() => { if (openTalukaCombo) setTalukaQuery(''); }, [openTalukaCombo]);
+  useEffect(() => { if (openVillageCombo) setVillageQuery(''); }, [openVillageCombo]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1151,9 +1159,13 @@ const BlockchainDashboard: React.FC = () => {
                     </PopoverTrigger>
                     <PopoverContent className="p-0 w-[280px]">
                       <Command>
-                        <CommandInput placeholder="Search district..." />
+                        <CommandInput placeholder="Search district..." value={districtQuery} onValueChange={setDistrictQuery} />
                         <CommandList>
-                          <CommandEmpty>No district found.</CommandEmpty>
+                          {districtQuery && (
+                            <CommandItem value={districtQuery} onSelect={() => { setDistrict(districtQuery); setOpenDistrictCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{districtQuery}"
+                            </CommandItem>
+                          )}
                           {districtOptions.map((d) => (
                             <CommandItem key={`d-${d}`} value={d} onSelect={() => { setDistrict(d); setOpenDistrictCombo(false); }}>
                               <Check className={`mr-2 h-4 w-4 ${district === d ? 'opacity-100' : 'opacity-0'}`} />
@@ -1182,9 +1194,13 @@ const BlockchainDashboard: React.FC = () => {
                     </PopoverTrigger>
                     <PopoverContent className="p-0 w-[280px]">
                       <Command>
-                        <CommandInput placeholder="Search taluka..." />
+                        <CommandInput placeholder="Search taluka..." value={talukaQuery} onValueChange={setTalukaQuery} />
                         <CommandList>
-                          <CommandEmpty>No taluka found.</CommandEmpty>
+                          {talukaQuery && (
+                            <CommandItem value={talukaQuery} onSelect={() => { setTaluka(talukaQuery); setOpenTalukaCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{talukaQuery}"
+                            </CommandItem>
+                          )}
                           {talukaOptions.map((t) => (
                             <CommandItem key={`t-${t}`} value={t} onSelect={() => { setTaluka(t); setOpenTalukaCombo(false); }}>
                               <Check className={`mr-2 h-4 w-4 ${taluka === t ? 'opacity-100' : 'opacity-0'}`} />
@@ -1213,9 +1229,13 @@ const BlockchainDashboard: React.FC = () => {
                     </PopoverTrigger>
                     <PopoverContent className="p-0 w-[280px]">
                       <Command>
-                        <CommandInput placeholder="Search village..." />
+                        <CommandInput placeholder="Search village..." value={villageQuery} onValueChange={setVillageQuery} />
                         <CommandList>
-                          <CommandEmpty>No village found.</CommandEmpty>
+                          {villageQuery && (
+                            <CommandItem value={villageQuery} onSelect={() => { setVillage(villageQuery); setOpenVillageCombo(false); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Use "{villageQuery}"
+                            </CommandItem>
+                          )}
                           {villageOptions.map((v) => (
                             <CommandItem key={`v-${v}`} value={v} onSelect={() => { setVillage(v); setOpenVillageCombo(false); }}>
                               <Check className={`mr-2 h-4 w-4 ${village === v ? 'opacity-100' : 'opacity-0'}`} />
