@@ -5,6 +5,7 @@ import MongoPayment from '../models/mongo/Payment.js';
 import MongoAward from '../models/mongo/Award.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import crypto from 'crypto';
+import { hashJsonStable } from './hashing.js';
 
 class SurveyDataAggregationService {
   constructor() {
@@ -349,11 +350,8 @@ class SurveyDataAggregationService {
     if (!data) return null;
     try {
       const cleanData = this.cleanDataForSerialization(data);
-      // 🔧 Use stable ordering of keys to match verification logic
-      return crypto
-        .createHash('sha256')
-        .update(JSON.stringify(cleanData, Object.keys(cleanData).sort()))
-        .digest('hex');
+      // Use the same stable hashing as ledger v2 to ensure verify == stored
+      return hashJsonStable(cleanData);
     } catch (error) {
       console.error('❌ Failed to generate data hash:', error);
       return null;

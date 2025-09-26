@@ -150,9 +150,9 @@ class LedgerV2Service {
 		const chainIntegrity = await MongoBlockchainLedger.verifyChainIntegrity(surveyNumber);
 
 		// Live recomputation
-		const live = await this.aggregator.getCompleteSurveyData(surveyNumber);
-		const liveSectionHashes = this.buildSectionHashes(live);
-		const live_root = this.computeDataRoot(liveSectionHashes);
+    const live = await this.aggregator.getCompleteSurveyData(surveyNumber);
+    const liveSectionHashes = this.buildSectionHashes(live);
+    const live_root = this.computeDataRoot(liveSectionHashes);
 
 		// Section-by-section compare, with legacy fallback
 		const dataIntegrity = {};
@@ -171,8 +171,9 @@ class LedgerV2Service {
 				continue;
 			}
 
-			const currentLiveHash = hashJsonStable(liveEntry.data);
-			const isMatch = stored.hash === currentLiveHash || stored.hash === legacyHash(liveEntry.data);
+      const currentLiveHash = hashJsonStable(liveEntry.data);
+      // Accept v2 exact match OR legacy v1 match for backward compatibility
+      const isMatch = stored.hash === currentLiveHash || stored.hash === legacyHash(liveEntry.data);
 			dataIntegrity[section] = {
 				isValid: isMatch,
 				storedHash: stored.hash,
