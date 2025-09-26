@@ -745,7 +745,9 @@ router.post('/create-landowner-row-block', [
 
     // Prepare deterministic landowner data and hash
     const row = record.toObject({ depopulate: true, getters: false, virtuals: false });
-    const landHash = hashJsonStable(row);
+    const aggregator = new SurveyDataAggregationService();
+    const canonicalRow = aggregator.cleanDataForSerialization(row);
+    const landHash = hashJsonStable(canonicalRow);
 
     // Link into same survey chain using previous hash from latest block for this survey
     const latest = await MongoBlockchainLedger.findOne({ survey_number: String(new_survey_number) }).sort({ timestamp: -1 });
@@ -761,7 +763,7 @@ router.post('/create-landowner-row-block', [
       data_root: landHash,
       survey_data: {
         landowner: {
-          data: row,
+          data: canonicalRow,
           hash: landHash,
           last_updated: new Date(),
           status: 'created'
