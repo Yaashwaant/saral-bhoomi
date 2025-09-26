@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDown } from 'lucide-react';
+import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { config } from '../../../config';
 import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -214,6 +215,38 @@ const EnhancedDashboard: React.FC = () => {
     name: (p as any).projectName || (p as any).name || p.id 
   }));
 
+  const exportOverviewToExcel = () => {
+    try {
+      const projectName = projectOptions.find(p => p.id === selectedProject)?.name || selectedProject || 'All Projects';
+      const filtersSheet = [
+        ['Exported At', new Date().toLocaleString()],
+        ['Project', projectName],
+        ['Time Period', timePeriod],
+        ['District', district || 'all'],
+        ['Taluka', taluka || 'all'],
+        ['Village', village || 'all'],
+        ['Payment Status', paymentStatus],
+        ['Tribal', isTribal]
+      ];
+      const analyticsSheet = [
+        ['Metric', 'Value'],
+        ['Total Land Loaded (Ha)', stats.totalLand],
+        ['Notices Issued', stats.totalNotices],
+        ['Budget Spent To-Date (₹)', stats.totalPayments],
+        ['Payments Completed (count)', stats.paymentsCompletedCount || 0],
+        ['Total Acquired Area (Ha)', stats.totalAcquiredArea || 0]
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filtersSheet), 'Filters');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(analyticsSheet), 'Analytics');
+      const file = `overview_${projectName.replace(/\s+/g,'_')}_${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, file);
+      toast.success('Overview exported');
+    } catch (e) {
+      toast.error('Export failed');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -339,6 +372,11 @@ const EnhancedDashboard: React.FC = () => {
                   </div>
                 </PopoverContent>
               </Popover>
+            </div>
+            <div className="flex items-end">
+              <Button variant="outline" className="ml-auto" onClick={exportOverviewToExcel}>
+                <Download className="h-4 w-4 mr-2" /> Export
+              </Button>
             </div>
           </div>
 
