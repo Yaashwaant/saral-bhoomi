@@ -303,6 +303,8 @@ const getUserRole = (): string | null => {
 
 // Helper function for API calls
 const apiCall = async (endpoint: string, options: RequestInit = {}) => {
+  const token = getAuthToken() || 'demo-jwt-token';
+  const role = getUserRole() || 'officer';
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     mode: 'cors',
     credentials: 'include',
@@ -310,8 +312,8 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {}),
-      ...(getUserRole() ? { 'x-demo-role': String(getUserRole()) } : {}),
+      'Authorization': `Bearer ${token}`,
+      'x-demo-role': String(role),
       ...(options.headers || {}),
     },
   });

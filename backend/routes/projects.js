@@ -260,10 +260,19 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     });
   } catch (error) {
     console.error('Create project error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    // Handle duplicate PMIS code from unique index
+    if (error && (error.code === 11000 || error.code === '11000')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Project with this PMIS code already exists'
+      });
+    }
+    // Handle validation errors
+    if (error && error.name === 'ValidationError') {
+      const errors = Object.values(error.errors || {}).map((e) => e.message);
+      return res.status(400).json({ success: false, message: errors.join(', ') || 'Validation failed' });
+    }
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
