@@ -499,6 +499,60 @@ const LandRecordsManager: React.FC = () => {
     );
   };
 
+  // Export filters + basic analytics as Excel
+  const exportOverviewToExcel = () => {
+    try {
+      const projectName = projects.find((p) => p.id === selectedProject)?.projectName || selectedProject;
+      const filtersSheetData = [
+        ['Exported At', new Date().toLocaleString()],
+        ['Project', projectName],
+      ];
+
+      // Basic analytics from current table data
+      const totalRecords = landRecords.length;
+      const totalArea = landRecords.reduce((sum, r: any) => sum + (Number(r.area) || 0), 0);
+      const completedPayments = landRecords.filter((r: any) => r.payment_status === 'completed').length;
+      const totalCompensation = landRecords.reduce((sum, r: any) => sum + (Number(r.total_compensation) || 0), 0);
+
+      const analyticsSheetData = [
+        ['Metric', 'Value'],
+        ['Total Records', totalRecords],
+        ['Total Area (Ha)', totalArea],
+        ['Payments Completed (count)', completedPayments],
+        ['Total Compensation (₹)', totalCompensation],
+      ];
+
+      // Build workbook
+      const wb = XLSX.utils.book_new();
+      const wsFilters = XLSX.utils.aoa_to_sheet(filtersSheetData);
+      const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsSheetData);
+      XLSX.utils.book_append_sheet(wb, wsFilters, 'Filters');
+      XLSX.utils.book_append_sheet(wb, wsAnalytics, 'Analytics');
+
+      // Optional: include a minimal records snapshot sheet (first 100 rows)
+      const snapshot = landRecords.slice(0, 100).map((r: any) => ({
+        Serial: r.serial_number || '',
+        Owner: r.landowner_name || '',
+        NewSurvey: r.new_survey_number || r.survey_number || '',
+        CTS: r.cts_number || '',
+        Area_Ha: r.area || '',
+        Village: r.village || '',
+        PaymentStatus: r.payment_status || '',
+      }));
+      if (snapshot.length > 0) {
+        const wsSnap = XLSX.utils.json_to_sheet(snapshot);
+        XLSX.utils.book_append_sheet(wb, wsSnap, 'RecordsSnapshot');
+      }
+
+      const filename = `overview_export_${projectName.replace(/\s+/g, '_')}_${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      toast.success('Exported Excel successfully');
+    } catch (e) {
+      console.error('Export failed:', e);
+      toast.error('Export failed');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1089,60 +1143,6 @@ const LandRecordsManager: React.FC = () => {
       )}
     </div>
   );
-};
-
-  // Export filters + basic analytics as Excel
-  const exportOverviewToExcel = () => {
-    try {
-      const projectName = projects.find((p) => p.id === selectedProject)?.projectName || selectedProject;
-      const filtersSheetData = [
-        ['Exported At', new Date().toLocaleString()],
-        ['Project', projectName],
-      ];
-
-      // Basic analytics from current table data
-      const totalRecords = landRecords.length;
-      const totalArea = landRecords.reduce((sum, r: any) => sum + (Number(r.area) || 0), 0);
-      const completedPayments = landRecords.filter((r: any) => r.payment_status === 'completed').length;
-      const totalCompensation = landRecords.reduce((sum, r: any) => sum + (Number(r.total_compensation) || 0), 0);
-
-      const analyticsSheetData = [
-        ['Metric', 'Value'],
-        ['Total Records', totalRecords],
-        ['Total Area (Ha)', totalArea],
-        ['Payments Completed (count)', completedPayments],
-        ['Total Compensation (₹)', totalCompensation],
-      ];
-
-      // Build workbook
-      const wb = XLSX.utils.book_new();
-      const wsFilters = XLSX.utils.aoa_to_sheet(filtersSheetData);
-      const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsSheetData);
-      XLSX.utils.book_append_sheet(wb, wsFilters, 'Filters');
-      XLSX.utils.book_append_sheet(wb, wsAnalytics, 'Analytics');
-
-      // Optional: include a minimal records snapshot sheet (first 100 rows)
-      const snapshot = landRecords.slice(0, 100).map((r: any) => ({
-        Serial: r.serial_number || '',
-        Owner: r.landowner_name || '',
-        NewSurvey: r.new_survey_number || r.survey_number || '',
-        CTS: r.cts_number || '',
-        Area_Ha: r.area || '',
-        Village: r.village || '',
-        PaymentStatus: r.payment_status || '',
-      }));
-      if (snapshot.length > 0) {
-        const wsSnap = XLSX.utils.json_to_sheet(snapshot);
-        XLSX.utils.book_append_sheet(wb, wsSnap, 'RecordsSnapshot');
-      }
-
-      const filename = `overview_export_${projectName.replace(/\s+/g, '_')}_${Date.now()}.xlsx`;
-      XLSX.writeFile(wb, filename);
-      toast.success('Exported Excel successfully');
-    } catch (e) {
-      console.error('Export failed:', e);
-      toast.error('Export failed');
-    }
 };
 
 export default LandRecordsManager;
