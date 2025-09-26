@@ -450,7 +450,11 @@ const BlockchainDashboard: React.FC = () => {
           String(r.old_survey_number || '').trim() === s
         ) && (!district || (r.district || '').toLowerCase() === district.toLowerCase()) && (!taluka || (r.taluka || '').toLowerCase() === taluka.toLowerCase()) && (!village || (r.village || '').toLowerCase() === village.toLowerCase());
       });
-      const projectIds = Array.from(new Set(matchingRecords.map(r => String(r.projectId || (r as any).project_id)).filter(Boolean))));
+      const projectIds = Array.from(new Set(
+        matchingRecords
+          .map(r => String(r.projectId || (r as any).project_id))
+          .filter(Boolean)
+      ));
       const associatedProjects = projectIds.map(pid => {
         const p = (projects || []).find(x => String(x.id) === String(pid));
         return p ? { id: p.id, projectName: p.projectName, pmisCode: p.pmisCode, district: p.district || '-', taluka: p.taluka || '-', villages: (p.villages || []).join(', ') } : { id: pid, projectName: `Project ${pid}`, pmisCode: '', district: '-', taluka: '-', villages: '' };
