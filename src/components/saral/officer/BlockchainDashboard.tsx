@@ -905,10 +905,10 @@ const BlockchainDashboard: React.FC = () => {
                                 variant="outline"
                                 onClick={async () => {
                                   try {
-                                    const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-or-update-survey-complete`, {
+                                    const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-                                      body: JSON.stringify({ survey_number: String(s.new_survey_number || s.survey_number || ''), officer_id: 'demo-officer', project_id: String(s.project_id || ''), remarks: `landowner row sync ${s.row_key}` })
+                                      body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: `landowner row sync ${s.row_key}` })
                                     });
                                     if (resp.ok) {
                                       const json = await resp.json().catch(() => null);

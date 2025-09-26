@@ -4,6 +4,7 @@ import EnhancedBlockchainService from '../services/enhancedBlockchainService.js'
 import LedgerV2Service from '../services/ledgerV2Service.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import SurveyDataAggregationService from '../services/surveyDataAggregationService.js';
+import { HASH_VERSION, hashJsonStable } from '../services/hashing.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -711,6 +712,84 @@ router.post('/rebuild-ledger', [
   } catch (error) {
     console.error('❌ Rebuild ledger error:', error);
     res.status(500).json({ success: false, message: 'Failed to rebuild ledger', error: error.message });
+  }
+});
+
+/**
+ * @route POST /api/blockchain/create-landowner-row-block
+ * @desc Create a blockchain block for a specific landowner row (project + new_survey + CTS [+ serial])
+ * @access Private (Officers only)
+ */
+router.post('/create-landowner-row-block', [
+  authMiddleware,
+  body('project_id').notEmpty().withMessage('project_id is required'),
+  body('new_survey_number').notEmpty().withMessage('new_survey_number is required'),
+  body('cts_number').notEmpty().withMessage('cts_number is required'),
+  body('officer_id').notEmpty().withMessage('officer_id is required'),
+  body('serial_number').optional(),
+  body('remarks').optional(),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { project_id, new_survey_number, cts_number, serial_number, officer_id, remarks } = req.body;
+
+    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+
+    const filter = { project_id, new_survey_number, cts_number };
+    if (serial_number) filter.serial_number = serial_number;
+    const record = await MongoLandownerRecord.findOne(filter);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Landowner row not found for given identifiers' });
+    }
+
+    // Prepare deterministic landowner data and hash
+    const row = record.toObject({ depopulate: true, getters: false, virtuals: false });
+    const landHash = hashJsonStable(row);
+
+    // Link into same survey chain using previous hash from latest block for this survey
+    const latest = await MongoBlockchainLedger.findOne({ survey_number: String(new_survey_number) }).sort({ timestamp: -1 });
+    const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+
+    const block = new MongoBlockchainLedger({
+      block_id: `BLOCK_${String(new_survey_number)}_${Date.now()}`,
+      survey_number: String(new_survey_number),
+      event_type: 'LANDOWNER_RECORD_CREATED',
+      officer_id,
+      project_id: String(project_id),
+      hash_version: HASH_VERSION,
+      data_root: landHash,
+      survey_data: {
+        landowner: {
+          data: row,
+          hash: landHash,
+          last_updated: new Date(),
+          status: 'created'
+        }
+      },
+      timeline_history: [
+        {
+          action: 'LANDOWNER_RECORD_CREATED',
+          timestamp: new Date(),
+          officer_id,
+          data_hash: landHash,
+          previous_hash: previousHash,
+          metadata: { source: 'landowner_row_sync', project_id: String(project_id) },
+          remarks: remarks || `Landowner row synced: ${String(project_id)}:${String(new_survey_number)}:${String(cts_number)}:${String(serial_number || '')}`
+        }
+      ],
+      metadata: { source: 'landowner_row_sync' },
+      remarks: remarks || 'Landowner row synced to blockchain',
+      timestamp: new Date(),
+      previous_hash: previousHash,
+      nonce: Math.floor(Math.random() * 1_000_000)
+    });
+
+    const saved = await block.save();
+    return res.json({ success: true, message: 'Landowner row block created', data: { block_id: saved.block_id, hash: saved.current_hash } });
+  } catch (error) {
+    console.error('❌ create-landowner-row-block error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create landowner row block', error: error.message });
   }
 });
 
