@@ -1143,6 +1143,6 @@ const LandRecordsManager: React.FC = () => {
       console.error('Export failed:', e);
       toast.error('Export failed');
     }
-  };
+};
 
 export default LandRecordsManager;
