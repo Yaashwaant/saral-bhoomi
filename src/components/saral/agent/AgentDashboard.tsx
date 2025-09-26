@@ -194,15 +194,13 @@ const AgentDashboard = () => {
   ];
 
   useEffect(() => {
-    if (user?.email) {
-      const records = getAssignedRecords(user.email);
-      // Use sample data if no real records are found
-      if (records.length === 0) {
-        setAssignedRecords(sampleRecords);
-      } else {
-        setAssignedRecords(records);
-      }
-    }
+    const load = async () => {
+      if (!user) return;
+      const agentKey = (user.id || user.email || '').toString();
+      const records = await getAssignedRecords(agentKey);
+      setAssignedRecords(records && records.length ? records : sampleRecords);
+    };
+    load();
   }, [user, getAssignedRecords]);
 
   const translations = {
