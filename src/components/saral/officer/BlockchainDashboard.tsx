@@ -865,6 +865,34 @@ const BlockchainDashboard: React.FC = () => {
                     {overviewLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Verify All
                   </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        setOverviewLoading(true);
+                        const resp = await fetch(`${config.API_BASE_URL}/blockchain/bulk-landowner-row-sync`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
+                          body: JSON.stringify({ officer_id: 'demo-officer' })
+                        });
+                        if (resp.ok) {
+                          const data = await resp.json();
+                          toast.success(`Row blocks synced: ${data.processed}/${data.total}`);
+                          await fetchSurveyOverview();
+                        } else {
+                          const e = await resp.json().catch(() => ({}));
+                          toast.error(`Bulk row sync failed: ${e.message || resp.status}`);
+                        }
+                      } catch (e: any) {
+                        toast.error(`Bulk row sync error: ${e.message}`);
+                      } finally {
+                        setOverviewLoading(false);
+                      }
+                    }}
+                    variant="outline"
+                    disabled={overviewLoading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Re-Sync All Rows
+                  </Button>
                   <Button onClick={syncMissingToBlockchain} variant="outline" disabled={overviewLoading || surveyOverview.length === 0}>
                     <Plus className="h-4 w-4 mr-2" />
                     Sync Missing
