@@ -49,6 +49,39 @@ const BlockchainDashboard: React.FC = () => {
     }
   };
 
+  // ---- Persist last known status per row across reloads ----
+  const STATUS_CACHE_KEY = 'saral_bc_row_status_v1';
+  const readStatusCache = (): Record<string, { status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'; ts: number }> => {
+    try {
+      const raw = localStorage.getItem(STATUS_CACHE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {} as any;
+    }
+  };
+  const writeStatusCache = (cache: Record<string, { status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'; ts: number }>) => {
+    try { localStorage.setItem(STATUS_CACHE_KEY, JSON.stringify(cache)); } catch {}
+  };
+  const mergeCachedStatuses = (list: any[]) => {
+    const cache = readStatusCache();
+    return (list || []).map((s) => {
+      const c = cache[s.row_key];
+      if (c && c.status) return { ...s, blockchain_status: c.status };
+      return s;
+    });
+  };
+  const updateCacheForRow = (rowKey: string, status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain') => {
+    const cache = readStatusCache();
+    cache[rowKey] = { status, ts: Date.now() };
+    writeStatusCache(cache);
+  };
+  const updateCacheForMany = (map: Map<string, 'verified' | 'pending' | 'compromised' | 'not_on_blockchain'>) => {
+    if (!map || map.size === 0) return;
+    const cache = readStatusCache();
+    map.forEach((status, key) => { cache[key] = { status, ts: Date.now() }; });
+    writeStatusCache(cache);
+  };
+
   const loadBlockchainStatus = async () => {
     try {
       setLoading(true);
@@ -129,7 +162,8 @@ const BlockchainDashboard: React.FC = () => {
         sections_with_data: r.exists_on_blockchain ? 1 : 0,
         blockchain_status: (r.exists_on_blockchain ?? r.existsOnBlockchain) ? 'pending' : 'not_on_blockchain'
       }));
-      setSurveyOverview(normalized);
+      // Apply cached last-known statuses so they persist across reloads
+      setSurveyOverview(mergeCachedStatuses(normalized));
     } catch (e: any) {
       console.error('Overview load failed:', e);
       toast.error('Failed to load survey overview');
@@ -183,6 +217,7 @@ const BlockchainDashboard: React.FC = () => {
       await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, () => worker()));
 
       const merged = base.map((s) => results.has(s.row_key) ? { ...s, blockchain_status: results.get(s.row_key)! } : s);
+      updateCacheForMany(results);
       setSurveyOverview(merged);
       toast.success('Blockchain status refreshed');
     } catch (e) {
@@ -222,6 +257,27 @@ const BlockchainDashboard: React.FC = () => {
       toast.success('Sync completed');
     } finally {
       setSyncProgress(null);
+    }
+  };
+
+  // Verify a single row and only update that row's status + cache
+  const verifySingleRow = async (s: any) => {
+    try {
+      const projectId = String(s.project_id || '');
+      const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
+      const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
+      let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
+      if (resp.ok) {
+        const r = await resp.json();
+        if (r?.data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
+        else if (r?.data?.isValid === true) status = 'verified';
+        else if (r?.data?.isValid === false) status = 'compromised';
+      }
+      setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
+      updateCacheForRow(s.row_key, status);
+      toast.success('Row verified');
+    } catch (e) {
+      toast.error('Verify failed');
     }
   };
 
@@ -842,7 +898,7 @@ const BlockchainDashboard: React.FC = () => {
                           <td className="p-2">{getStatusBadge(s.blockchain_status)}</td>
                           <td className="p-2">{s.blockchain_last_updated ? new Date(s.blockchain_last_updated).toLocaleString() : '-'}</td>
                           <td className="p-2 flex gap-2">
-                            {/* Per-row Verify removed; use Refresh Status at top */}
+                            <Button size="sm" variant="outline" onClick={() => verifySingleRow(s)}>Verify</Button>
                             {!s.exists_on_blockchain && (
                               <Button
                                 size="sm"
@@ -865,6 +921,7 @@ const BlockchainDashboard: React.FC = () => {
                                           ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending', blockchain_block_id: blockId || x.blockchain_block_id, blockchain_hash: hash || x.blockchain_hash }
                                           : x
                                       ));
+                                      updateCacheForRow(s.row_key, 'pending');
                                     } else {
                                       toast.error('Sync failed');
                                     }
