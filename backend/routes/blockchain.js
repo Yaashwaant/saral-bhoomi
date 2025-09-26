@@ -640,7 +640,19 @@ router.get('/landowners-with-status', [ authMiddleware ], async (req, res) => {
  */
 router.get('/verify-landowner-row', [ authMiddleware ], async (req, res) => {
   try {
-    const { projectId, newSurveyNumber, ctsNumber, serialNumber } = req.query;
+    let { projectId, newSurveyNumber, ctsNumber, serialNumber, rowKey } = req.query;
+    // Fallback: allow rowKey="projectId:newSurvey:cts:serial"
+    if ((!projectId || !newSurveyNumber || !ctsNumber) && rowKey) {
+      try {
+        const parts = String(rowKey).split(':');
+        if (parts.length >= 4) {
+          projectId = projectId || parts[0];
+          newSurveyNumber = newSurveyNumber || parts[1];
+          ctsNumber = ctsNumber || parts[2];
+          serialNumber = serialNumber || parts[3];
+        }
+      } catch {}
+    }
     if (!projectId || !newSurveyNumber || !ctsNumber) {
       return res.status(400).json({ success: false, message: 'projectId, newSurveyNumber, ctsNumber are required' });
     }

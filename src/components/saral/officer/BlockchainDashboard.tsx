@@ -267,7 +267,7 @@ const BlockchainDashboard: React.FC = () => {
   const verifySingleRow = async (s: any) => {
     try {
       const projectId = String(s.project_id || '');
-      const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || ''), serialNumber: String(s.serial_number || '') });
+      const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || ''), serialNumber: String(s.serial_number || ''), rowKey: String(s.row_key || '') });
       const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
       let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
       if (resp.ok) {
