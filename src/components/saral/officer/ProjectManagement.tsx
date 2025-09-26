@@ -306,7 +306,7 @@ const ProjectManagement = () => {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700">
+            <Button type="button" onClick={() => setIsDialogOpen(true)} className="bg-orange-600 hover:bg-orange-700">
               <FolderPlus className="h-4 w-4 mr-2" />
               {t.createProject}
             </Button>
