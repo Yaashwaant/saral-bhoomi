@@ -272,9 +272,15 @@ const BlockchainDashboard: React.FC = () => {
       let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
       if (resp.ok) {
         const r = await resp.json();
+        console.log('Row verify details:', { row_key: s.row_key, api: r?.data });
         if (r?.data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
         else if (r?.data?.isValid === true) status = 'verified';
-        else if (r?.data?.isValid === false) status = 'compromised';
+        else if (r?.data?.isValid === false) {
+          status = 'compromised';
+          const lh = (r?.data?.live_hash || '').slice(0, 8) + '...' + (r?.data?.live_hash || '').slice(-6);
+          const ch = (r?.data?.chain_hash || '').slice(0, 8) + '...' + (r?.data?.chain_hash || '').slice(-6);
+          toast.warning(`Hash mismatch for ${s.row_key}: live ${lh} vs chain ${ch}`);
+        }
       }
       setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
       updateCacheForRow(s.row_key, status);

@@ -524,7 +524,7 @@ class SurveyDataAggregationService {
       }
 
       const chainHash = ledger?.survey_data?.landowner?.hash || null;
-      const isValid = !!chainHash && chainHash === liveHash;
+      const isValid = !!chainHash && !!liveHash && chainHash === liveHash;
       return {
         isValid,
         reason: isValid ? 'ok' : 'hash_mismatch',
