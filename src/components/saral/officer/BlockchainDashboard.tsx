@@ -768,7 +768,7 @@ const BlockchainDashboard: React.FC = () => {
                   </Button>
                   <Button onClick={refreshSurveyIntegrity} variant="outline" disabled={overviewLoading || surveyOverview.length === 0}>
                     {overviewLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                    Refresh Status
+                    Verify All
                   </Button>
                   <Button onClick={syncMissingToBlockchain} variant="outline" disabled={overviewLoading || surveyOverview.length === 0}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -813,30 +813,7 @@ const BlockchainDashboard: React.FC = () => {
                           <td className="p-2">{getStatusBadge(s.blockchain_status)}</td>
                           <td className="p-2">{s.blockchain_last_updated ? new Date(s.blockchain_last_updated).toLocaleString() : '-'}</td>
                           <td className="p-2 flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={async () => {
-                                // one-off row verify via (projectId,newSurvey,CTS)
-                                try {
-                                  const qs = new URLSearchParams({ projectId: String(s.project_id || ''), newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
-                                  const resp = await fetch(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, {
-                                    headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
-                                  });
-                                  if (resp.ok) {
-                                    const r = await resp.json();
-                                    const status = r?.data?.isValid ? 'verified' : (s.exists_on_blockchain ? 'compromised' : 'not_on_blockchain');
-                                    setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, blockchain_status: status } : x));
-                                  } else {
-                                    toast.error('Integrity verify failed');
-                                  }
-                                } catch (e) {
-                                  toast.error('Integrity verify error');
-                                }
-                              }}
-                            >
-                              Verify
-                            </Button>
+                            {/* Per-row Verify removed; use Refresh Status at top */}
                             {!s.exists_on_blockchain && (
                               <Button
                                 size="sm"
@@ -850,6 +827,9 @@ const BlockchainDashboard: React.FC = () => {
                                     });
                                     if (resp.ok) {
                                       toast.success(`Synced row ${s.row_key}`);
+                                      // Optimistically set on-chain + pending
+                                      setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending' } : x));
+                                      await new Promise(r => setTimeout(r, 250));
                                       await fetchSurveyOverview();
                                     } else {
                                       toast.error('Sync failed');

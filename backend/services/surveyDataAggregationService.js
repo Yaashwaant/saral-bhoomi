@@ -450,11 +450,17 @@ class SurveyDataAggregationService {
       const results = [];
       for (const r of rows) {
         const row_key = this.buildLandownerRowKey(r);
-        // Look up any ledger where the landowner section contains the same new survey + CTS
-        // Consider on-chain if there is a block for this survey (new_survey_number) in the same project
-        // OR a block whose landowner section matches both new_survey and CTS exactly.
-        const ledger = await MongoBlockchainLedger.findOne({
-          project_id: r.project_id,
+        // Look up any ledger that likely corresponds to this row.
+        // Project ID may have been saved as ObjectId or string, or omitted; support all cases.
+        const projectMatch = {
+          $or: [
+            { project_id: r.project_id },
+            { project_id: String(r.project_id) },
+            { project_id: null },
+            { project_id: { $exists: false } }
+          ]
+        };
+        const surveyMatch = {
           $or: [
             { survey_number: r.new_survey_number },
             {
@@ -462,7 +468,8 @@ class SurveyDataAggregationService {
               'survey_data.landowner.data.cts_number': r.cts_number
             }
           ]
-        }).sort({ timestamp: -1 });
+        };
+        const ledger = await MongoBlockchainLedger.findOne({ $and: [projectMatch, surveyMatch] }).sort({ timestamp: -1 });
 
         results.push({
           row_key,
@@ -504,9 +511,10 @@ class SurveyDataAggregationService {
       const liveHash = this.generateDataHash(cleanData);
 
       const ledger = await MongoBlockchainLedger.findOne({
-        project_id: projectId,
-        'survey_data.landowner.data.new_survey_number': newSurveyNumber,
-        'survey_data.landowner.data.cts_number': ctsNumber
+        $and: [
+          { $or: [ { project_id: projectId }, { project_id: String(projectId) }, { project_id: null }, { project_id: { $exists: false } } ] },
+          { 'survey_data.landowner.data.new_survey_number': newSurveyNumber, 'survey_data.landowner.data.cts_number': ctsNumber }
+        ]
       }).sort({ timestamp: -1 });
 
       if (!ledger) {
