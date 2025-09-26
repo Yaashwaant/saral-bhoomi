@@ -12,11 +12,10 @@ import { toast } from 'sonner';
 import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDown, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { config } from '../../../config';
 import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RPieChart, Pie, Cell, LabelList } from 'recharts';
 import { 
   safeGetField, 
   safeGetNumericField,
@@ -116,6 +115,55 @@ const EnhancedDashboard: React.FC = () => {
       if (r.paymentStatus === 'success') add(r.paymentDate, 'payments', parseFloat(String(r.अंतिम_रक्कम || '0')) || 0);
     });
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredRecords]);
+
+  // Colors for charts
+  const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#6366f1', '#06b6d4', '#84cc16', '#f97316', '#14b8a6'];
+
+  // Payment status distribution for pie chart
+  const paymentStatusData = React.useMemo(() => {
+    const counters: Record<string, number> = { completed: 0, pending: 0, initiated: 0, failed: 0, reversed: 0 };
+    filteredRecords.forEach((r: any) => {
+      const s = String(r.paymentStatus || '').toLowerCase();
+      if (s === 'completed' || s === 'success') counters.completed++;
+      else if (s === 'pending') counters.pending++;
+      else if (s === 'initiated') counters.initiated++;
+      else if (s === 'failed') counters.failed++;
+      else if (s === 'reversed') counters.reversed++;
+    });
+    return [
+      { name: 'Completed', value: counters.completed },
+      { name: 'Pending', value: counters.pending },
+      { name: 'Initiated', value: counters.initiated },
+      { name: 'Failed', value: counters.failed },
+      { name: 'Reversed', value: counters.reversed },
+    ].filter(d => d.value > 0);
+  }, [filteredRecords]);
+
+  // Tribal vs Non-Tribal distribution
+  const tribalData = React.useMemo(() => {
+    let tribal = 0; let nontribal = 0;
+    filteredRecords.forEach((r: any) => {
+      const isT = (r as any).isTribal ? true : false;
+      if (isT) tribal++; else nontribal++;
+    });
+    return [
+      { name: 'Tribal', value: tribal },
+      { name: 'Non-Tribal', value: nontribal }
+    ];
+  }, [filteredRecords]);
+
+  // Top 10 villages by records for bar chart
+  const villageTopData = React.useMemo(() => {
+    const map = new Map<string, number>();
+    filteredRecords.forEach((r: any) => {
+      const v = String(r.village || r.Village || '').trim() || 'Unknown';
+      map.set(v, (map.get(v) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
   }, [filteredRecords]);
 
   const loadDashboardData = useCallback(async () => {
@@ -674,28 +722,100 @@ const EnhancedDashboard: React.FC = () => {
                   <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Daily Notices vs Payments</div>
                         <ResponsiveContainer width="100%" height="100%">
-                          <RBarChart data={timeseries}>
+                          <RBarChart data={timeseries} barSize={28}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis />
-                            <Tooltip />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [v.toLocaleString('en-IN'), n]} />
                             <Legend />
-                            <Bar dataKey="notices" name="Notices" fill="#f59e0b" />
-                            <Bar dataKey="payments" name="Payments" fill="#10b981" />
+                            <defs>
+                              <linearGradient id="gradNotices" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#fde68a" />
+                                <stop offset="100%" stopColor="#f59e0b" />
+                              </linearGradient>
+                              <linearGradient id="gradPayments" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6ee7b7" />
+                                <stop offset="100%" stopColor="#10b981" />
+                              </linearGradient>
+                            </defs>
+                            <Bar dataKey="notices" name="Notices" fill="url(#gradNotices)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="notices" position="top" className="text-xs" />
+                            </Bar>
+                            <Bar dataKey="payments" name="Payments" fill="url(#gradPayments)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="payments" position="top" className="text-xs" />
+                            </Bar>
                           </RBarChart>
                         </ResponsiveContainer>
                       </div>
                       <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Paid Amount Trend</div>
                         <ResponsiveContainer width="100%" height="100%">
                           <RLineChart data={timeseries}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                            <YAxis />
-                            <Tooltip />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [n === 'Paid Amount' ? `₹${Number(v).toLocaleString('en-IN')}` : Number(v).toLocaleString('en-IN'), n]} />
                             <Legend />
                             <Line type="monotone" dataKey="amount" name="Paid Amount" stroke="#3b82f6" strokeWidth={2} dot={false} />
                           </RLineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Payment Status</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RPieChart>
+                            <Tooltip formatter={(v: number, n: string) => [`${v.toLocaleString('en-IN')}`, n]} />
+                            <Legend />
+                            <Pie data={paymentStatusData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90}
+                                 label={(d: any) => `${d.name} ${(d.percent*100).toFixed(0)}%`}>
+                              {paymentStatusData.map((entry, index) => (
+                                <Cell key={`ps-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </RPieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Tribal vs Non-Tribal</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RPieChart>
+                            <Tooltip formatter={(v: number, n: string) => [`${v.toLocaleString('en-IN')}`, n]} />
+                            <Legend />
+                            <Pie data={tribalData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90}
+                                 label={(d: any) => `${(d.percent*100).toFixed(0)}%`}>
+                              {tribalData.map((entry, index) => (
+                                <Cell key={`tr-${index}`} fill={COLORS[(index+3) % COLORS.length]} />
+                              ))}
+                            </Pie>
+                          </RPieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="h-64">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Top Villages by Records</div>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RBarChart data={villageTopData} barSize={24}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-30} textAnchor="end" height={60} />
+                            <YAxis tickFormatter={(v: number) => v.toLocaleString('en-IN')} />
+                            <Tooltip formatter={(v: number, n: string) => [v.toLocaleString('en-IN'), n]} />
+                            <Legend />
+                            <defs>
+                              <linearGradient id="gradVillage" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#a5b4fc" />
+                                <stop offset="100%" stopColor="#6366f1" />
+                              </linearGradient>
+                            </defs>
+                            <Bar dataKey="value" name="Records" fill="url(#gradVillage)" radius={[6,6,0,0]}>
+                              <LabelList dataKey="value" position="top" className="text-xs" />
+                            </Bar>
+                          </RBarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
