@@ -31,7 +31,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from '@/components/ui/command';
 
 const BlockchainDashboard: React.FC = () => {
-  const { getLocationOptions } = useSaral();
+  const { getLocationOptions, landownerRecords, projects } = useSaral();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchSurvey, setSearchSurvey] = useState('');
   const [loading, setLoading] = useState(false);
@@ -135,7 +135,9 @@ const BlockchainDashboard: React.FC = () => {
     try {
       setLoadingLocations(true);
       const res = await getLocationOptions({});
-      const list = Array.isArray(res?.districts) && res.districts.length > 0 ? res.districts : MAHARASHTRA_DISTRICTS;
+      const apiDistricts = Array.isArray(res?.districts) ? res.districts : [];
+      const datasetDistricts = Array.from(new Set((landownerRecords || []).map(r => r.district).filter(Boolean)));
+      const list = Array.from(new Set([...(apiDistricts || []), ...MAHARASHTRA_DISTRICTS, ...datasetDistricts])).sort();
       setDistrictOptions(list);
     } catch {
       setDistrictOptions(MAHARASHTRA_DISTRICTS);
@@ -149,7 +151,15 @@ const BlockchainDashboard: React.FC = () => {
     try {
       setLoadingLocations(true);
       const res = await getLocationOptions({ district: d });
-      setTalukaOptions(res?.talukas || []);
+      let t = res?.talukas || [];
+      if (!t || t.length === 0) {
+        t = Array.from(new Set((landownerRecords || [])
+          .filter(r => (r.district || '').toLowerCase() === (d || '').toLowerCase())
+          .map(r => r.taluka)
+          .filter(Boolean)
+        ));
+      }
+      setTalukaOptions((t || []).sort());
     } catch { setTalukaOptions([]); }
     finally { setLoadingLocations(false); }
   };
@@ -159,7 +169,15 @@ const BlockchainDashboard: React.FC = () => {
     try {
       setLoadingLocations(true);
       const res = await getLocationOptions({ district: d, taluka: t });
-      setVillageOptions(res?.villages || []);
+      let v = res?.villages || [];
+      if (!v || v.length === 0) {
+        v = Array.from(new Set((landownerRecords || [])
+          .filter(r => (r.district || '').toLowerCase() === (d || '').toLowerCase() && (r.taluka || '').toLowerCase() === (t || '').toLowerCase())
+          .map(r => r.village)
+          .filter(Boolean)
+        ));
+      }
+      setVillageOptions((v || []).sort());
     } catch { setVillageOptions([]); }
     finally { setLoadingLocations(false); }
   };
@@ -423,6 +441,21 @@ const BlockchainDashboard: React.FC = () => {
         else blockchainStatus = 'pending';
       }
 
+      // Compute associated projects locally
+      const matchingRecords = (landownerRecords || []).filter(r => {
+        const s = String(searchSurvey).trim();
+        return (
+          String(r.survey_number || '').trim() === s ||
+          String(r.new_survey_number || '').trim() === s ||
+          String(r.old_survey_number || '').trim() === s
+        ) && (!district || (r.district || '').toLowerCase() === district.toLowerCase()) && (!taluka || (r.taluka || '').toLowerCase() === taluka.toLowerCase()) && (!village || (r.village || '').toLowerCase() === village.toLowerCase());
+      });
+      const projectIds = Array.from(new Set(matchingRecords.map(r => String(r.projectId || (r as any).project_id)).filter(Boolean))));
+      const associatedProjects = projectIds.map(pid => {
+        const p = (projects || []).find(x => String(x.id) === String(pid));
+        return p ? { id: p.id, projectName: p.projectName, pmisCode: p.pmisCode, district: p.district || '-', taluka: p.taluka || '-', villages: (p.villages || []).join(', ') } : { id: pid, projectName: `Project ${pid}`, pmisCode: '', district: '-', taluka: '-', villages: '' };
+      });
+
       const searchResults = {
         surveyNumber: searchSurvey,
         existsOnBlockchain: existsOnChain,
@@ -435,6 +468,7 @@ const BlockchainDashboard: React.FC = () => {
         timelineCount: timelineData?.timeline ? (Array.isArray(timelineData.timeline) ? timelineData.timeline.length : 0) : 0,
         timeline: timelineData?.timeline ? (Array.isArray(timelineData.timeline) ? timelineData.timeline : []) : [],
         lastChecked: new Date().toISOString(),
+        associatedProjects,
         
         // Complete survey data from all collections
         surveyData: surveyData,
@@ -1271,6 +1305,30 @@ const BlockchainDashboard: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
+
+                  {/* Associated Projects */}
+                  <Card className="border-2 border-blue-200 bg-blue-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Associated Projects</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      {searchResults.associatedProjects && searchResults.associatedProjects.length > 0 ? (
+                        <div className="space-y-2">
+                          {searchResults.associatedProjects.map((p: any) => (
+                            <div key={p.id} className="flex items-center justify-between text-sm border rounded p-2 bg-white">
+                              <div>
+                                <div className="font-medium">{p.projectName}</div>
+                                <div className="text-gray-500 text-xs">PMIS: {p.pmisCode || '—'} | {p.district} / {p.taluka}</div>
+                              </div>
+                              <Badge variant="outline">{p.villages || '—'}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600">No linked projects found in dataset</p>
+                      )}
+                    </CardContent>
+                  </Card>
 
                   {/* Complete Survey Data Sections */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
