@@ -11,7 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { AlertTriangle, FileText, Eye, Download, Upload, Database, CheckCircle, Clock, RefreshCw, XCircle } from 'lucide-react';
+import { AlertTriangle, FileText, Eye, Download, Upload, Database, CheckCircle, Clock, RefreshCw, XCircle, Edit } from 'lucide-react';
+import EditableCell from '@/components/data/EditableCell';
+import RecordTimeline from '@/components/data/RecordTimeline';
 import * as XLSX from 'xlsx';
 import { config } from '../../../config';
 import { 
@@ -56,6 +58,8 @@ const LandRecordsManager: React.FC = () => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [activeTab, setActiveTab] = useState('form');
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+  const [editingRecord, setEditingRecord] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<LandRecord>>({});
   
   const [landRecordForm, setLandRecordForm] = useState<LandRecord>({
     survey_number: '',
@@ -110,6 +114,58 @@ const LandRecordsManager: React.FC = () => {
       setLoading(false);
       console.log('✅ loadLandRecords completed for project:', selectedProject);
     }
+  };
+
+  const handleEdit = (record: LandRecord) => {
+    setEditingRecord(record.id!);
+    setEditForm(record);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRecord || !editForm) return;
+    
+    setLoading(true);
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/landowners/${editingRecord}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(editForm)
+      });
+
+      if (response.ok) {
+        toast.success('Land record updated successfully');
+        setEditingRecord(null);
+        setEditForm({});
+        loadLandRecords();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to update land record');
+      }
+    } catch (error) {
+      console.error('Error updating land record:', error);
+      toast.error('Error updating land record');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRecord(null);
+    setEditForm({});
+  };
+
+  const handleEditFormChange = (field: keyof LandRecord, value: any) => {
+    setEditForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -499,60 +555,6 @@ const LandRecordsManager: React.FC = () => {
     );
   };
 
-  // Export filters + basic analytics as Excel
-  const exportOverviewToExcel = () => {
-    try {
-      const projectName = projects.find((p) => p.id === selectedProject)?.projectName || selectedProject;
-      const filtersSheetData = [
-        ['Exported At', new Date().toLocaleString()],
-        ['Project', projectName],
-      ];
-
-      // Basic analytics from current table data
-      const totalRecords = landRecords.length;
-      const totalArea = landRecords.reduce((sum, r: any) => sum + (Number(r.area) || 0), 0);
-      const completedPayments = landRecords.filter((r: any) => r.payment_status === 'completed').length;
-      const totalCompensation = landRecords.reduce((sum, r: any) => sum + (Number(r.total_compensation) || 0), 0);
-
-      const analyticsSheetData = [
-        ['Metric', 'Value'],
-        ['Total Records', totalRecords],
-        ['Total Area (Ha)', totalArea],
-        ['Payments Completed (count)', completedPayments],
-        ['Total Compensation (₹)', totalCompensation],
-      ];
-
-      // Build workbook
-      const wb = XLSX.utils.book_new();
-      const wsFilters = XLSX.utils.aoa_to_sheet(filtersSheetData);
-      const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsSheetData);
-      XLSX.utils.book_append_sheet(wb, wsFilters, 'Filters');
-      XLSX.utils.book_append_sheet(wb, wsAnalytics, 'Analytics');
-
-      // Optional: include a minimal records snapshot sheet (first 100 rows)
-      const snapshot = landRecords.slice(0, 100).map((r: any) => ({
-        Serial: r.serial_number || '',
-        Owner: r.landowner_name || '',
-        NewSurvey: r.new_survey_number || r.survey_number || '',
-        CTS: r.cts_number || '',
-        Area_Ha: r.area || '',
-        Village: r.village || '',
-        PaymentStatus: r.payment_status || '',
-      }));
-      if (snapshot.length > 0) {
-        const wsSnap = XLSX.utils.json_to_sheet(snapshot);
-        XLSX.utils.book_append_sheet(wb, wsSnap, 'RecordsSnapshot');
-      }
-
-      const filename = `overview_export_${projectName.replace(/\s+/g, '_')}_${Date.now()}.xlsx`;
-      XLSX.writeFile(wb, filename);
-      toast.success('Exported Excel successfully');
-    } catch (e) {
-      console.error('Export failed:', e);
-      toast.error('Export failed');
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -784,6 +786,627 @@ const LandRecordsManager: React.FC = () => {
           </Tabs>
 
           {/* Records Display */}
+          {editingRecord && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Edit Land Record</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* Basic Identification Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Basic Identification</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-serial_number">Serial Number</Label>
+                        <Input
+                          id="edit-serial_number"
+                          value={editForm.serial_number || ''}
+                          onChange={(e) => handleEditFormChange('serial_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-landowner_name">Landowner Name *</Label>
+                        <Input
+                          id="edit-landowner_name"
+                          value={editForm.landowner_name || ''}
+                          onChange={(e) => handleEditFormChange('landowner_name', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-survey_number">Survey Number *</Label>
+                        <Input
+                          id="edit-survey_number"
+                          value={editForm.survey_number || ''}
+                          onChange={(e) => handleEditFormChange('survey_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-old_survey_number">Old Survey Number</Label>
+                        <Input
+                          id="edit-old_survey_number"
+                          value={editForm.old_survey_number || ''}
+                          onChange={(e) => handleEditFormChange('old_survey_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-group_number">Group Number</Label>
+                        <Input
+                          id="edit-group_number"
+                          value={editForm.group_number || ''}
+                          onChange={(e) => handleEditFormChange('group_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-cts_number">CTS Number</Label>
+                        <Input
+                          id="edit-cts_number"
+                          value={editForm.cts_number || ''}
+                          onChange={(e) => handleEditFormChange('cts_number', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Area Details Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Area Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-total_area_village_record">Village Record Area (Ha.Ar)</Label>
+                        <Input
+                          id="edit-total_area_village_record"
+                          type="number"
+                          step="0.01"
+                          value={editForm.total_area_village_record || 0}
+                          onChange={(e) => handleEditFormChange('total_area_village_record', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-acquired_area_sqm_hectare">Acquired Area (Sq.m/Ha)</Label>
+                        <Input
+                          id="edit-acquired_area_sqm_hectare"
+                          type="number"
+                          step="0.01"
+                          value={editForm.acquired_area_sqm_hectare || 0}
+                          onChange={(e) => handleEditFormChange('acquired_area_sqm_hectare', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-area">Total Area (Hectares) *</Label>
+                        <Input
+                          id="edit-area"
+                          type="number"
+                          step="0.01"
+                          value={editForm.area || 0}
+                          onChange={(e) => handleEditFormChange('area', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Land Classification Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Land Classification</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-land_category">Land Category</Label>
+                        <Input
+                          id="edit-land_category"
+                          value={editForm.land_category || ''}
+                          onChange={(e) => handleEditFormChange('land_category', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-land_type_classification">Land Type Classification</Label>
+                        <Input
+                          id="edit-land_type_classification"
+                          value={editForm.land_type_classification || ''}
+                          onChange={(e) => handleEditFormChange('land_type_classification', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-agricultural_type">Agricultural Type</Label>
+                        <Input
+                          id="edit-agricultural_type"
+                          value={editForm.agricultural_type || ''}
+                          onChange={(e) => handleEditFormChange('agricultural_type', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-agricultural_classification">Agricultural Classification</Label>
+                        <Input
+                          id="edit-agricultural_classification"
+                          value={editForm.agricultural_classification || ''}
+                          onChange={(e) => handleEditFormChange('agricultural_classification', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rate and Market Value Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Rate and Market Value</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-approved_rate_per_hectare">Approved Rate (₹/Ha)</Label>
+                        <Input
+                          id="edit-approved_rate_per_hectare"
+                          type="number"
+                          step="0.01"
+                          value={editForm.approved_rate_per_hectare || 0}
+                          onChange={(e) => handleEditFormChange('approved_rate_per_hectare', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-market_value_acquired_area">Market Value Acquired Area</Label>
+                        <Input
+                          id="edit-market_value_acquired_area"
+                          type="number"
+                          step="0.01"
+                          value={editForm.market_value_acquired_area || 0}
+                          onChange={(e) => handleEditFormChange('market_value_acquired_area', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-rate">Rate per Hectare (₹)</Label>
+                        <Input
+                          id="edit-rate"
+                          type="number"
+                          step="0.01"
+                          value={editForm.rate || 0}
+                          onChange={(e) => handleEditFormChange('rate', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 26 Calculations Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Section 26 Calculations</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-section_26_2_factor">Section 26(2) Factor</Label>
+                        <Input
+                          id="edit-section_26_2_factor"
+                          type="number"
+                          step="0.01"
+                          value={editForm.section_26_2_factor || 0}
+                          onChange={(e) => handleEditFormChange('section_26_2_factor', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-section_26_compensation">Section 26 Compensation</Label>
+                        <Input
+                          id="edit-section_26_compensation"
+                          type="number"
+                          step="0.01"
+                          value={editForm.section_26_compensation || 0}
+                          onChange={(e) => handleEditFormChange('section_26_compensation', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Structure Compensation Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Structure Compensation</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-buildings_count">Buildings Count</Label>
+                        <Input
+                          id="edit-buildings_count"
+                          type="number"
+                          value={editForm.buildings_count || 0}
+                          onChange={(e) => handleEditFormChange('buildings_count', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-buildings_amount">Buildings Amount (₹)</Label>
+                        <Input
+                          id="edit-buildings_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.buildings_amount || 0}
+                          onChange={(e) => handleEditFormChange('buildings_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-forest_trees_count">Forest Trees Count</Label>
+                        <Input
+                          id="edit-forest_trees_count"
+                          type="number"
+                          value={editForm.forest_trees_count || 0}
+                          onChange={(e) => handleEditFormChange('forest_trees_count', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-forest_trees_amount">Forest Trees Amount (₹)</Label>
+                        <Input
+                          id="edit-forest_trees_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.forest_trees_amount || 0}
+                          onChange={(e) => handleEditFormChange('forest_trees_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-fruit_trees_count">Fruit Trees Count</Label>
+                        <Input
+                          id="edit-fruit_trees_count"
+                          type="number"
+                          value={editForm.fruit_trees_count || 0}
+                          onChange={(e) => handleEditFormChange('fruit_trees_count', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-fruit_trees_amount">Fruit Trees Amount (₹)</Label>
+                        <Input
+                          id="edit-fruit_trees_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.fruit_trees_amount || 0}
+                          onChange={(e) => handleEditFormChange('fruit_trees_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-wells_borewells_count">Wells/Borewells Count</Label>
+                        <Input
+                          id="edit-wells_borewells_count"
+                          type="number"
+                          value={editForm.wells_borewells_count || 0}
+                          onChange={(e) => handleEditFormChange('wells_borewells_count', parseInt(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-wells_borewells_amount">Wells/Borewells Amount (₹)</Label>
+                        <Input
+                          id="edit-wells_borewells_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.wells_borewells_amount || 0}
+                          onChange={(e) => handleEditFormChange('wells_borewells_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-total_structures_amount">Total Structures Amount</Label>
+                        <Input
+                          id="edit-total_structures_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.total_structures_amount || 0}
+                          onChange={(e) => handleEditFormChange('total_structures_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compensation Calculations Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Compensation Calculations</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-total_compensation_amount">Total Compensation Amount</Label>
+                        <Input
+                          id="edit-total_compensation_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.total_compensation_amount || 0}
+                          onChange={(e) => handleEditFormChange('total_compensation_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-solatium_100_percent">100% Solatium</Label>
+                        <Input
+                          id="edit-solatium_100_percent"
+                          type="number"
+                          step="0.01"
+                          value={editForm.solatium_100_percent || 0}
+                          onChange={(e) => handleEditFormChange('solatium_100_percent', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-determined_compensation">Determined Compensation</Label>
+                        <Input
+                          id="edit-determined_compensation"
+                          type="number"
+                          step="0.01"
+                          value={editForm.determined_compensation || 0}
+                          onChange={(e) => handleEditFormChange('determined_compensation', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-additional_25_percent_compensation">Additional 25% Compensation</Label>
+                        <Input
+                          id="edit-additional_25_percent_compensation"
+                          type="number"
+                          step="0.01"
+                          value={editForm.additional_25_percent_compensation || 0}
+                          onChange={(e) => handleEditFormChange('additional_25_percent_compensation', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-total_final_compensation">Total Final Compensation</Label>
+                        <Input
+                          id="edit-total_final_compensation"
+                          type="number"
+                          step="0.01"
+                          value={editForm.total_final_compensation || 0}
+                          onChange={(e) => handleEditFormChange('total_final_compensation', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-deduction_amount">Deduction Amount</Label>
+                        <Input
+                          id="edit-deduction_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.deduction_amount || 0}
+                          onChange={(e) => handleEditFormChange('deduction_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-final_payable_amount">Final Payable Amount</Label>
+                        <Input
+                          id="edit-final_payable_amount"
+                          type="number"
+                          step="0.01"
+                          value={editForm.final_payable_amount || 0}
+                          onChange={(e) => handleEditFormChange('final_payable_amount', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-total_compensation">Total Compensation (₹)</Label>
+                        <Input
+                          id="edit-total_compensation"
+                          type="number"
+                          step="0.01"
+                          value={editForm.total_compensation || 0}
+                          onChange={(e) => handleEditFormChange('total_compensation', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Location Details Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Location Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-village">Village *</Label>
+                        <Input
+                          id="edit-village"
+                          value={editForm.village || ''}
+                          onChange={(e) => handleEditFormChange('village', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-taluka">Taluka *</Label>
+                        <Input
+                          id="edit-taluka"
+                          value={editForm.taluka || ''}
+                          onChange={(e) => handleEditFormChange('taluka', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-district">District *</Label>
+                        <Input
+                          id="edit-district"
+                          value={editForm.district || ''}
+                          onChange={(e) => handleEditFormChange('district', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Information Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-contact_phone">Contact Phone</Label>
+                        <Input
+                          id="edit-contact_phone"
+                          value={editForm.contact_phone || ''}
+                          onChange={(e) => handleEditFormChange('contact_phone', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-contact_email">Contact Email</Label>
+                        <Input
+                          id="edit-contact_email"
+                          type="email"
+                          value={editForm.contact_email || ''}
+                          onChange={(e) => handleEditFormChange('contact_email', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-contact_address">Contact Address</Label>
+                        <Input
+                          id="edit-contact_address"
+                          value={editForm.contact_address || ''}
+                          onChange={(e) => handleEditFormChange('contact_address', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banking Information Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Banking Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-bank_account_number">Bank Account Number</Label>
+                        <Input
+                          id="edit-bank_account_number"
+                          value={editForm.bank_account_number || ''}
+                          onChange={(e) => handleEditFormChange('bank_account_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-bank_ifsc_code">Bank IFSC</Label>
+                        <Input
+                          id="edit-bank_ifsc_code"
+                          value={editForm.bank_ifsc_code || ''}
+                          onChange={(e) => handleEditFormChange('bank_ifsc_code', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-bank_name">Bank Name</Label>
+                        <Input
+                          id="edit-bank_name"
+                          value={editForm.bank_name || ''}
+                          onChange={(e) => handleEditFormChange('bank_name', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-bank_branch_name">Bank Branch</Label>
+                        <Input
+                          id="edit-bank_branch_name"
+                          value={editForm.bank_branch_name || ''}
+                          onChange={(e) => handleEditFormChange('bank_branch_name', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-bank_account_holder_name">Account Holder Name</Label>
+                        <Input
+                          id="edit-bank_account_holder_name"
+                          value={editForm.bank_account_holder_name || ''}
+                          onChange={(e) => handleEditFormChange('bank_account_holder_name', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tribal Information Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Tribal Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-is_tribal"
+                          checked={editForm.is_tribal || false}
+                          onChange={(e) => handleEditFormChange('is_tribal', e.target.checked)}
+                          className="rounded"
+                        />
+                        <Label htmlFor="edit-is_tribal">Is Tribal</Label>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-tribal_certificate_number">Tribal Certificate No.</Label>
+                        <Input
+                          id="edit-tribal_certificate_number"
+                          value={editForm.tribal_certificate_number || ''}
+                          onChange={(e) => handleEditFormChange('tribal_certificate_number', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-tribal_lag">Tribal Lag</Label>
+                        <Input
+                          id="edit-tribal_lag"
+                          value={editForm.tribal_lag || ''}
+                          onChange={(e) => handleEditFormChange('tribal_lag', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Information Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Status Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="edit-kyc_status">KYC Status</Label>
+                        <select
+                          id="edit-kyc_status"
+                          value={editForm.kyc_status || 'pending'}
+                          onChange={(e) => handleEditFormChange('kyc_status', e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-payment_status">Payment Status</Label>
+                        <select
+                          id="edit-payment_status"
+                          value={editForm.payment_status || 'pending'}
+                          onChange={(e) => handleEditFormChange('payment_status', e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="initiated">Initiated</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-notice_generated">Notice Generated</Label>
+                        <select
+                          id="edit-notice_generated"
+                          value={editForm.notice_generated || 'no'}
+                          onChange={(e) => handleEditFormChange('notice_generated', e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="no">No</option>
+                          <option value="yes">Yes</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-assigned_agent">Assigned Agent</Label>
+                        <Input
+                          id="edit-assigned_agent"
+                          value={editForm.assigned_agent || ''}
+                          onChange={(e) => handleEditFormChange('assigned_agent', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Information Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-notes">Notes</Label>
+                        <textarea
+                          id="edit-notes"
+                          value={editForm.notes || ''}
+                          onChange={(e) => handleEditFormChange('notes', e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[80px]"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-remarks">Remarks (शेरा)</Label>
+                        <textarea
+                          id="edit-remarks"
+                          value={editForm.remarks || ''}
+                          onChange={(e) => handleEditFormChange('remarks', e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[80px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-4 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -908,6 +1531,7 @@ const LandRecordsManager: React.FC = () => {
                         
                         {/* Format Indicator */}
                         <TableHead className="min-w-[100px]">Data Format</TableHead>
+                        <TableHead className="min-w-[80px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1131,6 +1755,21 @@ const LandRecordsManager: React.FC = () => {
                               <Badge variant="secondary">Legacy</Badge>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(record);
+                                }}
+                                className="p-1 hover:bg-gray-100 rounded"
+                                title="Edit record"
+                              >
+                                <Edit className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                              <RecordTimeline recordHash={record.id!} />
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1143,6 +1782,60 @@ const LandRecordsManager: React.FC = () => {
       )}
     </div>
   );
+};
+
+  // Export filters + basic analytics as Excel
+  const exportOverviewToExcel = () => {
+    try {
+      const projectName = projects.find((p) => p.id === selectedProject)?.projectName || selectedProject;
+      const filtersSheetData = [
+        ['Exported At', new Date().toLocaleString()],
+        ['Project', projectName],
+      ];
+
+      // Basic analytics from current table data
+      const totalRecords = landRecords.length;
+      const totalArea = landRecords.reduce((sum, r: any) => sum + (Number(r.area) || 0), 0);
+      const completedPayments = landRecords.filter((r: any) => r.payment_status === 'completed').length;
+      const totalCompensation = landRecords.reduce((sum, r: any) => sum + (Number(r.total_compensation) || 0), 0);
+
+      const analyticsSheetData = [
+        ['Metric', 'Value'],
+        ['Total Records', totalRecords],
+        ['Total Area (Ha)', totalArea],
+        ['Payments Completed (count)', completedPayments],
+        ['Total Compensation (₹)', totalCompensation],
+      ];
+
+      // Build workbook
+      const wb = XLSX.utils.book_new();
+      const wsFilters = XLSX.utils.aoa_to_sheet(filtersSheetData);
+      const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsSheetData);
+      XLSX.utils.book_append_sheet(wb, wsFilters, 'Filters');
+      XLSX.utils.book_append_sheet(wb, wsAnalytics, 'Analytics');
+
+      // Optional: include a minimal records snapshot sheet (first 100 rows)
+      const snapshot = landRecords.slice(0, 100).map((r: any) => ({
+        Serial: r.serial_number || '',
+        Owner: r.landowner_name || '',
+        NewSurvey: r.new_survey_number || r.survey_number || '',
+        CTS: r.cts_number || '',
+        Area_Ha: r.area || '',
+        Village: r.village || '',
+        PaymentStatus: r.payment_status || '',
+      }));
+      if (snapshot.length > 0) {
+        const wsSnap = XLSX.utils.json_to_sheet(snapshot);
+        XLSX.utils.book_append_sheet(wb, wsSnap, 'RecordsSnapshot');
+      }
+
+      const filename = `overview_export_${projectName.replace(/\s+/g, '_')}_${Date.now()}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      toast.success('Exported Excel successfully');
+    } catch (e) {
+      console.error('Export failed:', e);
+      toast.error('Export failed');
+    }
 };
 
 export default LandRecordsManager;
