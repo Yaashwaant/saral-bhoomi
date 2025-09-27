@@ -9,7 +9,7 @@ const API_BASE_URL = config.API_BASE_URL;
 export interface Project {
   id: string;
   projectName: string;
-  pmisCode: string;
+  projectNumber: string;
   schemeName: string;
   landRequired: number; // in hectares
   landAvailable: number;

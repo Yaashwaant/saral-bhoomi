@@ -204,7 +204,7 @@ async function importToDatabase() {
     if (!project) {
       project = new MongoProject({
         projectName: 'Chandrapada Import Project',
-        pmisCode: 'CHANDRAPADA-2023',
+        projectNumber: 'CHANDRAPADA-2023',
         schemeName: 'Chandrapada Land Acquisition',
         landRequired: 100,
         landAvailable: 0,

@@ -38,7 +38,7 @@ const initDatabase = async () => {
     const demoProjects = await Project.bulkCreate([
       {
         projectName: 'Mumbai-Nagpur Expressway',
-        pmisCode: 'PMIS001',
+        projectNumber: 'DEMO-2024-001',
         schemeName: 'Bharatmala Pariyojana',
         landRequired: 150.5,
         landAvailable: 120.3,
@@ -66,7 +66,7 @@ const initDatabase = async () => {
       },
       {
         projectName: 'Pune Metro Extension',
-        pmisCode: 'PMIS002',
+        projectNumber: 'DEMO-2024-002',
         schemeName: 'Metro Rail Project',
         landRequired: 45.2,
         landAvailable: 35.8,

@@ -47,11 +47,11 @@ async function seedRealDemoData() {
 
     // Step 3: Ensure demo project exists
     console.log('🏗️ Step 3: Ensuring demo project exists...');
-    let project = await Project.findOne({ where: { pmisCode: 'DEMO-2024-001' } });
+    let project = await Project.findOne({ where: { projectNumber: 'DEMO-2024-001' } });
     if (!project) {
       project = await Project.create({
         projectName: 'Demo Land Acquisition Project 2024',
-        pmisCode: 'DEMO-2024-001',
+        projectNumber: 'DEMO-2024-001',
         schemeName: 'Demo Land Acquisition Scheme',
         landRequired: 10.0,
         landAvailable: 5.0,

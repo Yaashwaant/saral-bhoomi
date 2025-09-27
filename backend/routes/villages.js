@@ -209,8 +209,8 @@ router.get('/progress/:projectId', async (req, res) => {
       data: {
         project: {
           id: project._id,
+          projectNumber: project.projectNumber,
           name: project.project_name,
-          pmisCode: project.pmis_code,
           completionPercentage: projectCompletion
         },
         overallStats: {
@@ -312,4 +312,4 @@ router.get('/agent-workload/:projectId', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

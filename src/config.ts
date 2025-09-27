@@ -7,12 +7,15 @@ const getApiBaseUrl = () => {
   if (import.meta.env.PROD) {
     return import.meta.env.VITE_API_URL || 'https://saral-bhoomi-1.onrender.com/api';
   }
-  // In development, use environment variable or localhost
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  // In development, prefer localhost backend if running locally; fallback to env or Render
+  const devHosts = new Set(['localhost', '127.0.0.1']);
+  const isLocal = typeof window !== 'undefined' && devHosts.has(window.location.hostname);
+  const localApi = 'http://localhost:5000/api';
+  return import.meta.env.VITE_API_URL || (isLocal ? localApi : 'https://saral-bhoomi-1.onrender.com/api');
 };
 
 export const config = {
-  // API Base URL for MongoDB Backend - now uses direct backend URL
+  // API Base URL for MongoDB Backend - uses env or local in dev
   API_BASE_URL: getApiBaseUrl(),
   
   // Development Settings

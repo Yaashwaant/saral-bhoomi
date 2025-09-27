@@ -202,7 +202,7 @@ async function importExcelData() {
     if (!project) {
       project = new MongoProject({
         name: 'Chandrapada Project',
-        pmisCode: 'CHANDRAPADA-2023',
+        projectNumber: 'CHANDRAPADA-2023',
         schemeName: 'Land Acquisition - Chandrapada',
         landRequired: 100,
         landAvailable: 0,

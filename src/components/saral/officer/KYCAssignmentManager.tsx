@@ -203,7 +203,7 @@ const KYCAssignmentManager: React.FC = () => {
       <div style="text-align:center; font-size:12px;">पत्र व्यवहाराचा पत्ता: इराणी रोड, आय.डी.बी.आय. बँकेच्या समोर, ता. नांदे, जि. पालघर<br/>दूरध्वनी: ०२५२८-२२०१८० | Email: desplandacquisition@gmail.com</div>
       <hr/>
       <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <div>जा.क्र./भूसंपादन/रेल्वे उड्डाणपूल प्रकल्प/कावि-${project?.pmisCode || 'PROJECT-001'}</div>
+        <div>जा.क्र./भूसंपादन/रेल्वे उड्डाणपूल प्रकल्प/कावि-${project?.projectNumber || 'PROJECT-001'}</div>
         <div>दिनांक: ${today.toLocaleDateString('hi-IN')}</div>
       </div>
 

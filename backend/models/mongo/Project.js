@@ -1,14 +1,14 @@
 import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema({
+  projectNumber: {
+    type: String,
+    unique: true,
+    required: true
+  },
   projectName: {
     type: String,
     required: true,
-    trim: true
-  },
-  pmisCode: {
-    type: String,
-    required: false,
     trim: true
   },
   schemeName: {
@@ -106,11 +106,37 @@ const projectSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
+// Create indexes
 projectSchema.index({ projectName: 1 });
-projectSchema.index({ pmisCode: 1 }, { unique: true, sparse: true });
 projectSchema.index({ district: 1, taluka: 1 });
 projectSchema.index({ 'status.overall': 1 });
 projectSchema.index({ createdBy: 1 });
+projectSchema.index({ projectNumber: 1 }, { unique: true });
+
+// Pre-save hook to generate projectNumber
+projectSchema.pre('validate', async function(next) {
+  if (this.isNew && !this.projectNumber) {
+    try {
+      // Find the highest existing project number
+      const lastProject = await this.constructor.findOne(
+        { projectNumber: { $regex: /^PRJ-\d+$/ } },
+        { projectNumber: 1 }
+      ).sort({ projectNumber: -1 });
+
+      let nextNumber = 1;
+      if (lastProject && lastProject.projectNumber) {
+        const match = lastProject.projectNumber.match(/^PRJ-(\d+)$/);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      this.projectNumber = `PRJ-${nextNumber.toString().padStart(4, '0')}`;
+    } catch (error) {
+      return next(error);
+    }
+  }
+  next();
+});
 
 export default mongoose.model('Project', projectSchema);

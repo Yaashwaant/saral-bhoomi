@@ -51,7 +51,6 @@ router.get('/', async (req, res) => {
       data: projects.map(project => ({
         id: project._id,
         projectName: project.projectName,
-        pmisCode: project.pmisCode,
         schemeName: project.schemeName,
         landRequired: project.landRequired,
         landAvailable: project.landAvailable,
@@ -111,8 +110,8 @@ router.get('/:id', async (req, res) => {
       success: true,
       data: {
         id: project._id,
+        projectNumber: project.projectNumber,
         projectName: project.projectName,
-        pmisCode: project.pmisCode,
         schemeName: project.schemeName,
         landRequired: project.landRequired,
         landAvailable: project.landAvailable,
@@ -160,7 +159,6 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const {
       projectName,
-      pmisCode,
       schemeName,
       landRequired,
       landAvailable,
@@ -175,15 +173,6 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       videoUrl,
       status
     } = req.body;
-    
-    // Check if PMIS code already exists
-    const existingProject = await MongoProject.findOne({ pmisCode });
-    if (existingProject) {
-      return res.status(400).json({
-        success: false,
-        message: 'Project with this PMIS code already exists'
-      });
-    }
     
     // Normalize status (supports both new nested object and legacy root fields)
     const normalizedStatus = {
@@ -200,7 +189,6 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
 
     const project = await MongoProject.create({
       projectName,
-      pmisCode,
       schemeName,
       landRequired,
       landAvailable,
@@ -229,8 +217,8 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       success: true,
       data: {
         id: populatedProject._id,
+        projectNumber: populatedProject.projectNumber,
         projectName: populatedProject.projectName,
-        pmisCode: populatedProject.pmisCode,
         schemeName: populatedProject.schemeName,
         landRequired: populatedProject.landRequired,
         landAvailable: populatedProject.landAvailable,
@@ -264,11 +252,11 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     });
   } catch (error) {
     console.error('Create project error:', error);
-    // Handle duplicate PMIS code from unique index
+    // Handle duplicate project number from unique index
     if (error && (error.code === 11000 || error.code === '11000')) {
       return res.status(400).json({
         success: false,
-        message: 'Project with this PMIS code already exists'
+        message: 'Project with this project number already exists'
       });
     }
     // Handle validation errors
@@ -299,7 +287,7 @@ router.put('/:id', authorize(['officer', 'admin']), async (req, res) => {
     const updateFields = [
       'projectName', 'schemeName', 'landRequired', 'landAvailable', 
       'landToBeAcquired', 'type', 'description', 'descriptionDetails', 'stakeholders', 
-      'videoUrl', 'isActive', 'pmisCode'
+      'videoUrl', 'isActive'
     ];
     
     updateFields.forEach(field => {
@@ -343,6 +331,7 @@ router.put('/:id', authorize(['officer', 'admin']), async (req, res) => {
     if (req.body.award) updateData['status.award'] = req.body.award;
 
     // Use document set/save for reliability with dotted paths
+    console.log('[PUT /projects/:id] updateData received →', JSON.stringify(updateData,null,2));
     project.set(updateData);
     await project.save();
     const updatedProject = await MongoProject.findById(project._id).populate('createdBy', 'name email');
@@ -350,8 +339,8 @@ router.put('/:id', authorize(['officer', 'admin']), async (req, res) => {
       success: true,
       data: {
         id: updatedProject._id,
+        projectNumber: updatedProject.projectNumber,
         projectName: updatedProject.projectName,
-        pmisCode: updatedProject.pmisCode,
         schemeName: updatedProject.schemeName,
         landRequired: updatedProject.landRequired,
         landAvailable: updatedProject.landAvailable,
@@ -551,4 +540,4 @@ router.put('/:id/assign-agents', authorize(['officer', 'admin']), async (req, re
   }
 });
 
-export default router; 
+export default router;

@@ -1,0 +1,36 @@
+{
+    "budget":  {
+                   "allocatedBudget":  200000,
+                   "estimatedCost":  1000000,
+                   "currency":  "INR"
+               },
+    "timeline":  {
+                     "startDate":  "2025-09-27T03:49:08.6743148+05:30",
+                     "expectedCompletion":  "2026-03-27T03:49:08.6743148+05:30"
+                 },
+    "pmisCode":  "TP-20250927034908",
+    "landToBeAcquired":  8,
+    "descriptionDetails":  {
+                               "applicableLaws":  [
+                                                      "LARR_2013"
+                                                  ],
+                               "ministry":  "Revenue"
+                           },
+    "location":  {
+                     "district":  "Palghar",
+                     "taluka":  "Dahanu",
+                     "villages":  [
+                                      "Some Village"
+                                  ]
+                 },
+    "type":  "greenfield",
+    "description":  "Test via CLI",
+    "stakeholders":  [
+                         "Dept A",
+                         "Dept B"
+                     ],
+    "projectName":  "Test Project 20250927034908",
+    "schemeName":  "Test Scheme",
+    "landAvailable":  2,
+    "landRequired":  10
+}

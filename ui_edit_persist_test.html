@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Persist Check</title>
+</head>
+<body>
+  <h2>Edit-Save Persist Check (open DevTools → Network & Console before clicking)</h2>
+  <button id="go">Run test (edit first project → save → log results)</button>
+  <pre id="log"></pre>
+
+  <script>
+    const API = 'http://localhost:5000/api';
+    const TOKEN = 'demo-jwt-token';
+    const ROLE  = 'officer';
+
+    async function api(method, path, body = null) {
+      const opts = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${TOKEN}`,
+          'x-demo-role': ROLE
+        }
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(API + path, opts);
+      const txt = await r.text();
+      let json = null;
+      try { json = JSON.parse(txt); } catch {}
+      return { ok: r.ok, status: r.status, body: txt, json };
+    }
+
+    async function run() {
+      const log = (s) => document.getElementById('log').textContent += s + '\n';
+      log('Fetching project list...');
+      const list = await api('GET','/projects');
+      if (!list.ok || !list.json || !list.json.length) { log('No projects found'); return; }
+      const proj = list.json[0];
+      log(`Editing project "${proj.projectName}" (id=${proj.id})`);
+
+      // Change one visible field
+      const newName = proj.projectName + ' - EDITED';
+      const payload = { projectName: newName, landRequired: (proj.landRequired||0)+1 };
+      log('PUT payload: '+JSON.stringify(payload,null,2));
+
+      const put = await api('PUT', `/projects/${proj.id}`, payload);
+      log('PUT response status: '+put.status);
+      log('PUT body: '+put.body);
+
+      // Re-fetch to verify
+      const fresh = await api('GET', `/projects/${proj.id}`);
+      const nameNow = fresh.json?.projectName;
+      log('After save, projectName = '+nameNow);
+      if (nameNow === newName) {
+        log('✅ Persisted correctly');
+      } else {
+        log('❌ NOT persisted – field still shows: '+nameNow);
+      }
+    }
+
+    document.getElementById('go').onclick = () => { document.getElementById('log').textContent=''; run(); };
+  </script>
+</body>
+</html>

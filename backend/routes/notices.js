@@ -541,7 +541,6 @@ function generateCustomNoticeContent(record, project, customTemplate) {
     .replace(/\{taluka\}/g, record.taluka)
     .replace(/\{district\}/g, record.district)
     .replace(/\{project_name\}/g, project.projectName)
-    .replace(/\{pmis_code\}/g, project.pmisCode)
     .replace(/\{current_date\}/g, new Date().toLocaleDateString('hi-IN'));
 }
 

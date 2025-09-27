@@ -1,210 +1,199 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../config/database.js';
+import mongoose from 'mongoose';
 
-const Project = sequelize.define('Project', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
+const projectSchema = new mongoose.Schema({
+  projectNumber: {
+    type: String,
+    unique: true,
+    required: true
   },
   projectName: {
-    type: DataTypes.STRING(200),
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add a project name' },
-      len: { args: [1, 200], msg: 'Project name cannot be more than 200 characters' }
-    }
-  },
-  pmisCode: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-    validate: {
-      notEmpty: { msg: 'Please add a PMIS code' }
-    }
+    type: String,
+    required: [true, 'Please add a project name'],
+    maxlength: [200, 'Project name cannot be more than 200 characters'],
+    trim: true
   },
   schemeName: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add a scheme name' }
-    }
+    type: String,
+    required: [true, 'Please add a scheme name'],
+    trim: true
   },
   landRequired: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    validate: {
-      min: { args: [0], msg: 'Land required cannot be negative' }
-    }
+    type: Number,
+    required: true,
+    min: [0, 'Land required cannot be negative']
   },
   landAvailable: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    validate: {
-      min: { args: [0], msg: 'Land available cannot be negative' }
-    }
+    type: Number,
+    required: true,
+    min: [0, 'Land available cannot be negative']
   },
   landToBeAcquired: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
-    validate: {
-      min: { args: [0], msg: 'Land to be acquired cannot be negative' }
-    }
+    type: Number,
+    required: true,
+    min: [0, 'Land to be acquired cannot be negative']
   },
   type: {
-    type: DataTypes.ENUM('greenfield', 'brownfield'),
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please specify project type' }
-    }
+    type: String,
+    enum: {
+      values: ['greenfield', 'brownfield'],
+      message: 'Project type must be either greenfield or brownfield'
+    },
+    required: [true, 'Please specify project type']
   },
   indexMap: {
-    type: DataTypes.STRING // File path
+    type: String // File path
   },
   videoUrl: {
-    type: DataTypes.STRING
+    type: String
   },
   // Status fields
   stage3A: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending'
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   },
   stage3D: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending'
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   },
   corrigendum: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending'
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   },
   award: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    defaultValue: 'pending'
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   },
   description: {
-    type: DataTypes.TEXT,
-    validate: {
-      len: { args: [0, 1000], msg: 'Description cannot be more than 1000 characters' }
-    }
+    type: String,
+    maxlength: [1000, 'Description cannot be more than 1000 characters']
   },
   // Location fields
   district: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add district' }
-    }
+    type: String,
+    required: [true, 'Please add district'],
+    trim: true
   },
   taluka: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add taluka' }
-    }
+    type: String,
+    required: [true, 'Please add taluka'],
+    trim: true
   },
   villages: {
-    type: DataTypes.JSON, // Store as JSON array
-    allowNull: false,
+    type: [String],
+    required: [true, 'Please add at least one village'],
     validate: {
-      notEmpty: { msg: 'Please add at least one village' }
+      validator: function(v) {
+        return v && v.length > 0;
+      },
+      message: 'Please add at least one village'
     }
   },
   // Budget fields
   estimatedCost: {
-    type: DataTypes.DECIMAL(15, 2),
-    allowNull: false,
-    validate: {
-      min: { args: [0], msg: 'Estimated cost cannot be negative' }
-    }
+    type: Number,
+    required: true,
+    min: [0, 'Estimated cost cannot be negative']
   },
   allocatedBudget: {
-    type: DataTypes.DECIMAL(15, 2),
-    allowNull: false,
-    validate: {
-      min: { args: [0], msg: 'Allocated budget cannot be negative' }
-    }
+    type: Number,
+    required: true,
+    min: [0, 'Allocated budget cannot be negative']
   },
   currency: {
-    type: DataTypes.STRING,
-    defaultValue: 'INR'
+    type: String,
+    default: 'INR'
   },
   // Timeline fields
   startDate: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add start date' }
-    }
+    type: Date,
+    required: [true, 'Please add start date']
   },
   expectedCompletion: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    validate: {
-      notEmpty: { msg: 'Please add expected completion date' }
-    }
+    type: Date,
+    required: [true, 'Please add expected completion date']
   },
   actualCompletion: {
-    type: DataTypes.DATE
+    type: Date
   },
   stakeholders: {
-    type: DataTypes.JSON // Store as JSON array of objects
+    type: [mongoose.Schema.Types.Mixed] // Array of objects
   },
   documents: {
-    type: DataTypes.JSON // Store as JSON array of objects
+    type: [mongoose.Schema.Types.Mixed] // Array of objects
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: Boolean,
+    default: true
   },
   createdBy: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   assignedOfficers: {
-    type: DataTypes.JSON // Store as JSON array of user IDs
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User'
   },
   assignedAgents: {
-    type: DataTypes.JSON // Store as JSON array of user IDs
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User'
   }
 }, {
-  tableName: 'projects',
   timestamps: true,
-  underscored: false, // Database uses camelCase column names
-  indexes: [
-    {
-      unique: true,
-      fields: ['pmisCode']
-    },
-    {
-      fields: ['district']
-    },
-    {
-      fields: ['taluka']
-    },
-    {
-      fields: ['createdBy']
-    },
-    {
-      fields: ['isActive']
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Create indexes
+projectSchema.index({ district: 1 });
+projectSchema.index({ taluka: 1 });
+projectSchema.index({ createdBy: 1 });
+projectSchema.index({ isActive: 1 });
+projectSchema.index({ projectNumber: 1 }, { unique: true });
+
+// Pre-save hook to generate projectNumber
+projectSchema.pre('save', async function(next) {
+  if (this.isNew && !this.projectNumber) {
+    try {
+      // Find the highest existing project number
+      const lastProject = await this.constructor.findOne(
+        { projectNumber: { $regex: /^PRJ-\d+$/ } },
+        { projectNumber: 1 }
+      ).sort({ projectNumber: -1 });
+
+      let nextNumber = 1;
+      if (lastProject && lastProject.projectNumber) {
+        const match = lastProject.projectNumber.match(/^PRJ-(\d+)$/);
+        if (match) {
+          nextNumber = parseInt(match[1]) + 1;
+        }
+      }
+
+      this.projectNumber = `PRJ-${nextNumber.toString().padStart(4, '0')}`;
+    } catch (error) {
+      return next(error);
     }
-  ]
+  }
+  next();
 });
 
 // Instance methods
-Project.prototype.getProgress = function() {
+projectSchema.methods.getProgress = function() {
   const totalStages = 4; // stage3A, stage3D, corrigendum, award
   const completedStages = [this.stage3A, this.stage3D, this.corrigendum, this.award]
     .filter(stage => stage === 'approved').length;
   return Math.round((completedStages / totalStages) * 100);
 };
 
-Project.prototype.getAcquisitionProgress = function() {
+projectSchema.methods.getAcquisitionProgress = function() {
   if (this.landRequired === 0) return 0;
   return Math.round(((this.landAvailable / this.landRequired) * 100));
 };
 
-export default Project; 
+const Project = mongoose.model('Project', projectSchema);
+
+export default Project;

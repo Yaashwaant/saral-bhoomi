@@ -45,11 +45,11 @@ async function seedDemoData() {
     console.log('📋 Step 2: Creating demo project...');
     
     // Check if project already exists
-    let project = await Project.findOne({ where: { pmisCode: 'PMIS-2024-DEMO-001' } });
+    let project = await Project.findOne({ where: { projectNumber: 'PMIS-2024-DEMO-001' } });
     if (!project) {
       project = await Project.create({
         projectName: 'Demo Land Acquisition Project - Phase 1',
-        pmisCode: 'PMIS-2024-DEMO-001',
+        projectNumber: 'PMIS-2024-DEMO-001',
         schemeName: 'National Highway Development Scheme',
         landRequired: 25.50,
         landAvailable: 20.00,

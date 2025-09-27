@@ -17,12 +17,7 @@ async function seedMongoDBAtlas() {
     
     console.log('✅ Connected to MongoDB Atlas. Starting data seeding...');
     
-    // Clear existing data (optional - comment out if you want to keep existing data)
-    console.log('🧹 Clearing existing data...');
-    await User.deleteMany({});
-    await Project.deleteMany({});
-    await LandownerRecord.deleteMany({});
-    console.log('✅ Existing data cleared');
+    // Skipping clearing existing data to preserve current projects
     
     // Create Admin User
     console.log('👤 Creating admin user...');

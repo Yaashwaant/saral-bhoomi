@@ -12,9 +12,12 @@
     "seed": "node seed-demo-users.js",
     "firebase:test": "node test-firebase.js",
     "cloudinary:test": "node test-cloudinary.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "seed:jmr:pdf": "node scripts/seed-jmr-from-pdf.js --pdf \"d:/Desk_backup/bhoomi saral mvp/ABC/new_saral_bhoomi/saral-bhoomi/घोळ विवरण पत्र दुरुस्ती.pdf\" --project \"Ghoul Project\" --district \"Pune\" --taluka \"Mulshi\" --village \"घोळ\"",
+    "seed:jmrrecords": "node scripts/seedJMRRecords.js"
   },
   "dependencies": {
+    "@ethersproject/providers": "^5.8.0",
     "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.7.0",
@@ -39,6 +42,7 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.7",
     "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
     "pdfkit": "^0.17.1",
     "pg": "^8.16.3",
     "pg-hstore": "^2.3.4",
@@ -46,6 +50,7 @@
     "sharp": "^0.33.0",
     "twilio": "^5.3.3",
     "uuid": "^9.0.1",
+    "web3": "^4.16.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

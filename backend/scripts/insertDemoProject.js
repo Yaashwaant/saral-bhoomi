@@ -14,7 +14,7 @@ const run = async () => {
     process.exit(1);
   }
 
-  const existing = await Project.findOne({ where: { pmisCode: 'SARAL-DEMO-001' } });
+  const existing = await Project.findOne({ where: { projectNumber: 'SARAL-DEMO-001' } });
   if (existing) {
     console.log('Demo project already exists:', existing.id);
     process.exit(0);
@@ -22,7 +22,7 @@ const run = async () => {
 
   const demoProject = await Project.create({
     projectName: 'Saral Bhoomi Demo Project - Nande Taluka',
-    pmisCode: 'SARAL-DEMO-001',
+    projectNumber: 'SARAL-DEMO-001',
     schemeName: 'Land Acquisition for Infrastructure Development',
     landRequired: 15.5,
     landAvailable: 3.2,

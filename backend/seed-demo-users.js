@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import User from './models/User.js';
 
 // Load environment variables
-dotenv.config({ path: './config.env' });
+dotenv.config({ path: './.env' });
 
 // Connect to PostgreSQL
 const connectDB = async () => {
@@ -146,4 +146,4 @@ async function seedDemoUsers() {
 }
 
 // Run the seeding function
-seedDemoUsers(); 
+seedDemoUsers();

@@ -163,12 +163,44 @@ export const NEW_TO_LEGACY_MAPPING = {
 };
 
 /**
+ * Field mappings for Parikshit 16 format (16-column format)
+ * Maps Parikshit 16 Excel column names to database field names
+ */
+export const PARIKSHIT_16_FIELD_MAPPINGS = {
+  // Basic identification fields
+  'अ.क्र': 'serial_number',
+  'खातेदाराचे नांव': 'landowner_name',
+  'स.नं./हि.नं./ग.नं.': 'survey_number',
+  'क्षेत्र (हेक्टर)': 'area_hectares',
+  'जमिनीचा प्रकार': 'land_type',
+  'मंजूर दर (रु/हे)': 'approved_rate_per_hectare',
+  'बाजारमूल्य': 'market_value',
+  'सोलेशियम 100%': 'solatium_100_percent',
+  'एकूण मोबदला': 'total_compensation',
+  'बांधकामे रक्कम': 'buildings_amount',
+  'झाडे रक्कम': 'trees_amount',
+  'विहिरी रक्कम': 'wells_amount',
+  'एकूण रक्कम': 'total_structures_amount',
+  'एकूण अदा करण्यायोग्य रक्कम': 'final_payable_amount',
+  'बँक खाते क्रमांक': 'bank_account_number',
+  'IFSC कोड': 'bank_ifsc_code'
+};
+
+/**
  * Enhanced normalize function that handles both old and new formats
  */
 export const normalizeRowEnhanced = (row = {}) => {
   const r = { ...row };
   
-  // First try new Excel format mappings
+  // First try Parikshit 16 format mappings
+  Object.keys(PARIKSHIT_16_FIELD_MAPPINGS).forEach(newField => {
+    if (r[newField] !== undefined && r[newField] !== null && r[newField] !== '') {
+      const mappedField = PARIKSHIT_16_FIELD_MAPPINGS[newField];
+      r[mappedField] = r[newField];
+    }
+  });
+  
+  // Then try new Excel format mappings
   Object.keys(NEW_EXCEL_FIELD_MAPPINGS).forEach(newField => {
     if (r[newField] !== undefined && r[newField] !== null && r[newField] !== '') {
       const mappedField = NEW_EXCEL_FIELD_MAPPINGS[newField];
@@ -196,7 +228,7 @@ export const normalizeRowEnhanced = (row = {}) => {
   r['landowner_name'] = r['landowner_name'] || r['खातेदाराचे नांव'] || r['खातेदाराचे_नांव'] || r['ownerName'] || r['landownerName'] || r['name'] || '';
   
   // Ensure survey number (prefer new over old)
-  r['survey_number'] = r['survey_number'] || r['नविन स.नं.'] || r['जुना स.नं.'] || r['सर्वे_नं'] || r['स.नं./हि.नं./ग.नं.'] || r['Survey'] || r['surveyNumber'] || r['survey_no'] || r['survey'] || '';
+  r['survey_number'] = r['survey_number'] || r['नविन स.नं.'] || r['जुना स.नं.'] || r['स.नं./हि.नं./ग.नं.'] || r['सर्वे_नं'] || r['Survey'] || r['surveyNumber'] || r['survey_no'] || r['survey'] || '';
   
   // Area mappings with new format priority
   r['area'] = r['area'] || r['total_area_village_record'] || r['क्षेत्र'] || r['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'] || r['Area'] || '';

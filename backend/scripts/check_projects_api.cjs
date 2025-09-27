@@ -21,7 +21,7 @@ async function checkProjectsAPI() {
     const apiResponse = projects.map(project => ({
       id: project._id.toString(),
       projectName: project.projectName,
-      pmisCode: project.pmisCode,
+      projectNumber: project.projectNumber,
       schemeName: project.schemeName,
       landRequired: project.landRequired,
       landAvailable: project.landAvailable,

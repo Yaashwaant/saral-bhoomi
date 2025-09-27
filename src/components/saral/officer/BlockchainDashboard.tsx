@@ -490,7 +490,7 @@ const BlockchainDashboard: React.FC = () => {
       ));
       const associatedProjects = projectIds.map(pid => {
         const p = (projects || []).find(x => String(x.id) === String(pid));
-        return p ? { id: p.id, projectName: p.projectName, pmisCode: p.pmisCode, district: p.district || '-', taluka: p.taluka || '-', villages: (p.villages || []).join(', ') } : { id: pid, projectName: `Project ${pid}`, pmisCode: '', district: '-', taluka: '-', villages: '' };
+        return p ? { id: p.id, projectName: p.projectName, projectNumber: p.projectNumber, district: p.district || '-', taluka: p.taluka || '-', villages: (p.villages || []).join(', ') } : { id: pid, projectName: `Project ${pid}`, projectNumber: '', district: '-', taluka: '-', villages: '' };
       });
 
       const searchResults = {
@@ -1204,7 +1204,7 @@ const BlockchainDashboard: React.FC = () => {
                         <CommandList>
                           <CommandItem value="__all__" onSelect={() => { setProjectId(''); setOpenProjectCombo(false); }}>All Projects</CommandItem>
                           {(projects || []).map((p: any) => (
-                            <CommandItem key={`p-${p.id}`} value={String(p.projectName || p.pmisCode || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
+                            <CommandItem key={`p-${p.id}`} value={String(p.projectName || p.projectNumber || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
                               <Check className={`mr-2 h-4 w-4 ${String(projectId) === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
                               {p.projectName}
                             </CommandItem>
@@ -1413,7 +1413,7 @@ const BlockchainDashboard: React.FC = () => {
                             <div key={p.id} className="flex items-center justify-between text-sm border rounded p-2 bg-white">
                               <div>
                                 <div className="font-medium">{p.projectName}</div>
-                                <div className="text-gray-500 text-xs">PMIS: {p.pmisCode || '—'} | {p.district} / {p.taluka}</div>
+                                <div className="text-gray-500 text-xs">Project No: {p.projectNumber || '—'} | {p.district} / {p.taluka}</div>
                               </div>
                               <Badge variant="outline">{p.villages || '—'}</Badge>
                             </div>
@@ -1616,7 +1616,7 @@ const BlockchainDashboard: React.FC = () => {
                         <CommandList>
                           <CommandItem value="__all__" onSelect={() => { setProjectId(''); setOpenProjectCombo(false); }}>All Projects</CommandItem>
                           {(projects || []).map((p: any) => (
-                            <CommandItem key={`p2-${p.id}`} value={String(p.projectName || p.pmisCode || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
+                            <CommandItem key={`p2-${p.id}`} value={String(p.projectName || p.projectNumber || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
                               <Check className={`mr-2 h-4 w-4 ${String(projectId) === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
                               {p.projectName}
                             </CommandItem>

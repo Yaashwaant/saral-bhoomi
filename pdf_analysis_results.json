@@ -1,0 +1,24 @@
+{
+  "total_pages": 4,
+  "table_headers": [],
+  "identified_fields": [],
+  "full_text_sample": "",
+  "recommendations": [],
+  "pdf_suggested_fields": [],
+  "current_jmr_fields": [
+    "survey_number",
+    "owner_id",
+    "project_id",
+    "officer_id",
+    "measurement_date",
+    "measured_area",
+    "land_type",
+    "tribal_classification",
+    "village",
+    "taluka",
+    "district",
+    "category",
+    "remarks",
+    "status"
+  ]
+}

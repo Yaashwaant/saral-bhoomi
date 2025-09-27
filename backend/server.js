@@ -26,16 +26,18 @@ import paymentRoutes from './routes/payments.js';
 import villageRoutes from './routes/villages.js';
 import agentRoutes from './routes/agents.js';
 import landownerRoutes from './routes/landowners.js';
-import jmrRoutes from './routes/jmr.js';
 import awardRoutes from './routes/awards.js';
 import blockchainRoutes from './routes/blockchain.js';
-import jmrBlockchainRoutes from './routes/jmr-blockchain.js';
 import dataIntegrityRoutes from './routes/dataIntegrity.js';
 import workflowRoutes from './routes/workflow.js';
 import documentRoutes from './routes/documents.js';
 import insightsRoutes from './routes/insights.js';
 import aiRoutes from './routes/ai.js';
 import filtersRoutes from './routes/filters.js';
+import jmrRoutes from './routes/jmr.js';
+import districtsRoutes from './routes/districts.js';
+import talukasRoutes from './routes/talukas.js';
+import landRecordsRoutes from './routes/landRecords.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -121,7 +123,7 @@ app.use(helmet());
 app.use(compression());
 
 // CORS configuration (use env when available)
-const corsOrigins = (process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000')
+const corsOrigins = (process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
@@ -155,7 +157,6 @@ const blockchainLimiter = rateLimit({
   legacyHeaders: false
 });
 app.use('/api/blockchain', blockchainLimiter);
-app.use('/api/jmr-blockchain', blockchainLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -293,16 +294,18 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/villages', villageRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/landowners', landownerRoutes);
-app.use('/api/jmr', jmrRoutes);
 app.use('/api/awards', awardRoutes);
 app.use('/api/blockchain', blockchainRoutes);
-app.use('/api/jmr-blockchain', jmrBlockchainRoutes);
 app.use('/api/data-integrity', dataIntegrityRoutes);
 app.use('/api/workflow', workflowRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/filters', filtersRoutes);
+app.use('/api/jmr', jmrRoutes);
+app.use('/api/districts', districtsRoutes);
+app.use('/api/talukas', talukasRoutes);
+app.use('/api/landRecords', landRecordsRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');

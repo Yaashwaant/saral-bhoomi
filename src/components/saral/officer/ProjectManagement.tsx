@@ -26,8 +26,8 @@ import {
 import { toast } from 'sonner';
 
 interface ProjectFormData {
+  projectNumber?: string;
   projectName: string;
-  pmisCode: string;
   schemeName: string;
   landRequired: string;
   landAvailable: string;
@@ -49,7 +49,6 @@ const ProjectManagement = () => {
   const [editingProject, setEditingProject] = useState<any>(null);
   const [formData, setFormData] = useState<ProjectFormData>({
     projectName: '',
-    pmisCode: '',
     schemeName: '',
     landRequired: '',
     landAvailable: '',
@@ -76,8 +75,8 @@ const ProjectManagement = () => {
     marathi: {
       title: 'प्रकल्प व्यवस्थापन',
       createProject: 'नवीन प्रकल्प तयार करा',
+      projectNumber: 'प्रकल्प क्रमांक',
       projectName: 'प्रकल्पाचे नाव',
-      pmisCode: 'PMIS कोड',
       schemeName: 'योजनेचे नाव',
       landRequired: 'आवश्यक जमीन (हेक्टर)',
       landAvailable: 'उपलब्ध जमीन (हेक्टर)',
@@ -114,8 +113,8 @@ const ProjectManagement = () => {
     english: {
       title: 'Project Management',
       createProject: 'Create New Project',
+      projectNumber: 'Project Number',
       projectName: 'Project Name',
-      pmisCode: 'PMIS Code',
       schemeName: 'Scheme Name',
       landRequired: 'Land Required (Hectares)',
       landAvailable: 'Land Available (Hectares)',
@@ -152,8 +151,8 @@ const ProjectManagement = () => {
     hindi: {
       title: 'परियोजना प्रबंधन',
       createProject: 'नई परियोजना बनाएं',
+      projectNumber: 'परियोजना संख्या',
       projectName: 'परियोजना का नाम',
-      pmisCode: 'PMIS कोड',
       schemeName: 'योजना का नाम',
       landRequired: 'आवश्यक भूमि (हेक्टेयर)',
       landAvailable: 'उपलब्ध भूमि (हेक्टेयर)',
@@ -216,15 +215,40 @@ const ProjectManagement = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Numeric validation for land fields
+    const lr = parseFloat(formData.landRequired);
+    const la = parseFloat(formData.landAvailable);
+    const lta = parseFloat(formData.landToBeAcquired);
+    
+    if ([lr, la, lta].some((n) => Number.isNaN(n))) {
+      toast.error('Please enter valid numeric values for Land Required, Land Available, and Land To Be Acquired');
+      return;
+    }
+    if (lr < 0 || la < 0 || lta < 0) {
+      toast.error('Land values cannot be negative');
+      return;
+    }
+    if (la > lr) {
+      toast.error('Available land cannot exceed required land');
+      return;
+    }
+    if (lta > lr) {
+      toast.error('Land to be acquired cannot exceed required land');
+      return;
+    }
+    if (la + lta > lr + 1e-6) {
+      toast.error('Available + To Be Acquired cannot exceed Required land');
+      return;
+    }
+    
     try {
       const nowIso = new Date().toISOString();
       const baseData: any = {
         projectName: formData.projectName,
-        pmisCode: formData.pmisCode,
         schemeName: formData.schemeName,
-        landRequired: parseFloat(formData.landRequired),
-        landAvailable: parseFloat(formData.landAvailable),
-        landToBeAcquired: parseFloat(formData.landToBeAcquired),
+        landRequired: lr,
+        landAvailable: la,
+        landToBeAcquired: lta,
         type: formData.type,
         videoUrl: formData.videoUrl,
         description: formData.description,
@@ -234,7 +258,7 @@ const ProjectManagement = () => {
           projectAim: formData.projectAim || undefined,
         },
       };
-
+  
       // Backend compatibility: if using localhost (Sequelize), add required fields with defaults
       const apiUrl = config.API_BASE_URL || '';
       const isLocalBackend = /localhost|127\.0\.0\.1|:5000/.test(apiUrl);
@@ -255,7 +279,7 @@ const ProjectManagement = () => {
             expectedCompletion: nowIso,
           }
         : baseData;
-
+  
       if (editingProject) {
         await updateProject(editingProject.id, projectData);
         toast.success('Project updated successfully');
@@ -267,12 +291,11 @@ const ProjectManagement = () => {
         await createProject(projectData as any);
         toast.success('Project created successfully');
       }
-
+  
       setIsDialogOpen(false);
       setEditingProject(null);
       setFormData({
         projectName: '',
-        pmisCode: '',
         schemeName: '',
         landRequired: '',
         landAvailable: '',
@@ -292,8 +315,8 @@ const ProjectManagement = () => {
   const handleEdit = (project: any) => {
     setEditingProject(project);
     setFormData({
+      projectNumber: project.projectNumber,
       projectName: project.projectName,
-      pmisCode: project.pmisCode,
       schemeName: project.schemeName,
       landRequired: project.landRequired.toString(),
       landAvailable: project.landAvailable.toString(),
@@ -350,15 +373,6 @@ const ProjectManagement = () => {
                     id="projectName"
                     value={formData.projectName}
                     onChange={(e) => setFormData({...formData, projectName: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pmisCode">{t.pmisCode}</Label>
-                  <Input
-                    id="pmisCode"
-                    value={formData.pmisCode}
-                    onChange={(e) => setFormData({...formData, pmisCode: e.target.value})}
                     required
                   />
                 </div>
@@ -538,7 +552,6 @@ const ProjectManagement = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t.projectName}</TableHead>
-                  <TableHead>{t.pmisCode}</TableHead>
                   <TableHead>{t.landToBeAcquired} ({t.hectares})</TableHead>
                   <TableHead>{t.type}</TableHead>
                   <TableHead>{t.status}</TableHead>
@@ -549,7 +562,6 @@ const ProjectManagement = () => {
                 {projects.map((project) => (
                   <TableRow key={project.id}>
                     <TableCell className="font-medium">{project.projectName}</TableCell>
-                    <TableCell>{project.pmisCode}</TableCell>
                     <TableCell>{project.landToBeAcquired} {t.hectares}</TableCell>
                     <TableCell>
                       <Badge variant={project.type === 'greenfield' ? 'default' : 'secondary'}>
@@ -615,7 +627,6 @@ const ProjectManagement = () => {
             <div className="space-y-3">
               <div className="grid md:grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-600">{t.projectName}:</span> <span className="font-medium">{viewingProject.projectName}</span></div>
-                <div><span className="text-gray-600">{t.pmisCode}:</span> <span className="font-medium">{viewingProject.pmisCode}</span></div>
                 <div><span className="text-gray-600">{t.schemeName}:</span> <span className="font-medium">{viewingProject.schemeName}</span></div>
                 <div><span className="text-gray-600">{t.type}:</span> <span className="font-medium">{viewingProject.type}</span></div>
               </div>

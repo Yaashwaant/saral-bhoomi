@@ -1,4 +1,6 @@
-import { PaymentRecord, LandownerRecord, Project } from '../models/index.js';
+// Temporarily commenting out imports during MongoDB migration
+// import { PaymentRecord, LandownerRecord, Project } from '../models/index.js';
+import { LandownerRecord, Project } from '../models/index.js';
 import rtgsService from './rtgsService.js';
 
 class PaymentValidationService {

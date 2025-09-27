@@ -161,7 +161,7 @@ export const demoProjects = [
   {
     id: 'project-1',
     projectName: 'Western Dedicated Freight Corridor Railway Flyover Project',
-    pmisCode: 'PROJECT-2024-001',
+    projectNumber: 'PROJECT-2024-001',
     schemeName: 'Right to fair compensation for land acquired',
     landRequired: 2.5,
     landAvailable: 1.8,
@@ -186,4 +186,4 @@ export const createDemoCSVContent = () => {
 सीता देवी शर्मा,42,0.1500,0.0450,53100000,25000,3450000,3450000,6900000,उंबरपाडा नंदाडे,पालघर,पालघर
 अमित कुमार सिंह,43,0.1800,0.0540,53100000,75000,4200000,4200000,8400000,उंबरपाडा नंदाडे,पालघर,पालघर
 मीरा बाई पाटील,44,0.2200,0.0660,53100000,100000,5200000,5200000,10400000,उंबरपाडा नंदाडे,पालघर,पालघर`;
-}; 
+};

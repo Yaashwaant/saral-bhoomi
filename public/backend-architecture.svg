@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1100" viewBox="0 0 1500 1100">
+  <defs>
+    <style>
+      .box { fill:#f8fafc; stroke:#1f2937; stroke-width:1.5; rx:10; }
+      .title { font-family:Segoe UI, Arial; font-size:16px; font-weight:bold; fill:#111827; }
+      .text { font-family:Segoe UI, Arial; font-size:13px; fill:#1f2937; }
+      .line { stroke:#4b5563; stroke-width:1.5; marker-end:url(#arrow); }
+      .dashed { stroke:#9ca3af; stroke-dasharray:5 4; stroke-width:1.5; marker-end:url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563" />
+    </marker>
+  </defs>
+
+  <!-- Header -->
+  <rect x="20" y="20" width="1460" height="60" fill="#eef2ff" stroke="#c7d2fe" rx="8"/>
+  <text x="40" y="55" class="title">Saral Bhoomi - Backend Architecture (Express + Mongoose + Services)</text>
+
+  <!-- Client -->
+  <rect class="box" x="50" y="120" width="250" height="140"/>
+  <text class="title" x="65" y="145">Client (Frontend)</text>
+  <text class="text" x="65" y="170">React (Vite) UI</text>
+  <text class="text" x="65" y="190">Calls /api/* endpoints</text>
+  <text class="text" x="65" y="210">CORS allowed: localhost:3000</text>
+
+  <!-- API Gateway / Express -->
+  <rect class="box" x="350" y="100" width="300" height="180"/>
+  <text class="title" x="365" y="125">Express Server</text>
+  <text class="text" x="365" y="150">Security: helmet, rateLimit, compression</text>
+  <text class="text" x="365" y="170">Auth: JWT (authMiddleware)</text>
+  <text class="text" x="365" y="190">Logging: morgan -> logs/access.log</text>
+  <text class="text" x="365" y="210">Static: /uploads</text>
+
+  <!-- Routes Group -->
+  <rect class="box" x="700" y="80" width="750" height="240"/>
+  <text class="title" x="715" y="105">API Routes</text>
+  <text class="text" x="715" y="130">/api/auth, /api/users, /api/projects, /api/jmr, /api/notices, /api/payments</text>
+  <text class="text" x="715" y="150">/api/kyc, /api/agents, /api/landowners, /api/awards, /api/blockchain</text>
+  <text class="text" x="715" y="170">/api/data-integrity, /api/workflow, /api/documents, /api/insights, /api/filters</text>
+  <text class="text" x="715" y="190">/api/districts, /api/talukas</text>
+
+  <!-- MongoDB Layer -->
+  <rect class="box" x="350" y="330" width="400" height="160"/>
+  <text class="title" x="365" y="355">MongoDB (Atlas)</text>
+  <text class="text" x="365" y="380">Mongoose Models</text>
+  <text class="text" x="365" y="400">User, Project, LandownerRecord, JMRRecord</text>
+  <text class="text" x="365" y="420">Notice, Payment, Award, BlockchainLedger</text>
+
+  <!-- Services -->
+  <rect class="box" x="800" y="330" width="300" height="220"/>
+  <text class="title" x="815" y="355">Services Layer</text>
+  <text class="text" x="815" y="380">CloudinaryService (uploads)</text>
+  <text class="text" x="815" y="400">RTGS Service (bank integration)</text>
+  <text class="text" x="815" y="420">Receipt Service (PDF generation)</text>
+  <text class="text" x="815" y="440">PaymentValidation, LedgerV2</text>
+  <text class="text" x="815" y="460">EnhancedBlockchainService</text>
+
+  <!-- Middleware -->
+  <rect class="box" x="1150" y="330" width="300" height="140"/>
+  <text class="title" x="1165" y="355">Middleware</text>
+  <text class="text" x="1165" y="380">authMiddleware (JWT, roles)</text>
+  <text class="text" x="1165" y="400">authorize([...roles])</text>
+  <text class="text" x="1165" y="420">errorHandler</text>
+
+  <!-- Data Flow Lines -->
+  <line class="line" x1="300" y1="170" x2="350" y2="170" />
+  <text class="text" x="305" y="160">HTTP</text>
+
+  <line class="line" x1="650" y1="180" x2="700" y2="180" />
+  <text class="text" x="655" y="170">Route mount</text>
+
+  <line class="line" x1="500" y1="260" x2="500" y2="330" />
+  <text class="text" x="510" y="300">Mongoose</text>
+
+  <line class="line" x1="950" y1="260" x2="950" y2="330" />
+  <text class="text" x="960" y="300">Service calls</text>
+
+  <line class="dashed" x1="1150" y1="240" x2="1150" y2="330" />
+  <text class="text" x="1160" y="290">Middleware</text>
+
+  <!-- Example Endpoint Flow: Payments -->
+  <rect class="box" x="50" y="520" width="1400" height="520"/>
+  <text class="title" x="65" y="545">Example Flow: /api/payments/initiate/:recordId</text>
+  <text class="text" x="65" y="570">1) Client calls endpoint with recordId and bank details</text>
+  <text class="text" x="65" y="590">2) authorize(['officer','admin']) → authMiddleware validates JWT</text>
+  <text class="text" x="65" y="610">3) Controller fetches LandownerRecord, validates via PaymentValidation</text>
+  <text class="text" x="65" y="630">4) Creates MongoPayment record (status=pending)</text>
+  <text class="text" x="65" y="650">5) RTGS Service initiates bank payment; Receipt Service may generate PDF</text>
+  <text class="text" x="65" y="670">6) Updates MongoPayment and LandownerRecord status (initiated)</text>
+  <text class="text" x="65" y="690">7) LedgerV2Service records event → BlockchainLedger</text>
+  <text class="text" x="65" y="710">8) Response returns paymentId, transactionId, status, references</text>
+
+  <!-- Health/Test -->
+  <rect class="box" x="50" y="330" width="250" height="160"/>
+  <text class="title" x="65" y="355">Health & Test</text>
+  <text class="text" x="65" y="380">GET /health</text>
+  <text class="text" x="65" y="400">GET /api/test</text>
+  <text class="text" x="65" y="420">GET /api/test-token</text>
+
+  <!-- Notes -->
+  <text class="text" x="50" y="490">Notes: Firebase optional, Cloudinary initialized. Rate limiting applied to /api and blockchain endpoints.</text>
+</svg>

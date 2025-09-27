@@ -1,4 +1,6 @@
-import { JMRRecord, Award, Notice, Payment, BlockchainLedger, Project, User } from '../models/index.js';
+// Temporarily commenting out imports during MongoDB migration
+// import { JMRRecord, Award, Notice, Payment, BlockchainLedger, Project, User } from '../models/index.js';
+import { JMRRecord, Project, User } from '../models/index.js';
 // import { createBlock } from './blockchainService.js';
 import { generateHashFromCloudinaryUrl } from './cloudinaryService.js';
 import { v4 as uuidv4 } from 'uuid';

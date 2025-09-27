@@ -40,7 +40,7 @@ interface LandownerRecord {
   assignedAt: string;
   projectId?: {
     projectName: string;
-    pmisCode: string;
+    projectNumber: string;
   };
 }
 
@@ -734,4 +734,4 @@ const SimpleAgentDashboard: React.FC = () => {
   );
 };
 
-export default SimpleAgentDashboard; 
+export default SimpleAgentDashboard;

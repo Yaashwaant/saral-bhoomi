@@ -381,7 +381,7 @@ const NoticeGenerator: React.FC = () => {
 
   // Fetch JMR/Award counts when project changes
   useEffect(() => {
-    const loadCounts = async () => {
+    const fetchCounts = async () => {
       if (!selectedProject) { setJmrCount(0); setAwardCount(0); return; }
       try {
         const [jmrRes, awardRes] = await Promise.all([
@@ -396,7 +396,7 @@ const NoticeGenerator: React.FC = () => {
         setJmrCount(0); setAwardCount(0);
       }
     };
-    loadCounts();
+    fetchCounts();
   }, [selectedProject]);
 
   const handleSelectAll = (checked: boolean) => {
@@ -554,7 +554,7 @@ const NoticeGenerator: React.FC = () => {
       <div style="text-align:center; font-size:12px;">पत्र व्यवहाराचा पत्ता: इराणी रोड, आय.डी.बी.आय. बँकेच्या समोर, ता. नांदे, जि. पालघर<br/>दूरध्वनी: ०२५२८-२२०१८० | Email: desplandacquisition@gmail.com</div>
       <hr/>
       <div style="display:flex; justify-content:space-between; font-size:13px;">
-        <div>जा.क्र./भूसंपादन/रेल्वे उड्डाणपूल प्रकल्प/कावि-${project?.pmisCode || 'PROJECT-001'}</div>
+        <div>जा.क्र./भूसंपादन/रेल्वे उड्डाणपूल प्रकल्प/कावि-${project?.id || 'PROJECT-001'}</div>
         <div>दिनांक: ${formatDate(today)}</div>
       </div>
 
@@ -1158,70 +1158,70 @@ const NoticeGenerator: React.FC = () => {
           </div>
 
           {/* Joint Measurement & Award (optional, does not block notices) */}
-          {selectedProject && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* JMR */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Joint Measurement (JMR)</span>
-                    <Badge variant="outline">{jmrCount} records</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label>Survey Number</Label>
-                      <Input value={jmrForm.surveyNumber} onChange={e => setJmrForm({ ...jmrForm, surveyNumber: e.target.value })} />
+            {selectedProject && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* JMR */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>Joint Measurement (JMR)</span>
+                      <Badge variant="outline">{jmrCount} records</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="grid gap-2">
+                        <Label>Survey Number</Label>
+                        <Input value={jmrForm.surveyNumber} onChange={e => setJmrForm({ ...jmrForm, surveyNumber: e.target.value })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Measured Area (Ha)</Label>
+                        <Input type="number" step="0.0001" value={jmrForm.measuredArea} onChange={e => setJmrForm({ ...jmrForm, measuredArea: e.target.value })} />
+                      </div>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="grid gap-2">
+                        <Label>Category</Label>
+                        <Input value={jmrForm.category} onChange={e => setJmrForm({ ...jmrForm, category: e.target.value })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Date</Label>
+                        <Input type="date" value={jmrForm.date} onChange={e => setJmrForm({ ...jmrForm, date: e.target.value })} />
+                      </div>
                     </div>
                     <div className="grid gap-2">
-                      <Label>Measured Area (Ha)</Label>
-                      <Input type="number" step="0.0001" value={jmrForm.measuredArea} onChange={e => setJmrForm({ ...jmrForm, measuredArea: e.target.value })} />
+                      <Label>Landowner ID (optional)</Label>
+                      <Input value={jmrForm.landownerId || (selectedRecords[0] || '')} onChange={e => setJmrForm({ ...jmrForm, landownerId: e.target.value })} />
                     </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label>Category</Label>
-                      <Input value={jmrForm.category} onChange={e => setJmrForm({ ...jmrForm, category: e.target.value })} />
+                    <div className="flex justify-end">
+                      <Button onClick={async () => {
+                        try {
+                          if (!jmrForm.surveyNumber || !jmrForm.measuredArea) { toast.error('Enter survey and measured area'); return; }
+                          const resp = await fetch(`${API_BASE_URL}/jmr`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              project_id: selectedProject,
+                              landowner_id: jmrForm.landownerId || selectedRecords[0] || 'unknown',
+                              survey_number: jmrForm.surveyNumber,
+                              measured_area: parseFloat(jmrForm.measuredArea || '0'),
+                              category: jmrForm.category,
+                              date_of_measurement: jmrForm.date
+                            })
+                          });
+                          const data = await resp.json();
+                          if (!resp.ok || !data.success) throw new Error(data.message || 'Failed');
+                          toast.success('JMR saved');
+                          setJmrCount(c => c + 1);
+                        } catch (e: any) {
+                          toast.error(e?.message || 'Failed to save JMR');
+                        }
+                      }}>Save JMR</Button>
                     </div>
-                    <div className="grid gap-2">
-                      <Label>Date</Label>
-                      <Input type="date" value={jmrForm.date} onChange={e => setJmrForm({ ...jmrForm, date: e.target.value })} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Landowner ID (optional)</Label>
-                    <Input value={jmrForm.landownerId || (selectedRecords[0] || '')} onChange={e => setJmrForm({ ...jmrForm, landownerId: e.target.value })} />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button onClick={async () => {
-                      try {
-                        if (!jmrForm.surveyNumber || !jmrForm.measuredArea) { toast.error('Enter survey and measured area'); return; }
-                        const resp = await fetch(`${API_BASE_URL}/jmr`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            project_id: selectedProject,
-                            landowner_id: jmrForm.landownerId || selectedRecords[0] || 'unknown',
-                            survey_number: jmrForm.surveyNumber,
-                            measured_area: parseFloat(jmrForm.measuredArea || '0'),
-                            category: jmrForm.category,
-                            date_of_measurement: jmrForm.date
-                          })
-                        });
-                        const data = await resp.json();
-                        if (!resp.ok || !data.success) throw new Error(data.message || 'Failed');
-                        toast.success('JMR saved');
-                        setJmrCount(c => c + 1);
-                      } catch (e: any) {
-                        toast.error(e?.message || 'Failed to save JMR');
-                      }
-                    }}>Save JMR</Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* Award */}
-              <Card>
+                {/* Award */}
+                <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Award Declaration</span>
