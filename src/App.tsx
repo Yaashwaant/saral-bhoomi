@@ -8,7 +8,7 @@ import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
 import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-
+import { useEffect } from "react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +21,14 @@ const queryClient = new QueryClient({
   },
 });
 
+// Component to redirect to HTML login page
+const HtmlLoginRedirect = () => {
+  useEffect(() => {
+    window.location.href = '/login.html';
+  }, []);
+  return null;
+};
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -30,7 +38,7 @@ const App = () => {
             <TooltipProvider>
               <Routes>
                 <Route path="/" element={<Navigate to="/saral/login" replace />} />
-                <Route path="/saral/login" element={<LoginPage />} />
+                <Route path="/saral/login" element={<HtmlLoginRedirect />} />
                 <Route path="/saral/dashboard" element={
                   <ProtectedRoute>
                     <DashboardPage />
