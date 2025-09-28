@@ -4,11 +4,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
-// LoginPage removed: redirecting to static public/login.html
 import DashboardPage from "@/pages/saral/DashboardPage";
 import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import { useEffect } from "react";
+import ReactLoginPage from "@/pages/saral/ReactLoginPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,14 +20,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Component to redirect to HTML login page
-const HtmlLoginRedirect = () => {
-  useEffect(() => {
-    window.location.href = '/login.html';
-  }, []);
-  return null;
-};
-
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -38,7 +29,7 @@ const App = () => {
             <TooltipProvider>
               <Routes>
                 <Route path="/" element={<Navigate to="/saral/login" replace />} />
-                <Route path="/saral/login" element={<HtmlLoginRedirect />} />
+                <Route path="/saral/login" element={<ReactLoginPage />} />
                 <Route path="/saral/dashboard" element={
                   <ProtectedRoute>
                     <DashboardPage />
