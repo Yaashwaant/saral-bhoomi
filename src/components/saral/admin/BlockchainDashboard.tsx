@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { config } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -177,7 +178,7 @@ const BlockchainDashboard: React.FC = () => {
   // Fetch JMR records with blockchain verification
   const fetchJMRRecords = async () => {
     try {
-      const response = await fetch('/api/jmr-blockchain');
+      const response = await fetch(`${config.API_BASE_URL}/jmr-blockchain`);
       if (response.ok) {
         const data = await response.json();
         setJmrRecords(data.data.records || []);
@@ -194,7 +195,7 @@ const BlockchainDashboard: React.FC = () => {
   const verifyIntegrity = async (surveyNumber: string) => {
     setVerifyingIntegrity(true);
     try {
-      const response = await fetch(`/api/blockchain/verify-integrity/${surveyNumber}`, {
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${surveyNumber}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +225,7 @@ const BlockchainDashboard: React.FC = () => {
   const getSurveyLedger = async (surveyNumber: string) => {
     try {
       // For now, we'll use the search endpoint since ledger doesn't exist yet
-      const response = await fetch(`/api/blockchain/search/${surveyNumber}`, {
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/search/${surveyNumber}`, {
         headers: {
           'Authorization': 'Bearer demo-jwt-token'
         }
@@ -292,7 +293,7 @@ const BlockchainDashboard: React.FC = () => {
     
     try {
       // First check if survey exists on blockchain
-      const searchResponse = await fetch(`/api/blockchain/search/${searchTerm}`, {
+      const searchResponse = await fetch(`${config.API_BASE_URL}/blockchain/search/${searchTerm}`, {
         headers: {
           'Authorization': 'Bearer demo-jwt-token'
         }
@@ -300,7 +301,7 @@ const BlockchainDashboard: React.FC = () => {
       const searchData = await searchResponse.json();
       
       // Get timeline events
-      const timelineResponse = await fetch(`/api/blockchain/timeline/${searchTerm}`, {
+      const timelineResponse = await fetch(`${config.API_BASE_URL}/blockchain/timeline/${searchTerm}`, {
         headers: {
           'Authorization': 'Bearer demo-jwt-token'
         }

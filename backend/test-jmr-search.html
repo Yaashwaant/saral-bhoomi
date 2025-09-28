@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMR Search Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .test-section h3 {
+            color: #555;
+            margin-top: 0;
+        }
+        .api-link {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .api-link:hover {
+            background-color: #0056b3;
+        }
+        .search-input {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .custom-search {
+            margin-top: 15px;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 JMR Search Functionality Test</h1>
+        
+        <div class="test-section">
+            <h3>📋 Basic Operations</h3>
+            <a href="http://localhost:3000/api/jmr" target="_blank" class="api-link">Get All Records</a>
+            <a href="http://localhost:3000/api/jmr?page=1&limit=2" target="_blank" class="api-link">Page 1 (Limit 2)</a>
+            <a href="http://localhost:3000/api/jmr?page=2&limit=2" target="_blank" class="api-link">Page 2 (Limit 2)</a>
+        </div>
+
+        <div class="test-section">
+            <h3>🔍 Search by Survey Number</h3>
+            <a href="http://localhost:3000/api/jmr?search=123" target="_blank" class="api-link">Search "123"</a>
+            <a href="http://localhost:3000/api/jmr?search=456" target="_blank" class="api-link">Search "456"</a>
+            <a href="http://localhost:3000/api/jmr?search=234" target="_blank" class="api-link">Search "234"</a>
+            <a href="http://localhost:3000/api/jmr?search=TEST" target="_blank" class="api-link">Search "TEST"</a>
+        </div>
+
+        <div class="test-section">
+            <h3>👤 Search by Owner Name</h3>
+            <a href="http://localhost:3000/api/jmr?search=राज" target="_blank" class="api-link">Search "राज"</a>
+            <a href="http://localhost:3000/api/jmr?search=पाटील" target="_blank" class="api-link">Search "पाटील"</a>
+            <a href="http://localhost:3000/api/jmr?search=गोविंद" target="_blank" class="api-link">Search "गोविंद"</a>
+            <a href="http://localhost:3000/api/jmr?search=शर्मा" target="_blank" class="api-link">Search "शर्मा"</a>
+        </div>
+
+        <div class="test-section">
+            <h3>📍 Location Filters</h3>
+            <h4>By District:</h4>
+            <a href="http://localhost:3000/api/jmr?district=पुणे" target="_blank" class="api-link">District "पुणे"</a>
+            
+            <h4>By Taluka:</h4>
+            <a href="http://localhost:3000/api/jmr?taluka=हवेली" target="_blank" class="api-link">Taluka "हवेली"</a>
+            <a href="http://localhost:3000/api/jmr?taluka=चाकण" target="_blank" class="api-link">Taluka "चाकण"</a>
+            <a href="http://localhost:3000/api/jmr?taluka=मुळशी" target="_blank" class="api-link">Taluka "मुळशी"</a>
+            
+            <h4>By Village:</h4>
+            <a href="http://localhost:3000/api/jmr?village=शिवाजीनगर" target="_blank" class="api-link">Village "शिवाजीनगर"</a>
+            <a href="http://localhost:3000/api/jmr?village=किरकटवाडी" target="_blank" class="api-link">Village "किरकटवाडी"</a>
+            <a href="http://localhost:3000/api/jmr?village=लोणीकंद" target="_blank" class="api-link">Village "लोणीकंद"</a>
+            <a href="http://localhost:3000/api/jmr?village=पिंपळे सौदागर" target="_blank" class="api-link">Village "पिंपळे सौदागर"</a>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Status Filters</h3>
+            <a href="http://localhost:3000/api/jmr?status=approved" target="_blank" class="api-link">Status "approved"</a>
+            <a href="http://localhost:3000/api/jmr?status=submitted" target="_blank" class="api-link">Status "submitted"</a>
+            <a href="http://localhost:3000/api/jmr?status=draft" target="_blank" class="api-link">Status "draft"</a>
+            <a href="http://localhost:3000/api/jmr?status=rejected" target="_blank" class="api-link">Status "rejected"</a>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Combined Filters</h3>
+            <a href="http://localhost:3000/api/jmr?district=पुणे&status=approved" target="_blank" class="api-link">District + Status</a>
+            <a href="http://localhost:3000/api/jmr?taluka=हवेली&status=submitted" target="_blank" class="api-link">Taluka + Status</a>
+            <a href="http://localhost:3000/api/jmr?village=शिवाजीनगर&status=approved" target="_blank" class="api-link">Village + Status</a>
+            <a href="http://localhost:3000/api/jmr?search=123&district=पुणे" target="_blank" class="api-link">Search + District</a>
+            <a href="http://localhost:3000/api/jmr?district=पुणे&taluka=हवेली&village=शिवाजीनगर&status=approved" target="_blank" class="api-link">All Filters</a>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Custom Search Test</h3>
+            <div class="custom-search">
+                <input type="text" id="customSearch" class="search-input" placeholder="Enter search term...">
+                <input type="text" id="customDistrict" class="search-input" placeholder="District filter...">
+                <input type="text" id="customTaluka" class="search-input" placeholder="Taluka filter...">
+                <input type="text" id="customVillage" class="search-input" placeholder="Village filter...">
+                <select id="customStatus" class="search-input">
+                    <option value="">Any Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <button onclick="performCustomSearch()" class="api-link" style="border: none; cursor: pointer;">🔍 Custom Search</button>
+            </div>
+            <div id="customResults" class="results" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Quick Stats</h3>
+            <button onclick="getQuickStats()" class="api-link" style="border: none; cursor: pointer;">📊 Get Stats</button>
+            <div id="statsResults" class="results" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        async function performCustomSearch() {
+            const search = document.getElementById('customSearch').value;
+            const district = document.getElementById('customDistrict').value;
+            const taluka = document.getElementById('customTaluka').value;
+            const village = document.getElementById('customVillage').value;
+            const status = document.getElementById('customStatus').value;
+            
+            let url = 'http://localhost:3000/api/jmr?';
+            const params = [];
+            
+            if (search) params.push(`search=${encodeURIComponent(search)}`);
+            if (district) params.push(`district=${encodeURIComponent(district)}`);
+            if (taluka) params.push(`taluka=${encodeURIComponent(taluka)}`);
+            if (village) params.push(`village=${encodeURIComponent(village)}`);
+            if (status) params.push(`status=${encodeURIComponent(status)}`);
+            
+            url += params.join('&');
+            
+            const resultsDiv = document.getElementById('customResults');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="status">🔄 Searching...</div>';
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="status success">✅ Found ${data.total} records</div>
+                        <div style="margin-top: 10px;">
+                            <strong>Showing ${data.count} of ${data.total} records:</strong>
+                            ${data.data.map(record => `
+                                <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px;">
+                                    <strong>Survey:</strong> ${record.survey_number} | 
+                                    <strong>Owner:</strong> ${record.owner_name || 'N/A'} | 
+                                    <strong>Village:</strong> ${record.village} | 
+                                    <strong>Status:</strong> ${record.status}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = '<div class="status error">❌ Search failed</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function getQuickStats() {
+            const statsDiv = document.getElementById('statsResults');
+            statsDiv.style.display = 'block';
+            statsDiv.innerHTML = '<div class="status">🔄 Loading stats...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:3000/api/jmr');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const records = data.data;
+                    const stats = {
+                        total: data.total,
+                        byStatus: {},
+                        byDistrict: {},
+                        byTaluka: {},
+                        byVillage: {}
+                    };
+                    
+                    records.forEach(record => {
+                        // By Status
+                        stats.byStatus[record.status] = (stats.byStatus[record.status] || 0) + 1;
+                        
+                        // By District
+                        stats.byDistrict[record.district] = (stats.byDistrict[record.district] || 0) + 1;
+                        
+                        // By Taluka
+                        stats.byTaluka[record.taluka] = (stats.byTaluka[record.taluka] || 0) + 1;
+                        
+                        // By Village
+                        stats.byVillage[record.village] = (stats.byVillage[record.village] || 0) + 1;
+                    });
+                    
+                    statsDiv.innerHTML = `
+                        <div class="status success">✅ Stats loaded</div>
+                        <div style="margin-top: 15px;">
+                            <h4>Total Records: ${stats.total}</h4>
+                            
+                            <h5>By Status:</h5>
+                            ${Object.entries(stats.byStatus).map(([status, count]) => 
+                                `<div>${status}: ${count}</div>`
+                            ).join('')}
+                            
+                            <h5>By District:</h5>
+                            ${Object.entries(stats.byDistrict).map(([district, count]) => 
+                                `<div>${district}: ${count}</div>`
+                            ).join('')}
+                            
+                            <h5>By Taluka:</h5>
+                            ${Object.entries(stats.byTaluka).map(([taluka, count]) => 
+                                `<div>${taluka}: ${count}</div>`
+                            ).join('')}
+                            
+                            <h5>By Village:</h5>
+                            ${Object.entries(stats.byVillage).map(([village, count]) => 
+                                `<div>${village}: ${count}</div>`
+                            ).join('')}
+                        </div>
+                    `;
+                } else {
+                    statsDiv.innerHTML = '<div class="status error">❌ Failed to load stats</div>';
+                }
+            } catch (error) {
+                statsDiv.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

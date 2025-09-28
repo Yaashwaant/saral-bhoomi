@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Autocomplete } from '@/components/ui/autocomplete';
 import { 
   Plus, 
   Upload, 
@@ -24,6 +25,7 @@ import {
   Building2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { config } from '@/config';
 import ExactDocumentTable from './ExactDocumentTable';
 
 interface JMRRecord {
@@ -53,6 +55,7 @@ interface JMRRecord {
 }
 
 const JMRManager = () => {
+  console.log('JMRManager component rendering');
   const [activeTab, setActiveTab] = useState('add');
   const [jmrRecords, setJmrRecords] = useState<JMRRecord[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<JMRRecord[]>([]);
@@ -99,30 +102,89 @@ const JMRManager = () => {
 
   // Load JMR records on component mount
   useEffect(() => {
+    console.log('Component mounted, loading JMR records...');
     loadJMRRecords();
   }, []);
 
   // Filter records when search filters change
   useEffect(() => {
+    console.log('Search filters or jmrRecords changed, filtering records...');
+    console.log('jmrRecords type:', typeof jmrRecords);
+    console.log('jmrRecords is array:', Array.isArray(jmrRecords));
+    console.log('jmrRecords length:', jmrRecords?.length);
     filterRecords();
   }, [searchFilters, jmrRecords]);
 
   const loadJMRRecords = async () => {
     setLoading(true);
     try {
-      // Fetch JMR records from MongoDB
-      const response = await fetch('/api/jmr');
-      if (response.ok) {
-        const data = await response.json();
-        setJmrRecords(data);
-      } else {
-        throw new Error('Failed to fetch JMR records');
+      console.log('Loading JMR records...');
+      
+      // Sample data for testing when API is not available
+      const sampleData: JMRRecord[] = [
+        {
+          _id: '1',
+          serialNo: '001',
+          owner_name: 'जॉन डोे',
+          survey_number: '123',
+          sub_division_number: 'A',
+          classification: 'कृषी',
+          area: 2.5,
+          land_record_number: '712/ABC',
+          sampadit_bhumapan_gat: '456',
+          sampadit_hectare: 1.2,
+          sampadit_are: 30,
+          structure_details_note: 'घर',
+          well_details_note: 'विहीर',
+          tree_details_note: 'मango झाडे',
+          project: 'घोळ विकास प्रकल्प',
+          district: 'पुणे',
+          taluka: 'हवेली',
+          village: 'घोळ',
+          measurement_date: '2024-01-15',
+          remarks: 'चांगला प्रकल्प',
+          status: 'approved',
+          createdAt: new Date('2024-01-01'),
+          updatedAt: new Date('2024-01-15')
+        },
+        {
+          _id: '2',
+          serialNo: '002',
+          owner_name: 'जेन स्मिथ',
+          survey_number: '456',
+          sub_division_number: 'B',
+          classification: 'अकृषी',
+          area: 1.8,
+          land_record_number: '712/DEF',
+          project: 'नवी मुंबई विकास प्रकल्प',
+          district: 'मुंबई',
+          taluka: 'अंधेरी',
+          village: 'वर्सोवा',
+          measurement_date: '2024-02-20',
+          remarks: 'उत्कृष्ट स्थान',
+          status: 'submitted'
+        }
+      ];
+      
+      console.log('Using sample data:', sampleData.length);
+      setJmrRecords(sampleData);
+      
+      // Try to fetch from API if available
+      try {
+        const response = await fetch(`${config.API_BASE_URL}/jmr`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('API data loaded:', data.length);
+          setJmrRecords(data);
+        }
+      } catch (apiError) {
+        console.log('API not available, using sample data');
       }
     } catch (error) {
       console.error('Error loading JMR records:', error);
       toast({
         title: "Error",
-        description: "Failed to load JMR records from MongoDB",
+        description: "Failed to load JMR records",
         variant: "destructive"
       });
     } finally {
@@ -131,12 +193,31 @@ const JMRManager = () => {
   };
 
   const filterRecords = () => {
+    console.log('Filtering records:', { 
+      totalRecords: jmrRecords.length, 
+      searchFilters,
+      sampleRecord: jmrRecords[0] 
+    });
+    
+    // Ensure jmrRecords is an array before filtering
+    if (!Array.isArray(jmrRecords)) {
+      console.error('jmrRecords is not an array:', jmrRecords);
+      setFilteredRecords([]);
+      return;
+    }
+    
     let filtered = jmrRecords;
 
     if (searchFilters.project) {
-      filtered = filtered.filter(record => 
-        record.project_id?.toLowerCase().includes(searchFilters.project.toLowerCase())
-      );
+      filtered = filtered.filter(record => {
+        const projectMatch = record.project?.toLowerCase().includes(searchFilters.project.toLowerCase());
+        console.log('Project filter check:', { 
+          recordProject: record.project, 
+          searchProject: searchFilters.project, 
+          match: projectMatch 
+        });
+        return projectMatch;
+      });
     }
     if (searchFilters.district) {
       filtered = filtered.filter(record => 
@@ -154,15 +235,24 @@ const JMRManager = () => {
       );
     }
     
-
+    console.log('Filtered records count:', filtered.length);
     setFilteredRecords(filtered);
   };
 
   const handleInputChange = (field: keyof JMRRecord, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    try {
+      console.log('JMRManager handleInputChange:', { field, value })
+      setFormData(prev => {
+        const newFormData = {
+          ...prev,
+          [field]: value
+        }
+        console.log('New formData:', newFormData)
+        return newFormData
+      })
+    } catch (error) {
+      console.error('Error in JMRManager handleInputChange:', error)
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,7 +306,7 @@ const JMRManager = () => {
     try {
       if (editingRecord) {
         // Update existing record in MongoDB
-        const response = await fetch(`/api/jmr/${editingRecord._id}`, {
+        const response = await fetch(`${config.API_BASE_URL}/jmr/${editingRecord._id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -239,7 +329,7 @@ const JMRManager = () => {
         }
       } else {
         // Add new record to MongoDB
-        const response = await fetch('/api/jmr', {
+        const response = await fetch(`${config.API_BASE_URL}/jmr`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -305,7 +395,7 @@ const JMRManager = () => {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this record?')) {
       try {
-        const response = await fetch(`/api/jmr/${id}`, {
+        const response = await fetch(`${config.API_BASE_URL}/jmr/${id}`, {
           method: 'DELETE',
         });
 
@@ -338,7 +428,7 @@ const JMRManager = () => {
       const formData = new FormData();
       formData.append('csvFile', file);
 
-      const response = await fetch('/api/jmr/upload-csv', {
+      const response = await fetch(`${config.API_BASE_URL}/jmr/upload-csv`, {
         method: 'POST',
         body: formData,
       });
@@ -392,7 +482,9 @@ const JMRManager = () => {
     window.URL.revokeObjectURL(url);
   };
 
-  return (<div className="space-y-6">
+  return (
+    <div className="space-y-6">
+      {console.log('Rendering JMRManager with activeTab:', activeTab, 'filteredRecords:', filteredRecords.length)}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -401,7 +493,10 @@ const JMRManager = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(value) => {
+            console.log('Tab changing from', activeTab, 'to', value);
+            setActiveTab(value);
+          }}>
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="add" className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -411,7 +506,7 @@ const JMRManager = () => {
                 <Upload className="h-4 w-4" />
                 CSV Upload
               </TabsTrigger>
-              <TabsTrigger value="view" className="flex items-center gap-2">
+              <TabsTrigger value="view" className="flex items-center gap-2" onClick={() => console.log('View Records tab clicked!')}>
                 <Search className="h-4 w-4" />
                 View Records
               </TabsTrigger>
@@ -422,38 +517,42 @@ const JMRManager = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="project">प्रकल्प नाव</Label>
-                    <Input
-                      id="project"
+                    <Autocomplete
+                      options={projects}
                       value={formData.project}
-                      onChange={(e) => handleInputChange('project', e.target.value)}
-                      required
+                      onChange={(value) => handleInputChange('project', value)}
+                      placeholder="प्रकल्प निवडा..."
+                      emptyText="कोणताही प्रकल्प सापडला नाही"
                     />
                   </div>
                   <div>
                     <Label htmlFor="district">जिल्हा</Label>
-                    <Input
-                      id="district"
+                    <Autocomplete
+                      options={districts}
                       value={formData.district}
-                      onChange={(e) => handleInputChange('district', e.target.value)}
-                      required
+                      onChange={(value) => handleInputChange('district', value)}
+                      placeholder="जिल्हा निवडा..."
+                      emptyText="कोणताही जिल्हा सापडला नाही"
                     />
                   </div>
                   <div>
                     <Label htmlFor="taluka">तालुका</Label>
-                    <Input
-                      id="taluka"
+                    <Autocomplete
+                      options={talukas}
                       value={formData.taluka}
-                      onChange={(e) => handleInputChange('taluka', e.target.value)}
-                      required
+                      onChange={(value) => handleInputChange('taluka', value)}
+                      placeholder="तालुका निवडा..."
+                      emptyText="कोणताही तालुका सापडला नाही"
                     />
                   </div>
                   <div>
                     <Label htmlFor="village">गाव</Label>
-                    <Input
-                      id="village"
+                    <Autocomplete
+                      options={villages}
                       value={formData.village}
-                      onChange={(e) => handleInputChange('village', e.target.value)}
-                      required
+                      onChange={(value) => handleInputChange('village', value)}
+                      placeholder="गाव निवडा..."
+                      emptyText="कोणताही गाव सापडले नाही"
                     />
                   </div>
 
@@ -644,6 +743,10 @@ const JMRManager = () => {
             </TabsContent>
 
             <TabsContent value="view" className="space-y-6">
+              {/* Debug info */}
+              <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+                Debug: Active tab is {activeTab}, Filtered records: {filteredRecords.length}
+              </div>
               {/* Search Filters */}
               <Card>
                 <CardHeader>
@@ -655,38 +758,70 @@ const JMRManager = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
                         <Label htmlFor="searchProject">प्रकल्प (Project)</Label>
-                        <Input
-                          id="searchProject"
-                          placeholder="प्रकल्प शोधा..."
+                        <Autocomplete
+                          options={projects}
                           value={searchFilters.project}
-                          onChange={(e) => setSearchFilters(prev => ({ ...prev, project: e.target.value }))}
+                          onChange={(value) => {
+                        try {
+                          console.log('Search filter project change:', value)
+                          setSearchFilters(prev => ({ ...prev, project: value }))
+                        } catch (error) {
+                          console.error('Error updating project filter:', error)
+                        }
+                      }}
+                          placeholder="प्रकल्प निवडा..."
+                          emptyText="कोणताही प्रकल्प सापडला नाही"
                         />
                       </div>
                       <div>
                         <Label htmlFor="searchDistrict">जिल्हा (District)</Label>
-                        <Input
-                          id="searchDistrict"
-                          placeholder="जिल्हा शोधा..."
+                        <Autocomplete
+                          options={districts}
                           value={searchFilters.district}
-                          onChange={(e) => setSearchFilters(prev => ({ ...prev, district: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="searchTaluka">तालुका (Taluka)</Label>
-                        <Input
-                          id="searchTaluka"
-                          placeholder="तालुका शोधा..."
-                          value={searchFilters.taluka}
-                          onChange={(e) => setSearchFilters(prev => ({ ...prev, taluka: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="searchVillage">गाव (Village)</Label>
-                        <Input
-                          id="searchVillage"
-                          placeholder="गाव शोधा..."
-                          value={searchFilters.village}
-                          onChange={(e) => setSearchFilters(prev => ({ ...prev, village: e.target.value }))}
+                          onChange={(value) => {
+                        try {
+                          console.log('Search filter district change:', value)
+                          setSearchFilters(prev => ({ ...prev, district: value }))
+                        } catch (error) {
+                          console.error('Error updating district filter:', error)
+                        }
+                      }}
+                           placeholder="जिल्हा निवडा..."
+                           emptyText="कोणताही जिल्हा सापडला नाही"
+                         />
+                       </div>
+                       <div>
+                         <Label htmlFor="searchTaluka">तालुका</Label>
+                         <Autocomplete
+                           options={talukas}
+                           value={searchFilters.taluka}
+                           onChange={(value) => {
+                        try {
+                          console.log('Search filter taluka change:', value)
+                          setSearchFilters(prev => ({ ...prev, taluka: value }))
+                        } catch (error) {
+                          console.error('Error updating taluka filter:', error)
+                        }
+                      }}
+                           placeholder="तालुका निवडा..."
+                           emptyText="कोणताही तालुका सापडला नाही"
+                         />
+                       </div>
+                       <div>
+                         <Label htmlFor="searchVillage">गाव</Label>
+                         <Autocomplete
+                           options={villages}
+                           value={searchFilters.village}
+                           onChange={(value) => {
+                        try {
+                          console.log('Search filter village change:', value)
+                          setSearchFilters(prev => ({ ...prev, village: value }))
+                        } catch (error) {
+                          console.error('Error updating village filter:', error)
+                        }
+                      }}
+                          placeholder="गाव निवडा..."
+                          emptyText="कोणताही गाव सापडले नाही"
                         />
                       </div>
                     </div>
@@ -711,11 +846,13 @@ const JMRManager = () => {
               {/* JMR Records Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle>JMR Records ({filteredRecords.length})</CardTitle>
+                  <CardTitle>JMR Records ({Array.isArray(filteredRecords) ? filteredRecords.length : 'Invalid data'})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <ExactDocumentTable />
+                    {console.log('Rendering ExactDocumentTable with filteredRecords:', filteredRecords)}
+                    {console.log('Is filteredRecords array:', Array.isArray(filteredRecords))}
+                    <ExactDocumentTable records={filteredRecords} />
                   </div>
                 </CardContent>
               </Card>

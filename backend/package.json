@@ -14,7 +14,9 @@
     "cloudinary:test": "node test-cloudinary.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:jmr:pdf": "node scripts/seed-jmr-from-pdf.js --pdf \"d:/Desk_backup/bhoomi saral mvp/ABC/new_saral_bhoomi/saral-bhoomi/घोळ विवरण पत्र दुरुस्ती.pdf\" --project \"Ghoul Project\" --district \"Pune\" --taluka \"Mulshi\" --village \"घोळ\"",
-    "seed:jmrrecords": "node scripts/seedJMRRecords.js"
+    "seed:jmrrecords": "node scripts/seedJMRRecords.js",
+    "seed:jmr:comprehensive": "node scripts/seed-jmr-comprehensive.js",
+    "seed:jmr:mongodb": "node scripts/seed-jmr-mongodb.js"
   },
   "dependencies": {
     "@ethersproject/providers": "^5.8.0",

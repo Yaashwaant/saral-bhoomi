@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { config } from '@/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +35,7 @@ const SurveySearch: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/blockchain/search/${surveyNumber.trim()}`);
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/search/${surveyNumber.trim()}`);
       const data = await response.json();
 
       if (data.success) {

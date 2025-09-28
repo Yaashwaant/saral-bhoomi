@@ -55,13 +55,13 @@ const jmrRecordSchema = new mongoose.Schema({
     enum: ['general', 'sc', 'st', 'obc', 'other']
   },
   structure_details: [{
-    type: String,
+    type: { type: String },
     description: String,
     area: Number,
     value: Number
   }],
   tree_details: [{
-    type: String,
+    type: { type: String },
     count: Number,
     age: Number,
     value: Number
@@ -90,7 +90,7 @@ const jmrRecordSchema = new mongoose.Schema({
   documents: [{
     name: String,
     url: String,
-    type: String,
+    type: { type: String },
     uploaded_at: Date
   }],
   is_active: {

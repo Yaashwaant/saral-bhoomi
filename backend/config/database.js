@@ -5,14 +5,11 @@ dotenv.config({ path: './config.env' });
 
 // MongoDB connection configuration
 const mongoConfig = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   maxPoolSize: parseInt(process.env.DB_POOL_MAX) || 10,
   minPoolSize: parseInt(process.env.DB_POOL_MIN) || 2,
   maxIdleTimeMS: parseInt(process.env.DB_POOL_IDLE) || 10000,
   serverSelectionTimeoutMS: parseInt(process.env.DB_POOL_ACQUIRE) || 30000,
   socketTimeoutMS: 45000,
-  bufferMaxEntries: 0,
   bufferCommands: false,
 };
 

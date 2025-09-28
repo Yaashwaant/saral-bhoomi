@@ -8,36 +8,42 @@ import React from "react";
  * Tailwind CSS classes are used for quick styling. Remove/convert if not using Tailwind.
  */
 
-type Props = {};
+interface JMRRecord {
+  _id?: string;
+  serialNo?: string;
+  survey_number?: string;
+  sub_division_number?: string;
+  classification?: string;
+  area?: number;
+  land_record_number?: string;
+  sampadit_bhumapan_gat?: string;
+  sampadit_hectare?: number;
+  sampadit_are?: number;
+  owner_name?: string;
+  structure_details_note?: string;
+  well_details_note?: string;
+  tree_details_note?: string;
+  remarks?: string;
+  project?: string;
+  district?: string;
+  taluka?: string;
+  village?: string;
+  measurement_date?: string;
+  status?: string;
+}
 
-// Single sample row (numbers follow the screenshot bottom line)
-const sampleRow = {
-  a_kr: "१", // अ.क्र
-  // आकारवंत प्रमाणे
-  aakarvant_bhumapan_gat: "२", // भुमापन गट क्र.
-  aakarvant_jaminicha_prakar: "३", // जमिनीचा प्रकार
-  aakarvant_kshetra_he_ar_madhye: "४", // क्षेत्र हे. आर. मध्ये
-
-  // ७/१२
-  satbara_bhumapan_gat: "५", // ७/१२ -> (भुमापन गट क्र.)
-
-  // संपादित क्षेत्र
-  sampadit_bhumapan_gat: "", // भुमापन गट क्र.
-  sampadit_ek_hektar: "६", // इक्क हेक्टर
-  sampadit_ek_ar: "", // इक्व आर
-
-  // खातेदाराचे नाव
-  khatedar_naw: "७",
-
-  // तपशील
-  tapshil_bandhkam: "८", // बांधकाम
-  tapshil_vihir_company: "९", // विहीर/कंपनीका
-  tapshil_zhade: "१०", // झाडे
-  tapshil_shera: "११", // शेरा
+type Props = {
+  records?: JMRRecord[];
 };
 
-const ExactDocumentTable: React.FC<Props> = () => {
-  const row = sampleRow;
+const ExactDocumentTable: React.FC<Props> = ({ records = [] }) => {
+  console.log('ExactDocumentTable rendering with records:', records);
+  console.log('Records type:', typeof records);
+  console.log('Is array:', Array.isArray(records));
+  
+  // Ensure records is always an array
+  const safeRecords = Array.isArray(records) ? records : [];
+  console.log('Safe records length:', safeRecords.length);
 
   return (
     <div className="p-4 bg-white rounded-md shadow-sm">
@@ -123,32 +129,41 @@ const ExactDocumentTable: React.FC<Props> = () => {
           </thead>
 
           <tbody>
-            {/* single sample row identical to screenshot bottom numbers */}
-            <tr className="odd:bg-white even:bg-gray-50">
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.a_kr}</td>
+            {safeRecords.length === 0 ? (
+              <tr>
+                <td colSpan={12} className="border border-gray-700 px-2 py-8 text-center text-gray-500">
+                  कोणतीही नोंदी सापडली नाहीत
+                </td>
+              </tr>
+            ) : (
+              safeRecords.map((record, index) => (
+                <tr key={record._id || index} className="odd:bg-white even:bg-gray-50">
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.serialNo || index + 1}</td>
 
-              {/* आकारवंत प्रमाणे subcols */}
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.aakarvant_bhumapan_gat}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.aakarvant_jaminicha_prakar}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.aakarvant_kshetra_he_ar_madhye}</td>
+                  {/* आकारवंत प्रमाणे subcols */}
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.survey_number || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.classification || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.area ? `${record.area}` : '-'}</td>
 
-              {/* ७/१२ column */}
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.satbara_bhumapan_gat}</td>
+                  {/* ७/१२ column */}
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.land_record_number || '-'}</td>
 
-              {/* संपादित क्षेत्र subcols */}
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.sampadit_bhumapan_gat}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.sampadit_ek_hektar}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.sampadit_ek_ar}</td>
+                  {/* संपादित क्षेत्र subcols */}
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.sampadit_bhumapan_gat || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.sampadit_hectare ? `${record.sampadit_hectare}` : '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.sampadit_are ? `${record.sampadit_are}` : '-'}</td>
 
-              {/* खातेदाराचे नाव */}
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.khatedar_naw}</td>
+                  {/* खातेदाराचे नाव */}
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.owner_name || '-'}</td>
 
-              {/* तपशील subcols */}
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.tapshil_bandhkam}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.tapshil_vihir_company}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.tapshil_zhade}</td>
-              <td className="border border-gray-700 px-2 py-2 text-center">{row.tapshil_shera}</td>
-            </tr>
+                  {/* तपशील subcols */}
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.structure_details_note || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.well_details_note || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.tree_details_note || '-'}</td>
+                  <td className="border border-gray-700 px-2 py-2 text-center">{record.remarks || '-'}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
