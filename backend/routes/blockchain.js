@@ -995,4 +995,313 @@ router.get('/survey-complete-data/*', [
   }
 });
 
+// ===== ADVANCED SEARCH WITH UNIQUE BLOCK IDENTIFIER =====
+
+/**
+ * @route GET /api/blockchain/search-by-identifier
+ * @desc Search blockchain using unique identifier format: project+district+taluka+village+surveynumber
+ * @access Private (Officers only)
+ */
+router.get('/search-by-identifier', [
+  authMiddleware,
+  query('project').notEmpty().withMessage('Project is required'),
+  query('district').notEmpty().withMessage('District is required'),
+  query('taluka').notEmpty().withMessage('Taluka is required'),
+  query('village').notEmpty().withMessage('Village is required'),
+  query('surveyNumber').notEmpty().withMessage('Survey number is required'),
+  query('includeIntegrity').optional().isBoolean().withMessage('includeIntegrity must be boolean'),
+  query('includeTimeline').optional().isBoolean().withMessage('includeTimeline must be boolean'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { project, district, taluka, village, surveyNumber, includeIntegrity, includeTimeline } = req.query;
+    
+    // Create the unique identifier
+    const uniqueIdentifier = `${project}+${district}+${taluka}+${village}+${surveyNumber}`;
+    
+    // Import required models and services
+    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const surveyService = new SurveyDataAggregationService();
+    
+    // Search for the landowner record using the provided criteria
+    const landownerRecord = await MongoLandownerRecord.findOne({
+      project_id: project,
+      district: { $regex: new RegExp(`^${district}$`, 'i') },
+      taluka: { $regex: new RegExp(`^${taluka}$`, 'i') },
+      village: { $regex: new RegExp(`^${village}$`, 'i') },
+      $or: [
+        { survey_number: surveyNumber },
+        { new_survey_number: surveyNumber },
+        { old_survey_number: surveyNumber }
+      ]
+    });
+
+    // Get complete survey data
+    const surveyData = await surveyService.getCompleteSurveyData(surveyNumber);
+    const summary = surveyService.getSurveyDataSummary(surveyData);
+    
+    // Check blockchain status
+    const blockchainStatus = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    const localBlockchainEntry = await MongoBlockchainLedger.findOne({
+      survey_number: surveyNumber,
+      $or: [
+        { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN', 'LANDOWNER_RECORD_CREATED'] } },
+        { transaction_type: { $exists: true } }
+      ]
+    }).sort({ timestamp: -1 });
+
+    // Get integrity status if requested
+    let integrityReport = null;
+    if (includeIntegrity === 'true') {
+      try {
+        const integrityStatus = await ledgerV2.verify(surveyNumber);
+        integrityReport = {
+          isValid: integrityStatus.isValid,
+          reason: integrityStatus.reason,
+          chainIntegrity: integrityStatus.chain_integrity,
+          dataIntegrity: integrityStatus.data_integrity,
+          blockHash: integrityStatus.block_hash,
+          lastUpdated: integrityStatus.last_updated
+        };
+      } catch (error) {
+        integrityReport = {
+          isValid: false,
+          error: 'Integrity verification failed',
+          details: error.message
+        };
+      }
+    }
+
+    // Get timeline if requested
+    let timelineReport = null;
+    if (includeTimeline === 'true') {
+      try {
+        const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
+        const auditTrail = await enhancedBlockchainService.getAuditTrail(surveyNumber, {
+          projectName: project,
+          district,
+          taluka,
+          village
+        });
+        
+        timelineReport = {
+          totalEvents: timeline.length,
+          events: timeline,
+          auditTrail: auditTrail.success ? auditTrail.localTrail : [],
+          blockchainTrail: auditTrail.success ? auditTrail.blockchainTrail : null,
+          integrityVerified: auditTrail.success ? auditTrail.integrityVerified : false
+        };
+      } catch (error) {
+        timelineReport = {
+          error: 'Timeline retrieval failed',
+          details: error.message
+        };
+      }
+    }
+
+    // Determine overall status
+    const existsInDatabase = !!landownerRecord || Object.values(summary || {}).some(s => s && s.has_data === true);
+    const existsOnBlockchain = !!localBlockchainEntry || !!blockchainStatus;
+    
+    let overallStatus = 'unknown';
+    let statusMessage = '';
+    
+    if (existsInDatabase && existsOnBlockchain) {
+      overallStatus = 'synced';
+      statusMessage = 'Record exists in database and on blockchain';
+    } else if (existsInDatabase && !existsOnBlockchain) {
+      overallStatus = 'database_only';
+      statusMessage = 'Record exists in database but not on blockchain';
+    } else if (!existsInDatabase && existsOnBlockchain) {
+      overallStatus = 'blockchain_only';
+      statusMessage = 'Record exists on blockchain but not in database';
+    } else {
+      overallStatus = 'not_found';
+      statusMessage = 'Record not found in database or on blockchain';
+    }
+
+    // Generate data integrity report
+    const dataIntegrityReport = {
+      uniqueIdentifier,
+      surveyNumber,
+      project,
+      district,
+      taluka,
+      village,
+      overallStatus,
+      statusMessage,
+      existsInDatabase,
+      existsOnBlockchain,
+      landownerRecordFound: !!landownerRecord,
+      blockchainEntry: localBlockchainEntry ? {
+        block_id: localBlockchainEntry.block_id,
+        current_hash: localBlockchainEntry.current_hash,
+        timestamp: localBlockchainEntry.timestamp,
+        event_type: localBlockchainEntry.event_type,
+        officer_id: localBlockchainEntry.officer_id
+      } : null,
+      integrityReport,
+      timelineReport,
+      summary,
+      lastChecked: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      data: dataIntegrityReport
+    });
+  } catch (error) {
+    console.error('❌ Failed to search by identifier:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search by identifier',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/blockchain/block-timeline/:uniqueIdentifier
+ * @desc Get complete timeline for a specific block using unique identifier
+ * @access Private (Officers only)
+ */
+router.get('/block-timeline/:uniqueIdentifier', [
+  authMiddleware,
+  param('uniqueIdentifier').notEmpty().withMessage('Unique identifier is required'),
+  handleValidationErrors
+], async (req, res) => {
+  try {
+    const { uniqueIdentifier } = req.params;
+    
+    // Parse the unique identifier
+    const parts = uniqueIdentifier.split('+');
+    if (parts.length !== 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid unique identifier format. Expected: project+district+taluka+village+surveyNumber'
+      });
+    }
+    
+    const [project, district, taluka, village, surveyNumber] = parts;
+    
+    // Get comprehensive timeline data
+    const timeline = await enhancedBlockchainService.getSurveyTimeline(surveyNumber);
+    const auditTrail = await enhancedBlockchainService.getAuditTrail(surveyNumber, {
+      projectName: project,
+      district,
+      taluka,
+      village
+    });
+    
+    // Get local blockchain ledger entries for this survey
+    const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const ledgerEntries = await MongoBlockchainLedger.find({ 
+      survey_number: surveyNumber 
+    }).sort({ timestamp: 1 });
+
+    // Combine and normalize timeline data
+    const combinedTimeline = [];
+    
+    // Add blockchain ledger entries
+    ledgerEntries.forEach(entry => {
+      combinedTimeline.push({
+        timestamp: entry.timestamp,
+        eventType: entry.event_type,
+        officerId: entry.officer_id,
+        projectId: entry.project_id,
+        metadata: entry.metadata,
+        remarks: entry.remarks,
+        transactionHash: entry.metadata?.transaction_hash,
+        blockNumber: entry.metadata?.block_number,
+        source: 'blockchain_ledger',
+        blockId: entry.block_id
+      });
+    });
+
+    // Add timeline events from enhanced service
+    if (timeline && timeline.length > 0) {
+      timeline.forEach(event => {
+        combinedTimeline.push({
+          timestamp: event.timestamp,
+          eventType: event.event_type || event.action,
+          officerId: event.officer_id,
+          metadata: event.metadata || {},
+          remarks: event.remarks,
+          source: 'timeline_service'
+        });
+      });
+    }
+
+    // Add audit trail events
+    if (auditTrail.success && auditTrail.localTrail && auditTrail.localTrail.length > 0) {
+      auditTrail.localTrail.forEach(event => {
+        combinedTimeline.push({
+          timestamp: event.timestamp,
+          eventType: event.eventType,
+          officerId: event.officerId,
+          metadata: event.metadata,
+          remarks: event.remarks,
+          transactionHash: event.transactionHash,
+          blockNumber: event.blockNumber,
+          source: 'audit_trail'
+        });
+      });
+    }
+
+    // Sort by timestamp and remove duplicates
+    const uniqueTimeline = combinedTimeline
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      .filter((event, index, self) => 
+        index === self.findIndex(e => 
+          e.timestamp.getTime() === event.timestamp.getTime() && 
+          e.eventType === event.eventType &&
+          e.officerId === event.officerId
+        )
+      );
+
+    // Categorize events by workflow stage
+    const categorizedTimeline = {
+      landRecordManagement: uniqueTimeline.filter(e => 
+        ['LANDOWNER_RECORD_CREATED', 'JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN'].includes(e.eventType)
+      ),
+      noticeGeneration: uniqueTimeline.filter(e => 
+        ['Notice_Generated', 'KYC_ASSIGNED', 'KYC_STATUS_UPDATED'].includes(e.eventType)
+      ),
+      fieldOfficer: uniqueTimeline.filter(e => 
+        ['DOCUMENT_UPLOADED', 'KYC_APPROVED', 'DOCUMENT_VERIFIED'].includes(e.eventType)
+      ),
+      paymentSlip: uniqueTimeline.filter(e => 
+        ['PAYMENT_SLIP_GENERATED', 'PAYMENT_RECORDED', 'PAYMENT_STATUS_UPDATED'].includes(e.eventType)
+      ),
+      projectAnalytics: uniqueTimeline.filter(e => 
+        ['Land_Acquired', 'ACQUISITION_COMPLETE', 'PROJECT_ANALYTICS_UPDATED'].includes(e.eventType)
+      )
+    };
+
+    res.json({
+      success: true,
+      uniqueIdentifier,
+      surveyNumber,
+      project,
+      district,
+      taluka,
+      village,
+      timeline: uniqueTimeline,
+      categorizedTimeline,
+      totalEvents: uniqueTimeline.length,
+      auditTrailAvailable: auditTrail.success,
+      integrityVerified: auditTrail.success ? auditTrail.integrityVerified : false,
+      blockchainTrailAvailable: !!auditTrail.blockchainTrail
+    });
+  } catch (error) {
+    console.error('❌ Failed to get block timeline:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get block timeline',
+      error: error.message
+    });
+  }
+});
+
 export default router;

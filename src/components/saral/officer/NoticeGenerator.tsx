@@ -164,15 +164,24 @@ const NoticeGenerator: React.FC = () => {
   };
 
   const downloadHearingNotice = () => {
-    const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>hearing-notice</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${buildHearingNoticeHTML()}</body>\n</html>`;
+    const projectName = hearingForm.projectName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const villageName = hearingForm.village.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const surveyNumbers = hearingForm.surveyNumbers.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().replace(/\s+/g, '_');
+    
+    const filename = `${projectName}_${villageName}_${surveyNumbers}`;
+    const htmlContent = buildHearingNoticeHTML();
+    const html = generatePDFReadyHTML(htmlContent, 'Hearing Notice');
+    
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'hearing-notice.html';
+    a.download = `${filename}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    toast.info('Hearing notice downloaded as HTML. Use your browser\'s Print function to save as PDF.');
   };
 
   const saveHearingNoticeToServer = async () => {
@@ -767,14 +776,42 @@ const NoticeGenerator: React.FC = () => {
 
       if (success) {
         toast.success('Notice assigned to Rajesh Patil - Field Officer for KYC');
+        
         // Update the record status to show it's assigned
-        record.kycStatus = 'assigned';
-        record.assignedAgent = {
-          id: agentId,
-          name: 'Rajesh Patil - Field Officer',
-          phone: fieldOfficer.phone || '+91 9876543216',
-          assignedAt: new Date()
-        };
+        setFilteredRecords(prevRecords => 
+          prevRecords.map(prevRecord => 
+            prevRecord.id === record.id 
+              ? {
+                  ...prevRecord,
+                  kycStatus: 'assigned',
+                  assignedAgent: {
+                    id: agentId,
+                    name: 'Rajesh Patil - Field Officer',
+                    phone: fieldOfficer.phone || '+91 9876543216',
+                    assignedAt: new Date()
+                  }
+                }
+              : prevRecord
+          )
+        );
+        
+        // Also update the landownerRecords in the parent component
+        setLandownerRecords(prevRecords => 
+          prevRecords.map(prevRecord => 
+            prevRecord.id === record.id 
+              ? {
+                  ...prevRecord,
+                  kycStatus: 'assigned',
+                  assignedAgent: {
+                    id: agentId,
+                    name: 'Rajesh Patil - Field Officer',
+                    phone: fieldOfficer.phone || '+91 9876543216',
+                    assignedAt: new Date()
+                  }
+                } as any
+              : prevRecord
+          )
+        );
       } else {
         toast.error('Failed to assign notice for KYC');
       }
@@ -784,17 +821,163 @@ const NoticeGenerator: React.FC = () => {
     }
   };
 
+  const generateBulkNotices = async () => {
+    const selectedRecordsData = filteredRecords.filter(record => 
+      selectedRecords.includes(record.id) && !record.noticeGenerated
+    );
+    
+    if (selectedRecordsData.length === 0) {
+      toast.error('No pending notices selected for bulk generation');
+      return;
+    }
+
+    setLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Process notices sequentially to avoid overwhelming the server
+      for (const record of selectedRecordsData) {
+        try {
+          await generateNoticeFromRecord(record);
+          successCount++;
+          
+          // Small delay between requests to prevent server overload
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Failed to generate notice for record ${record.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully generated ${successCount} notices${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
+      }
+      
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} notices failed to generate. Please try again.`);
+      }
+    } catch (error) {
+      console.error('Bulk notice generation error:', error);
+      toast.error('Bulk notice generation failed');
+    } finally {
+      setLoading(false);
+      // Clear selections after bulk operation
+      setSelectedRecords([]);
+    }
+  };
+
+  const assignBulkToKyc = async () => {
+    const selectedRecordsWithNotices = filteredRecords.filter(record => 
+      selectedRecords.includes(record.id) && record.noticeGenerated && !record.kycStatus
+    );
+    
+    if (selectedRecordsWithNotices.length === 0) {
+      toast.error('No generated notices selected for bulk KYC assignment');
+      return;
+    }
+
+    setLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      // Process KYC assignments sequentially
+      for (const record of selectedRecordsWithNotices) {
+        try {
+          await assignToKycFromRecord(record);
+          successCount++;
+          
+          // Small delay between requests
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Failed to assign KYC for record ${record.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully assigned ${successCount} notices for KYC${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
+      }
+      
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} KYC assignments failed. Please try again.`);
+      }
+    } catch (error) {
+      console.error('Bulk KYC assignment error:', error);
+      toast.error('Bulk KYC assignment failed');
+    } finally {
+      setLoading(false);
+      // Clear selections after bulk operation
+      setSelectedRecords([]);
+    }
+  };
+
+  const generatePDFFilename = (record: any) => {
+    const projectName = record.projectName || record.project?.name || 'unknown-project';
+    const villageName = record.villageName || record.village || 'unknown-village';
+    const surveyNumber = record.surveyNumber || record.surveyNumber || 'unknown-survey';
+    
+    // Clean the names by removing special characters and spaces
+    const cleanProject = projectName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanVillage = villageName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanSurvey = surveyNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    
+    return `${cleanProject}_${cleanVillage}_${cleanSurvey}`;
+  };
+
+  const generatePDFReadyHTML = (content: string, title: string = 'Notice') => {
+    return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <style>
+      body { 
+        font-family: Arial, 'Noto Sans', sans-serif; 
+        line-height: 1.6; 
+        color: #000; 
+        margin: 20px;
+        font-size: 14px;
+      }
+      .notice-content { 
+        white-space: pre-wrap; 
+        word-wrap: break-word;
+      }
+      @media print {
+        body { margin: 10px; }
+        .no-print { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="notice-content">${content}</div>
+    <script>
+      // Auto-trigger print dialog for PDF generation
+      window.onload = function() {
+        window.print();
+      };
+    </script>
+  </body>
+</html>`;
+  };
+
   const downloadNoticeFromRecord = (record: any) => {
     const content = record.noticeContent || generateNoticeContent(record);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    const filename = generatePDFFilename(record);
+    const html = generatePDFReadyHTML(content, 'Land Acquisition Notice');
+    
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `notice-${record.noticeNumber || record.id}.txt`;
+    a.download = `${filename}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    toast.info('Notice downloaded as HTML. Use your browser\'s Print function to save as PDF.');
   };
 
   const previewNotice = (recordId: string) => {
@@ -811,29 +994,26 @@ const NoticeGenerator: React.FC = () => {
 
   const downloadNotice = (notice: GeneratedNotice) => {
     const noticeNumber = notice.noticeNumber || `notice-${notice.id}`;
-    const html = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${noticeNumber}</title>
-    <style>
-      body { font-family: Arial, 'Noto Sans', sans-serif; line-height: 1.5; color: #111; }
-      table { border-collapse: collapse; width: 100%; }
-      table, th, td { border: 1px solid #555; }
-      th, td { padding: 6px 8px; text-align: left; }
-    </style>
-  </head>
-  <body>${notice.content}</body>
-</html>`;
+    
+    // Find the corresponding landowner record to get project, village, and survey details
+    const record = landownerRecords.find(r => r.id === notice.landownerId);
+    let filename = noticeNumber;
+    
+    if (record) {
+      filename = generatePDFFilename(record);
+    }
+    
+    const html = generatePDFReadyHTML(notice.content, `Notice ${noticeNumber}`);
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `notice-${noticeNumber}.html`;
+    a.download = `${filename}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    toast.info('Notice downloaded as HTML. Use your browser\'s Print function to save as PDF.');
   };
 
   const printNotice = (notice: GeneratedNotice) => {
@@ -1045,13 +1225,33 @@ const NoticeGenerator: React.FC = () => {
         const data = await response.json();
         toast.success('Notice generated successfully');
         
-        // Update the record locally to show the change
-        record.noticeGenerated = true;
-        record.noticeNumber = data.data.notice_number;
-        record.noticeDate = data.data.notice_date;
+        // Update the record locally to show the change immediately
+        setFilteredRecords(prevRecords => 
+          prevRecords.map(prevRecord => 
+            prevRecord.id === record.id 
+              ? {
+                  ...prevRecord,
+                  noticeGenerated: true,
+                  noticeNumber: data.data.notice_number,
+                  noticeDate: data.data.notice_date
+                }
+              : prevRecord
+          )
+        );
         
-        // Reload the records to update the UI
-        loadLandRecords();
+        // Also update the landownerRecords in the parent component
+        setLandownerRecords(prevRecords => 
+          prevRecords.map(prevRecord => 
+            prevRecord.id === record.id 
+              ? {
+                  ...prevRecord,
+                  noticeGenerated: true,
+                  noticeNumber: data.data.notice_number,
+                  noticeDate: data.data.notice_date
+                } as any
+              : prevRecord
+          )
+        );
         
         // Record blockchain event
         await recordBlockchainEvent(safeField(record, 'स.नं./हि.नं./ग.नं.'), 'NOTICE_GENERATED', {
@@ -1059,6 +1259,9 @@ const NoticeGenerator: React.FC = () => {
           landowner_name: safeField(record, 'खातेदाराचे_नांव'),
           notice_number: data.data.notice_number
         });
+        
+        // Also reload from server to ensure consistency
+        setTimeout(() => loadLandRecords(), 1000);
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || 'Failed to generate notice');
@@ -1446,10 +1649,40 @@ const NoticeGenerator: React.FC = () => {
       {/* Survey Numbers Table */}
       <Card>
         <CardHeader>
-          <CardTitle>KYC Assignment ({filteredRecords.length})</CardTitle>
-          <CardDescription>
-            View/download notice and assign directly for KYC
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>KYC Assignment ({filteredRecords.length})</CardTitle>
+              <CardDescription>
+                View/download notice and assign directly for KYC
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+            {selectedRecords.length > 0 && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={generateBulkNotices}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate {selectedRecords.length} Notices
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={assignBulkToKyc}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Assign {selectedRecords.length} to KYC
+                </Button>
+              </>
+            )}
+          </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -1739,16 +1972,37 @@ const NoticeGenerator: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Button onClick={() => {
-                const html = `<!DOCTYPE html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>notice-preview</title>\n    <style>body{font-family:Arial,'Noto Sans',sans-serif;line-height:1.5;color:#111}table{border-collapse:collapse;width:100%}table,th,td{border:1px solid #555}th,td{padding:6px 8px;text-align:left}</style>\n  </head>\n  <body>${previewContent}</body>\n</html>`;
+                // Try to find the current record being previewed to generate proper filename
+                let filename = 'notice-preview';
+                
+                // If we're previewing a specific record, try to get its details
+                const currentRecord = filteredRecords.find(r => 
+                  previewContent.includes(r.खातेदाराचे_नांव) || 
+                  previewContent.includes(r.surveyNumber)
+                );
+                
+                if (currentRecord) {
+                  filename = generatePDFFilename(currentRecord);
+                } else if (selectedRecords.length > 0) {
+                  // Try to use the first selected record
+                  const firstSelected = landownerRecords.find(r => r.id === selectedRecords[0]);
+                  if (firstSelected) {
+                    filename = generatePDFFilename(firstSelected);
+                  }
+                }
+                
+                const html = generatePDFReadyHTML(previewContent, 'Notice Preview');
                 const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'notice-preview.html';
+                a.download = `${filename}.html`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+                
+                toast.info('Preview downloaded as HTML. Use your browser\'s Print function to save as PDF.');
               }}>
                 <Download className="h-4 w-4 mr-2" />
                 Download Preview

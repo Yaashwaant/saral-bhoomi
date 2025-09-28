@@ -241,11 +241,17 @@ const BlockchainDashboard: React.FC = () => {
   };
 
   // Fetch surveys with basic blockchain presence (fast)
-  const fetchSurveyOverview = async () => {
+  const fetchSurveyOverview = async (selectedProjectId?: string) => {
     try {
       setOverviewLoading(true);
+      // Build query parameters including optional project filter
+      const params = new URLSearchParams();
+      params.set('limit', '200');
+      if (selectedProjectId || projectId) {
+        params.set('projectId', selectedProjectId || projectId);
+      }
       // Prefer landowner row-based uniqueness (projectId:newSurvey:CTS)
-      const resp = await fetch(`${config.API_BASE_URL}/blockchain/landowners-with-status?limit=200`, {
+      const resp = await fetch(`${config.API_BASE_URL}/blockchain/landowners-with-status?${params.toString()}`, {
         headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' }
       });
       if (!resp.ok) throw new Error('Failed to fetch overview');
@@ -413,20 +419,60 @@ const BlockchainDashboard: React.FC = () => {
       if (taluka) qs.set('taluka', taluka);
       if (village) qs.set('village', village);
 
-      const [completeDataResponse, searchResponse, timelineResponse, integrityResponse] = await Promise.all([
-        fetch(`${config.API_BASE_URL}/blockchain/survey-complete-data/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
-          headers: demoHeaders
-        }),
-        fetch(`${config.API_BASE_URL}/blockchain/search/${encodeURIComponent(searchSurvey)}?includeIntegrity=true${qs.toString() ? `&${qs.toString()}` : ''}`, {
-          headers: demoHeaders
-        }),
-        fetch(`${config.API_BASE_URL}/blockchain/survey-timeline/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
-          headers: demoHeaders
-        }),
-        fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
-          headers: demoHeaders
-        })
-      ]);
+      // Check if search input matches the unique identifier format (project+district+taluka+village+surveynumber)
+      const identifierParts = searchSurvey.split('+');
+      let searchMethod = 'surveyNumber';
+      let searchParams = { surveyNumber: searchSurvey };
+      
+      if (identifierParts.length === 5) {
+        // Use unique identifier search format
+        searchMethod = 'identifier';
+        searchParams = {
+          project: identifierParts[0],
+          district: identifierParts[1], 
+          taluka: identifierParts[2],
+          village: identifierParts[3],
+          surveyNumber: identifierParts[4]
+        };
+      }
+
+      let searchResponse, timelineResponse, integrityResponse, completeDataResponse;
+      
+      if (searchMethod === 'identifier') {
+        // Use new unique identifier search endpoints
+        const identifierString = `${searchParams.project}+${searchParams.district}+${searchParams.taluka}+${searchParams.village}+${searchParams.surveyNumber}`;
+        
+        [searchResponse, timelineResponse, integrityResponse, completeDataResponse] = await Promise.all([
+          fetch(`${config.API_BASE_URL}/blockchain/search-by-identifier/${encodeURIComponent(identifierString)}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/block-timeline/${encodeURIComponent(identifierString)}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(identifierString)}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/survey-complete-data/${encodeURIComponent(searchParams.surveyNumber)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
+            headers: demoHeaders
+          })
+        ]);
+      } else {
+        // Use existing survey number search
+        [completeDataResponse, searchResponse, timelineResponse, integrityResponse] = await Promise.all([
+          fetch(`${config.API_BASE_URL}/blockchain/survey-complete-data/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/search/${encodeURIComponent(searchSurvey)}?includeIntegrity=true${qs.toString() ? `&${qs.toString()}` : ''}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/survey-timeline/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
+            headers: demoHeaders
+          }),
+          fetch(`${config.API_BASE_URL}/blockchain/verify-integrity/${encodeURIComponent(searchSurvey)}${qs.toString() ? `?${qs.toString()}` : ''}`, {
+            headers: demoHeaders
+          })
+        ]);
+      }
 
       const completeData = completeDataResponse.ok ? await completeDataResponse.json() : null;
       const searchData = searchResponse.ok ? await searchResponse.json() : null;
@@ -1020,9 +1066,37 @@ const BlockchainDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Surveys Overview</CardTitle>
+                <div className="flex items-center gap-4">
+                  <CardTitle>Surveys Overview</CardTitle>
+                  <Popover open={openProjectCombo} onOpenChange={setOpenProjectCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-[200px] justify-between"
+                      >
+                        {projectId ? (projects.find(p => String(p.id) === String(projectId))?.projectName || 'All Projects') : 'All Projects'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[280px]">
+                      <Command>
+                        <CommandInput placeholder="Search project..." value={projectQuery} onValueChange={setProjectQuery} />
+                        <CommandList>
+                          <CommandItem value="__all__" onSelect={() => { setProjectId(''); setOpenProjectCombo(false); }}>All Projects</CommandItem>
+                          {(projects || []).map((p: any) => (
+                            <CommandItem key={`overview-p-${p.id}`} value={String(p.projectName || p.projectNumber || p.id)} onSelect={() => { setProjectId(String(p.id)); setOpenProjectCombo(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${String(projectId) === String(p.id) ? 'opacity-100' : 'opacity-0'}`} />
+                              {p.projectName}
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <div className="flex items-center gap-2">
-                  <Button onClick={fetchSurveyOverview} variant="outline" disabled={overviewLoading}>
+                  <Button onClick={() => fetchSurveyOverview()} variant="outline" disabled={overviewLoading}>
                     {overviewLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                     Load
                   </Button>
@@ -1034,10 +1108,14 @@ const BlockchainDashboard: React.FC = () => {
                     onClick={async () => {
                       try {
                         setOverviewLoading(true);
+                        const body: any = { officer_id: 'demo-officer' };
+                        if (projectId) {
+                          body.project_id = projectId;
+                        }
                         const resp = await fetch(`${config.API_BASE_URL}/blockchain/bulk-landowner-row-sync`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-                          body: JSON.stringify({ officer_id: 'demo-officer' })
+                          body: JSON.stringify(body)
                         });
                         if (resp.ok) {
                           const data = await resp.json();
@@ -1081,6 +1159,7 @@ const BlockchainDashboard: React.FC = () => {
                     <thead>
                       <tr className="text-left border-b">
                         <th className="p-2">Row Key</th>
+                        <th className="p-2">Project</th>
                         <th className="p-2">Owner</th>
                         <th className="p-2">New Survey</th>
                         <th className="p-2">CTS</th>
@@ -1094,6 +1173,7 @@ const BlockchainDashboard: React.FC = () => {
                       {surveyOverview.map((s, idx) => (
                         <tr key={`${s.row_key || 'rk'}-${s.blockchain_block_id || s.blockchain_hash || 'noblock'}-${idx}`} className="border-b">
                           <td className="p-2 font-mono text-xs">{s.row_key}</td>
+                          <td className="p-2">{projects.find(p => String(p.id) === String(s.project_id))?.projectName || s.project_id || '-'}</td>
                           <td className="p-2">{s.landowner_name || '-'}</td>
                           <td className="p-2">{s.new_survey_number || '-'}</td>
                           <td className="p-2">{s.cts_number || '-'}</td>
@@ -1320,10 +1400,13 @@ const BlockchainDashboard: React.FC = () => {
                 </div>
                 <div className="col-span-1">
                 <Input
-                  placeholder="Enter Survey Number"
+                  placeholder="Survey Number or Project+District+Taluka+Village+SurveyNumber"
                   value={searchSurvey}
                   onChange={(e) => setSearchSurvey(e.target.value)}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter survey number or use format: Project+District+Taluka+Village+SurveyNumber
+                </p>
                 </div>
                 <div className="col-span-1 flex">
                   <Button className="w-full" onClick={handleSearch} disabled={loading || loadingLocations || !searchSurvey.trim()}>
@@ -1781,6 +1864,54 @@ const BlockchainDashboard: React.FC = () => {
                      </CardContent>
                    </Card>
 
+                   {/* Data Integrity Report */}
+                   {searchResults.integrityDetails && (
+                     <Card className="border-2 border-green-200 bg-green-50">
+                       <CardHeader className="pb-2">
+                         <CardTitle className="text-sm flex items-center gap-2">
+                           <Shield className="h-4 w-4" />
+                           Data Integrity Report
+                           <Badge 
+                             variant={
+                               searchResults.integrityDetails.isValid ? "default" : 
+                               searchResults.integrityDetails.isValid === false ? "destructive" : "secondary"
+                             } 
+                             className="text-xs"
+                           >
+                             {searchResults.integrityDetails.isValid ? 'Verified' :
+                              searchResults.integrityDetails.isValid === false ? 'Compromised' : 'Unknown'}
+                           </Badge>
+                         </CardTitle>
+                       </CardHeader>
+                       <CardContent className="pt-0">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                           <div>
+                             <span className="font-medium text-gray-600">Verification Method:</span>
+                             <p className="font-semibold">{searchResults.integrityDetails.verificationMethod || 'Blockchain'}</p>
+                           </div>
+                           <div>
+                             <span className="font-medium text-gray-600">Original Hash:</span>
+                             <p className="font-mono text-xs break-all">{searchResults.integrityDetails.originalHash || 'N/A'}</p>
+                           </div>
+                           <div>
+                             <span className="font-medium text-gray-600">Current Hash:</span>
+                             <p className="font-mono text-xs break-all">{searchResults.integrityDetails.currentHash || 'N/A'}</p>
+                           </div>
+                           <div>
+                             <span className="font-medium text-gray-600">Last Verified:</span>
+                             <p className="font-semibold">{searchResults.integrityDetails.lastUpdated ? new Date(searchResults.integrityDetails.lastUpdated).toLocaleString() : 'N/A'}</p>
+                           </div>
+                         </div>
+                         {searchResults.integrityDetails.reason && (
+                           <div className="mt-3 p-2 bg-blue-100 rounded">
+                             <span className="font-medium text-gray-600">Verification Details:</span>
+                             <p className="text-sm mt-1">{searchResults.integrityDetails.reason}</p>
+                           </div>
+                         )}
+                       </CardContent>
+                     </Card>
+                   )}
+
                    {/* Timeline Events */}
                   <div className="space-y-3">
                      <h3 className="font-semibold text-lg">Timeline Events</h3>
@@ -1788,7 +1919,7 @@ const BlockchainDashboard: React.FC = () => {
                      {searchResults.timeline && searchResults.timeline.length > 0 ? (
                        <div className="space-y-3">
                          <div className="text-center py-2 text-gray-500">
-                           <p className="text-sm">Found {searchResults.timelineCount} timeline events</p>
+                           <p className="text-sm">Found {searchResults.timelineCount} timeline events showing all authorized steps and edits</p>
                   </div>
                          
                          {/* Display actual timeline events */}
@@ -1796,19 +1927,94 @@ const BlockchainDashboard: React.FC = () => {
                            {searchResults.timeline.map((event, index) => (
                             <div
                               key={`${event?.timestamp || event?.block_id || event?.current_hash || event?.data_hash || index}-${event?.event_type || event?.action || 'evt'}`}
-                              className="flex items-center gap-3 p-3 border rounded-lg bg-white"
+                              className="p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
                             >
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <div className="flex-1">
-                                 <p className="font-medium">{event.event_type || event.action || `Event #${index + 1}`}</p>
-                                 <p className="text-sm text-gray-600">{event.remarks || event.details || 'Event details'}</p>
-                                 <p className="text-xs text-gray-500">
-                                   {event.timestamp ? new Date(event.timestamp).toLocaleString() : 'Timestamp N/A'}
-                                 </p>
-                        </div>
-                               <Badge variant="outline">{event.event_type || event.action || 'Event'}</Badge>
-                      </div>
-                    ))}
+                              <div className="flex items-start gap-3">
+                                <div className={`w-3 h-3 rounded-full mt-2 ${
+                                  event.event_type?.includes('block') ? 'bg-green-500' :
+                                  event.event_type?.includes('edit') ? 'bg-orange-500' :
+                                  event.event_type?.includes('auth') ? 'bg-blue-500' :
+                                  event.event_type?.includes('payment') ? 'bg-purple-500' :
+                                  event.event_type?.includes('notice') ? 'bg-red-500' : 'bg-gray-500'
+                                }`}></div>
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-medium text-gray-900">
+                                        {event.event_type || event.action || `Event #${index + 1}`}
+                                      </p>
+                                      <p className="text-sm text-gray-600">
+                                        {event.remarks || event.details || 'Event details'}
+                                      </p>
+                                    </div>
+                                    <Badge 
+                                      variant={
+                                        event.event_type?.includes('block') ? "default" :
+                                        event.event_type?.includes('edit') ? "destructive" :
+                                        event.event_type?.includes('auth') ? "secondary" : "outline"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {event.event_type?.split('_').join(' ') || event.action || 'Event'}
+                                    </Badge>
+                                  </div>
+                                  
+                                  <div className="text-xs text-gray-500 space-y-1">
+                                    <div className="flex justify-between">
+                                      <span>
+                                        {event.timestamp ? new Date(event.timestamp).toLocaleString() : 'Timestamp N/A'}
+                                      </span>
+                                      <span className="font-medium">
+                                        {event.officer_id ? `Officer: ${event.officer_id}` : 
+                                         event.portal ? `Portal: ${event.portal}` : ''}
+                                      </span>
+                                    </div>
+                                    
+                                    {event.blockHash && (
+                                      <div>
+                                        <span className="font-medium text-gray-600">Block Hash:</span>
+                                        <p className="font-mono text-xs break-all bg-gray-50 p-1 rounded">
+                                          {event.blockHash}
+                                        </p>
+                                      </div>
+                                    )}
+                                    
+                                    {event.dataHash && (
+                                      <div>
+                                        <span className="font-medium text-gray-600">Data Hash:</span>
+                                        <p className="font-mono text-xs break-all bg-gray-50 p-1 rounded">
+                                          {event.dataHash}
+                                        </p>
+                                      </div>
+                                    )}
+                                    
+                                    {event.previousHash && (
+                                      <div>
+                                        <span className="font-medium text-gray-600">Previous Hash:</span>
+                                        <p className="font-mono text-xs break-all bg-gray-50 p-1 rounded">
+                                          {event.previousHash}
+                                        </p>
+                                      </div>
+                                    )}
+                                    
+                                    {event.integrityStatus && (
+                                      <div className="pt-2">
+                                        <Badge 
+                                          variant={
+                                            event.integrityStatus === 'valid' ? 'default' :
+                                            event.integrityStatus === 'compromised' ? 'destructive' : 'secondary'
+                                          }
+                                          className="text-xs"
+                                        >
+                                          Integrity: {event.integrityStatus}
+                                        </Badge>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                   </div>
                          
                          <div className="text-center">
