@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Saral Bhoomi - Blockchain-based Land Acquisition Records Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        // Custom Blue Theme based on the images
+                        primary: "#1E40AF", // Dark Blue for main accents (like button backgrounds)
+                        "text-dark-blue": "#1F2937", // Dark text color
+                        "background-blue-light": "#F0F4FF", // Very light blue background used in sections
+                        "hero-overlay": "rgba(0, 0, 0, 0.4)", // Dark overlay for the hero image
+                        "subtext-light": "#6B7280",
+                    },
+                    fontFamily: {
+                        display: ["Poppins", "sans-serif"],
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+        .hero-bg {
+            /* Using the specific Collector Office image provided by the user */
+            background-image: url('https://uploads.onecompiler.io/43y3qta3b/43y3qrfw2/collector-office-C_s_O94C.jpeg');
+            background-size: cover;
+            background-position: center;
+        }
+        /* Style for the step numbers in the "How It Works" section */
+        .step-number {
+            background-color: #FBBF24; /* Amber/Yellow circle */
+            color: #1F2937;
+            font-weight: 600;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body class="bg-white font-display">
+<div class="min-h-screen">
+
+<header class="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-20">
+<div class="container mx-auto px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center text-lg font-bold text-text-dark-blue">
+        <img src="/uploads/emblem-of-india.png" alt="Government of India Emblem" class="h-10 w-auto md:h-12 mr-3 object-contain shrink-0" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/4/4b/Emblem_of_India.svg';"/>
+        Palghar Collector Office
+    </div>
+    <nav class="hidden md:flex items-center space-x-6 text-sm font-medium text-text-dark-blue">
+        <a class="hover:text-primary" href="#">Why</a>
+        <a class="hover:text-primary" href="#">How It Works</a>
+        <a class="hover:text-primary" href="#">Live Stats</a>
+        <a class="hover:text-primary" href="#">Stakeholders</a>
+    </nav>
+    <a class="bg-primary text-white px-4 py-2 rounded font-semibold text-sm hover:bg-opacity-90 transition inline-flex items-center" href="#">
+        <span class="material-icons text-base mr-1">login</span>
+        Login / Get Started
+    </a>
+</div>
+</header>
+
+<main class="hero-bg relative py-32 md:py-48">
+    <div class="absolute inset-0" style="background-color: rgba(0, 0, 0, 0.4);"></div>
+    <div class="container mx-auto px-6 relative z-10 text-center">
+        <h1 class="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">Saral Bhoomi – Blockchain-based Land Acquisition Records Portal</h1>
+        <p class="text-lg text-white font-medium mb-4">
+            SARAL: System for Automated Resourceful Acquisition of Land
+        </p>
+        <p class="text-base text-white opacity-90 mb-8">
+            Transparent. Secure. Citizen-Centric.
+        </p>
+        <button id="loginBtn" class="bg-primary text-white px-8 py-3 rounded font-semibold text-lg hover:bg-opacity-90 transition inline-flex items-center">
+            <span class="material-icons text-xl mr-2">arrow_right_alt</span>
+            Login / Get Started
+        </button>
+    </div>
+</main>
+
+<section class="py-16 bg-white">
+<div class="container mx-auto px-6">
+    <h2 class="text-3xl font-extrabold text-text-dark-blue mb-12">Why Saral Bhoomi?</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow-lg border border-gray-100">
+            <div class="flex items-center mb-3">
+                <span class="material-icons text-primary text-3xl mr-3">check_circle</span>
+                <h3 class="text-xl font-bold text-text-dark-blue">Immutable & Secure</h3>
+            </div>
+            <p class="text-subtext-light">Blockchain-based, tamper-proof records.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-lg border border-gray-100">
+            <div class="flex items-center mb-3">
+                <span class="material-icons text-primary text-3xl mr-3">insights</span>
+                <h3 class="text-xl font-bold text-text-dark-blue">Real-Time Updates</h3>
+            </div>
+            <p class="text-subtext-light">Records updated instantly.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-lg border border-gray-100">
+            <div class="flex items-center mb-3">
+                <span class="material-icons text-primary text-3xl mr-3">visibility</span>
+                <h3 class="text-xl font-bold text-text-dark-blue">Transparent Records</h3>
+            </div>
+            <p class="text-subtext-light">Orders and compensation in one place.</p>
+        </div>
+    </div>
+</div>
+</section>
+
+<section class="py-16 bg-background-blue-light">
+<div class="container mx-auto px-6 max-w-4xl">
+    <h2 class="text-3xl font-extrabold text-text-dark-blue mb-12">How It Works</h2>
+    <div class="space-y-6">
+        
+        <div class="flex items-start bg-white p-5 rounded-lg shadow-md border border-gray-100">
+            <div class="step-number mr-4">1</div>
+            <div>
+                <h3 class="text-lg font-bold text-text-dark-blue mb-1">Automated Notice Generation</h3>
+                <p class="text-subtext-light">System issues notices based on case triggers and schedules.</p>
+            </div>
+        </div>
+        
+        <div class="flex items-start bg-white p-5 rounded-lg shadow-md border border-gray-100">
+            <div class="step-number mr-4">2</div>
+            <div>
+                <h3 class="text-lg font-bold text-text-dark-blue mb-1">Record Authentication</h3>
+                <p class="text-subtext-light">Documents hashed on-chain ensuring provenance and integrity.</p>
+            </div>
+        </div>
+        
+        <div class="flex items-start bg-white p-5 rounded-lg shadow-md border border-gray-100">
+            <div class="step-number mr-4">3</div>
+            <div>
+                <h3 class="text-lg font-bold text-text-dark-blue mb-1">Review & Approval</h3>
+                <p class="text-subtext-light">Multi-level workflow for officers with clear status updates.</p>
+            </div>
+        </div>
+        
+        <div class="flex items-start bg-white p-5 rounded-lg shadow-md border border-gray-100">
+            <div class="step-number mr-4">4</div>
+            <div>
+                <h3 class="text-lg font-bold text-text-dark-blue mb-1">Audit & History</h3>
+                <p class="text-subtext-light">Immutable audit trail and complete case history for transparency.</p>
+            </div>
+        </div>
+    </div>
+</div>
+</section>
+
+<section class="py-16 bg-white">
+<div class="container mx-auto px-6">
+    <h2 class="text-3xl font-extrabold text-text-dark-blue mb-12">Live Dashboard Snapshot</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-text-dark-blue">Total Land Loaded (Ha)</div>
+                <span class="material-icons text-primary">map</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-primary">1,245</div>
+        </div>
+        <div class="p-5 rounded-lg shadow-sm border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-text-dark-blue">Notices Issued</div>
+                <span class="material-icons text-indigo-600">receipt_long</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-indigo-600">2,560</div>
+        </div>
+        <div class="p-5 rounded-lg shadow-sm border border-teal-200 bg-gradient-to-br from-teal-50 to-teal-100">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-text-dark-blue">Budget Spent To-Date</div>
+                <span class="material-icons text-teal-600">account_balance_wallet</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-teal-600">₹4.2 Cr</div>
+        </div>
+        <div class="p-5 rounded-lg shadow-sm border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-text-dark-blue">Payments Completed</div>
+                <span class="material-icons text-emerald-600">task_alt</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-emerald-600">1,130</div>
+        </div>
+        <div class="p-5 rounded-lg shadow-sm border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100">
+            <div class="flex items-center justify-between">
+                <div class="text-sm font-semibold text-text-dark-blue">Total Acquired Area (Ha)</div>
+                <span class="material-icons text-orange-600">terrain</span>
+            </div>
+            <div class="mt-2 text-3xl font-extrabold text-orange-600">420</div>
+        </div>
+    </div>
+</div>
+</section>
+
+<section class="py-16 bg-background-blue-light">
+<div class="container mx-auto px-6">
+    <h2 class="text-3xl font-extrabold text-text-dark-blue mb-12">Who Uses It</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center flex flex-col items-center">
+            <span class="material-icons text-primary text-4xl mb-3">map</span>
+            <h3 class="text-xl font-bold text-text-dark-blue mb-1">Field Officer</h3>
+            <p class="text-subtext-light text-center">Upload survey data.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center flex flex-col items-center">
+            <span class="material-icons text-primary text-4xl mb-3">verified</span>
+            <h3 class="text-xl font-bold text-text-dark-blue mb-1">Officer</h3>
+            <p class="text-subtext-light text-center">Verify & approve records.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 text-center flex flex-col items-center">
+            <span class="material-icons text-primary text-4xl mb-3">security</span>
+            <h3 class="text-xl font-bold text-text-dark-blue mb-1">Administrator</h3>
+            <p class="text-subtext-light text-center">Oversight & audit control.</p>
+        </div>
+    </div>
+</div>
+</section>
+
+<footer class="bg-white border-t border-gray-200">
+<div class="container mx-auto px-6 py-8 flex flex-wrap justify-between items-start text-text-dark-blue">
+    
+    <div class="w-full md:w-1/3 mb-6 md:mb-0">
+        <div class="flex items-center mb-2">
+            <img src="/uploads/emblem-of-india.png" alt="Government of India Emblem" class="h-10 w-auto md:h-12 mr-3 object-contain shrink-0" onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/commons/4/4b/Emblem_of_India.svg';"/>
+            <!-- Removed broken Palghar logo image -->
+            <div>
+                <p class="font-bold text-lg">Palghar Collector Office</p>
+                <p class="text-sm text-subtext-light">Saral Bhoomi – Official Portal</p>
+            </div>
+        </div>
+        <p class="text-xs text-subtext-light mt-4">Palghar, Maharashtra 401404</p>
+    </div>
+    
+    <div class="w-full md:w-1/3 mb-6 md:mb-0 text-center">
+        <p class="text-xs text-subtext-light mt-4">Last updated: 28 Sep 2025</p>
+    </div>
+    
+    <div class="w-full md:w-1/3 text-right">
+        <h3 class="font-bold mb-2">Quick Links</h3>
+        <div class="flex flex-col space-y-1 text-sm">
+            <a href="#" class="text-subtext-light hover:text-primary">Home</a>
+            <a href="#" class="text-subtext-light hover:text-primary">About</a>
+            <a href="#" class="text-subtext-light hover:text-primary">FAQ</a>
+        </div>
+        <p class="text-xs text-subtext-light mt-4">Powered by Arixolve</p>
+    </div>
+    
+</div>
+</footer>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-text-dark-blue">Login to Saral Bhoomi</h2>
+            <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                <input type="email" id="email" name="email" required 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" id="password" name="password" required 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+            
+            <div>
+                <label for="language" class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                <select id="language" name="language" 
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <option value="marathi">मराठी</option>
+                    <option value="english">English</option>
+                    <option value="hindi">हिन्दी</option>
+                </select>
+            </div>
+            
+            <button type="submit" id="submitLogin" 
+                    class="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-opacity-90 transition font-medium">
+                Login
+            </button>
+        </form>
+        
+        <div class="mt-6 p-4 bg-gray-50 rounded-md">
+            <h3 class="text-sm font-medium text-gray-700 mb-2">Demo Credentials:</h3>
+            <div class="text-xs text-gray-600 space-y-1">
+                <p><strong>Admin:</strong> admin@saral.gov.in / admin</p>
+                <p><strong>Officer:</strong> officer@saral.gov.in / officer</p>
+                <p><strong>Agent:</strong> agent@saral.gov.in / agent</p>
+            </div>
+        </div>
+        
+        <div id="loginError" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md hidden">
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Login functionality
+    const loginBtn = document.getElementById('loginBtn');
+    const loginModal = document.getElementById('loginModal');
+    const closeModal = document.getElementById('closeModal');
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const errorMessage = document.getElementById('errorMessage');
+    const submitLogin = document.getElementById('submitLogin');
+
+    // Show login modal
+    loginBtn.addEventListener('click', () => {
+        loginModal.classList.remove('hidden');
+        loginModal.classList.add('flex');
+    });
+
+    // Close login modal
+    closeModal.addEventListener('click', () => {
+        loginModal.classList.add('hidden');
+        loginModal.classList.remove('flex');
+        loginError.classList.add('hidden');
+        loginForm.reset();
+    });
+
+    // Close modal when clicking outside
+    loginModal.addEventListener('click', (e) => {
+        if (e.target === loginModal) {
+            loginModal.classList.add('hidden');
+            loginModal.classList.remove('flex');
+            loginError.classList.add('hidden');
+            loginForm.reset();
+        }
+    });
+
+    // Handle login form submission
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const language = document.getElementById('language').value;
+        
+        // Disable submit button and show loading state
+        submitLogin.disabled = true;
+        submitLogin.textContent = 'Logging in...';
+        loginError.classList.add('hidden');
+        
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                // Store token in localStorage
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                localStorage.setItem('language', language);
+                
+                // Redirect based on user role
+                let redirectPath = '/saral/dashboard';
+                if (data.user.role === 'field_officer') {
+                    redirectPath = '/field-officer';
+                }
+                
+                window.location.href = redirectPath;
+            } else {
+                // Show error message
+                errorMessage.textContent = data.message || 'Login failed. Please check your credentials.';
+                loginError.classList.remove('hidden');
+                
+                // Re-enable submit button
+                submitLogin.disabled = false;
+                submitLogin.textContent = 'Login';
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            errorMessage.textContent = 'Network error. Please try again.';
+            loginError.classList.remove('hidden');
+            
+            // Re-enable submit button
+            submitLogin.disabled = false;
+            submitLogin.textContent = 'Login';
+        }
+    });
+
+    // Handle header login button
+    document.querySelector('header a[href="#"]').addEventListener('click', (e) => {
+        e.preventDefault();
+        loginBtn.click();
+    });
+</script>
+
+</body></html>
