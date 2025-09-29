@@ -78,7 +78,7 @@ router.get('/assigned', async (req, res) => {
     let agentId;
     const agentEmail = (req.query.agentEmail || '').toString().trim();
     if (agentEmail) {
-      const byEmail = await MongoUser.findOne({ email: agentEmail, role: 'agent', is_active: true });
+      const byEmail = await MongoUser.findOne({ email: agentEmail, role: { $in: ['agent', 'field_officer'] }, is_active: true });
       if (byEmail) agentId = byEmail._id;
     }
     if (!agentId) {
@@ -132,7 +132,7 @@ router.get('/assigned-with-notices', async (req, res) => {
     let agentId;
     const agentEmail = (req.query.agentEmail || '').toString().trim();
     if (agentEmail) {
-      const byEmail = await MongoUser.findOne({ email: agentEmail, role: 'agent', is_active: true });
+      const byEmail = await MongoUser.findOne({ email: agentEmail, role: { $in: ['agent', 'field_officer'] }, is_active: true });
       if (byEmail) agentId = byEmail._id;
     }
     if (!agentId) {

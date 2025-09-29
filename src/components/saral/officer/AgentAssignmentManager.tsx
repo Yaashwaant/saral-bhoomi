@@ -48,7 +48,7 @@ interface AssignmentRequest {
   estimatedDuration: number; // in days
 }
 
-const AgentAssignmentManager: React.FC = () => {
+const FieldOfficerAssignmentManager: React.FC = () => {
   const { 
     landownerRecords, 
     assignAgentWithNotice, 
@@ -632,4 +632,4 @@ const AgentAssignmentManager: React.FC = () => {
   );
 };
 
-export default AgentAssignmentManager;
+export default FieldOfficerAssignmentManager;

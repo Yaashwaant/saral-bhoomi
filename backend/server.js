@@ -123,7 +123,7 @@ app.use(helmet());
 app.use(compression());
 
 // CORS configuration (use env when available)
-const corsOrigins = (process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173')
+const corsOrigins = (process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003,http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
@@ -169,6 +169,16 @@ app.use(morgan('combined', {
 
 // Static files
 app.use('/uploads', express.static(join(__dirname, 'uploads')));
+
+// Serve the HTML login page
+app.get('/login.html', (req, res) => {
+  res.sendFile(join(__dirname, '../public/login.html'));
+});
+
+// Serve the login page at the root route
+app.get('/', (req, res) => {
+  res.sendFile(join(__dirname, '../public/login.html'));
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -224,7 +234,7 @@ app.use('/api', async (req, res, next) => {
         let defaultAgentId = 'demo-agent-id';
         try {
           const firstAgent = await MongoUser.findOne({
-            role: 'agent',
+            role: { $in: ['field_officer', 'agent'] },
             is_active: true
           }).sort({ createdAt: 1 }).select('_id name email');
           
@@ -238,9 +248,9 @@ app.use('/api', async (req, res, next) => {
 
         req.user = {
           id: defaultAgentId,
-          name: 'Demo Agent',
+          name: 'Demo Field Officer',
           email: 'agent@saral.gov.in',
-          role: 'agent'
+          role: 'field_officer'
         };
       } else {
         // Use demo officer id by default
@@ -262,7 +272,7 @@ app.use('/api', async (req, res, next) => {
 app.get('/api/agents/list-all', async (req, res) => {
   try {
     const agents = await MongoUser.find({
-      role: 'agent',
+      role: { $in: ['field_officer', 'agent'] },
       is_active: true
     }).select('_id name email phone department').sort({ name: 1 });
     

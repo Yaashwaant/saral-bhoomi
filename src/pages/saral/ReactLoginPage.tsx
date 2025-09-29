@@ -23,10 +23,14 @@ const ReactLoginPage: React.FC = () => {
       const ok = await login(email.trim(), password);
       if (ok) {
         // Decide destination based on stored user role
-        const stored = localStorage.getItem("saral_user");
+        const stored = localStorage.getItem("user");
         const role = stored ? (JSON.parse(stored).role as string) : "officer";
         if (role === "field_officer") {
           navigate("/field-officer");
+        } else if (role === "officer") {
+          navigate("/officer-dashboard");
+        } else if (role === "admin") {
+          navigate("/saral/dashboard");
         } else {
           navigate("/saral/dashboard");
         }
@@ -104,7 +108,7 @@ const ReactLoginPage: React.FC = () => {
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li><span className="font-semibold">Admin:</span> admin@saral.gov.in / admin</li>
                 <li><span className="font-semibold">Officer:</span> officer@saral.gov.in / officer</li>
-                <li><span className="font-semibold">Agent:</span> agent@saral.gov.in / agent</li>
+                <li><span className="font-semibold">Field Officer:</span> agent@saral.gov.in / field123</li>
                 <li><span className="font-semibold">Field Officer:</span> field.officer@saralbhoomi.gov.in / field123</li>
               </ul>
             </div>

@@ -82,8 +82,8 @@ const CSVUploadManager = () => {
       maxSize: 'कमाल आकार: 10MB',
       downloadTemplate: 'टेम्पलेट डाउनलोड करा',
       generateNotices: 'नोटीस तयार करा',
-      assignAgent: 'एजंट नियुक्त करा',
-      selectAgent: 'एजंट निवडा',
+      assignFieldOfficer: 'फील्ड अधिकारी नियुक्त करा',
+      selectFieldOfficer: 'फील्ड अधिकारी निवडा',
       optionalAssignment: 'ऐच्छिक नियुक्ती',
       process: 'प्रक्रिया करा',
       processing: 'प्रक्रिया करत आहे...',
@@ -102,8 +102,8 @@ const CSVUploadManager = () => {
       maxSize: 'Max size: 10MB',
       downloadTemplate: 'Download Template',
       generateNotices: 'Generate Notices',
-      assignAgent: 'Assign Agent',
-      selectAgent: 'Select Agent',
+      assignFieldOfficer: 'Assign Field Officer',
+      selectFieldOfficer: 'Select Field Officer',
       optionalAssignment: 'Optional Assignment',
       process: 'Process',
       processing: 'Processing...',
@@ -410,10 +410,10 @@ const CSVUploadManager = () => {
               <Label htmlFor="generateNotices">{t.generateNotices}</Label>
             </div>
 
-            {/* Agent Assignment Option */}
+            {/* Field Officer Assignment Option */}
             {agents && agents.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="agent">{t.selectAgent}</Label>
+                <Label htmlFor="agent">{t.selectFieldOfficer}</Label>
                 <Select value={selectedAgent} onValueChange={setSelectedAgent}>
                   <SelectTrigger>
                     <SelectValue placeholder={t.optionalAssignment} />
@@ -424,7 +424,7 @@ const CSVUploadManager = () => {
                         key={agent?._id || agent?.id || `agent-${index}`} 
                         value={String(agent?._id || agent?.id || index)}
                       >
-                        {agent?.name || 'Unknown Agent'}
+                        {agent?.name || 'Unknown Field Officer'}
                       </SelectItem>
                     ))}
                   </SelectContent>

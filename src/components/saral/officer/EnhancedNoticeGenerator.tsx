@@ -887,9 +887,9 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
                              {/* Field Agent Management */}
                <Card>
                  <CardHeader>
-                   <CardTitle className="text-lg">Field Agent Management</CardTitle>
+                   <CardTitle className="text-lg">Field Officer Management</CardTitle>
                    <CardDescription>
-                     Manage field agents for notice delivery and follow-up
+                     Manage field officers for notice delivery and follow-up
                    </CardDescription>
                    <Button
                      variant="outline"
@@ -898,7 +898,7 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
                      className="mt-2"
                    >
                      <User className="h-4 w-4 mr-2" />
-                     Add New Agent
+                     Add New Field Officer
                    </Button>
                  </CardHeader>
                  <CardContent>
@@ -919,7 +919,7 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
                                <Badge variant="outline">Active</Badge>
                              </div>
                              
-                             {/* Agent Statistics */}
+                             {/* Field Officer Statistics */}
                              <div className="grid grid-cols-2 gap-2 mb-3">
                                <div className="text-center p-2 bg-blue-50 rounded">
                                  <div className="text-lg font-bold text-blue-600">{stats.totalAssigned}</div>
@@ -1321,16 +1321,16 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
       <Dialog open={showAddAgentDialog} onOpenChange={setShowAddAgentDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Field Agent</DialogTitle>
+            <DialogTitle>Add New Field Officer</DialogTitle>
             <DialogDescription>
-              Add a new field agent for notice delivery and follow-up
+              Add a new field officer for notice delivery and follow-up
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Agent Name</Label>
+              <Label>Field Officer Name</Label>
               <Input
-                placeholder="Enter agent name"
+                placeholder="Enter field officer name"
                 value={newAgentData.name}
                 onChange={(e) => setNewAgentData(prev => ({ ...prev, name: e.target.value }))}
               />
@@ -1364,7 +1364,7 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
                 }}
                 className="flex-1"
               >
-                Add Agent
+                Add Field Officer
               </Button>
               <Button
                 variant="outline"
@@ -1383,4 +1383,4 @@ const EnhancedNoticeGenerator: React.FC<EnhancedNoticeGeneratorProps> = ({ proje
   );
 };
 
-export default EnhancedNoticeGenerator; 
+export default EnhancedNoticeGenerator;

@@ -3,156 +3,29 @@ import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import XLSX from 'xlsx';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
-import MongoProject from '../models/mongo/Project.js';
-import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import { LandownerRecord as MongoLandownerRecord, Project as MongoProject, User as MongoUser, JMRRecord as MongoJMRRecord } from '../models/index.js';
 import MongoAward from '../models/mongo/Award.js';
 import { authorize } from '../middleware/auth.js';
-import MongoUser from '../models/mongo/User.js'; // Added import for User
-import { Readable } from 'stream';
-import { normalizeRowEnhanced, NEW_EXCEL_FIELD_MAPPINGS, NEW_TO_LEGACY_MAPPING } from '../utils/excelFieldMappings.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-/**
- * Utility function to read both CSV and Excel files
- * @param {string} filePath - Path to the file
- * @param {string} fileType - 'csv' or 'xlsx'
- * @returns {Promise<Array>} - Array of row objects
- */
-const readFileData = async (filePath, fileType) => {
-  return new Promise((resolve, reject) => {
-    try {
-      if (fileType === 'xlsx') {
-        // Read Excel file
-        const workbook = XLSX.readFile(filePath);
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // For Parishisht-K format: headers at row 4 (0-indexed row 3), data starts at row 7 (0-indexed row 6)
-        // Skip rows 4 and 5 which contain sub-headers and column numbers
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
-        
-        // Get headers from row 4 (0-indexed row 3)
-        const headers = [];
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-          const headerCell = worksheet[XLSX.utils.encode_cell({r: 3, c: C})];
-          headers.push(headerCell ? headerCell.v : `Column_${C}`);
-        }
-        
-        // Read data starting from row 7 (0-indexed row 6)
-        const jsonData = [];
-        for (let R = 6; R <= range.e.r; ++R) {
-          const row = {};
-          let hasData = false;
-          
-          for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cell = worksheet[XLSX.utils.encode_cell({r: R, c: C})];
-            const header = headers[C - range.s.c];
-            const value = cell ? cell.v : '';
-            
-            if (header && value !== '') {
-              row[header] = value;
-              hasData = true;
-            } else if (header) {
-              row[header] = '';
-            }
-          }
-          
-          // Only add rows that have some data
-          if (hasData) {
-            jsonData.push(row);
-          }
-        }
-        
-        console.log('Excel file read successfully. Rows:', jsonData.length);
-        console.log('Headers found:', headers.slice(0, 10)); // Log first 10 headers
-        console.log('Sample record keys:', Object.keys(jsonData[0] || {}).slice(0, 5));
-        resolve(jsonData);
-      } else {
-        // Read CSV file
-        const results = [];
-        fs.createReadStream(filePath)
-          .pipe(csv())
-          .on('data', (data) => results.push(data))
-          .on('end', () => {
-            console.log('CSV file read successfully. Rows:', results.length);
-            resolve(results);
-          })
-          .on('error', reject);
-      }
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
-// Normalize a CSV row by mapping English and Marathi variants into canonical keys
-const normalizeRow = (row = {}) => {
-  const r = { ...row };
-  // Owner name
-  r['landowner_name'] = r['खातेदाराचे_नांव'] || r['ownerName'] || r['landownerName'] || r['name'] || '';
-  // Survey number
-  r['survey_number'] = r['सर्वे_नं'] || r['स.नं./हि.नं./ग.नं.'] || r['Survey'] || r['surveyNumber'] || r['survey_no'] || r['survey'] || '';
-  // Area fields
-  r['area'] = r['क्षेत्र'] || r['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'] || r['Area'] || r['area'] || '';
-  r['acquired_area'] = r['संपादित_क्षेत्र'] || r['संपादित_जमिनीचे_क्षेत्र'] || r['AcquiredArea'] || r['acquiredArea'] || r['acquired_area'] || '';
-  // Financial fields
-  r['rate'] = r['दर'] || r['मंजुर_केलेला_दर'] || r['Rate'] || r['rate'] || '';
-  r['structure_trees_wells_amount'] = r['संरचना_झाडे_विहिरी_रक्कम'] || r['structuresAmount'] || r['structures_amount'] || '0';
-  r['total_compensation'] = r['एकूण_मोबदला'] || r['एकुण_मोबदला'] || r['TotalAmount'] || r['totalCompensation'] || r['total_compensation'] || '';
-  r['solatium'] = r['सोलेशियम_100'] || r['Solatium'] || r['solatium'] || '';
-  r['final_amount'] = r['अंतिम_रक्कम'] || r['FinalAmount'] || r['finalCompensation'] || '';
-  // Location fields
-  r['village'] = r['village'] || r['गांव'] || r['गाव'] || '';
-  r['taluka'] = r['taluka'] || r['तालुका'] || r['तहसील'] || r['Tehsil'] || '';
-  r['district'] = r['district'] || r['जिल्हा'] || r['District'] || '';
-  // Contact fields (Marathi ↔ English)
-  r['contact_phone'] = r['phone'] || r['मोबाईल'] || r['फोन'] || '';
-  r['contact_email'] = r['email'] || r['ईमेल'] || '';
-  r['contact_address'] = r['address'] || r['पत्ता'] || '';
-  // Bank fields (Marathi ↔ English)
-  r['bank_account_number'] = r['accountNumber'] || r['खाते_क्रमांक'] || '';
-  r['bank_ifsc_code'] = r['ifscCode'] || r['IFSC'] || r['आयएफएससी'] || '';
-  r['bank_name'] = r['bankName'] || r['बँक_नाव'] || '';
-  r['bank_branch_name'] = r['branchName'] || r['शाखा'] || '';
-  r['bank_account_holder_name'] = r['accountHolderName'] || r['खातेदाराचे_नांव'] || r['खातेधारक_नाव'] || '';
-  // Tribal fields: STRICTLY decide from Marathi column 'आदिवासी'
-  const rawTribal = r['आदिवासी'];
-  const truthyVals = ['होय','true','1','yes','y'];
-  const falsyVals = ['नाही','false','0','no','n'];
-  let isTribal = false;
-  if (typeof rawTribal === 'string') {
-    const v = rawTribal.trim().toLowerCase();
-    isTribal = truthyVals.includes(v) ? true : (falsyVals.includes(v) ? false : false);
-  } else if (typeof rawTribal === 'boolean') {
-    isTribal = rawTribal;
-  } else if (typeof rawTribal === 'number') {
-    isTribal = rawTribal === 1;
-  }
-  r['is_tribal'] = isTribal;
-  // Correct mapping: certificate from 'आदिवासी_प्रमाणपत्र_क्रमांक'; lag from 'आदिवासी_लाग'/'लागू'
-  r['tribal_certificate_no'] = r['tribalCertificateNo'] || r['आदिवासी_прमाणपत्र_क्रमांक'] || r['आदिवासी_प्रमाणपत्र_क्रमांक'] || r['tribalCertNo'] || '';
-  r['tribal_lag'] = r['tribalLag'] || r['आदिवासी_लाग'] || r['लागू'] || '';
+function normalizeRow(row) {
+  row['tribal_certificate_no'] = row['नाही'] || row.tribal_certificate_no || '';
+  row['tribal_lag'] = row['आदिवासी_लाग'] || row.tribal_lag || '';
   // Trim canonical fields if present
   [
     'landowner_name','survey_number','area','acquired_area','rate','structure_trees_wells_amount',
     'total_compensation','solatium','final_amount','village','taluka','district',
     'contact_phone','contact_email','contact_address','bank_account_number','bank_ifsc_code','bank_name','bank_branch_name','bank_account_holder_name',
     'tribal_certificate_no','tribal_lag'
-  ].forEach((k) => { if (r[k] !== undefined && r[k] !== null) r[k] = String(r[k]).trim(); });
-  return r;
+  ].forEach((k) => { if (row[k] !== undefined && row[k] !== null) row[k] = String(row[k]).trim(); });
+  return row;
 };
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/csv');
+    const uploadDir = path.resolve('uploads/csv');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -1516,17 +1389,15 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
     
   } catch (error) {
     console.error('Error in enhanced upload:', error);
-    
     // Clean up uploaded file
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    
     res.status(500).json({
       success: false,
-      message: 'Server error during file upload'
+      message: 'Error in enhanced upload: ' + error.message
     });
   }
 });
 
-export default router; 
+export default router;

@@ -3,6 +3,7 @@ import { Phone, Mail, LogOut, Globe } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import collectorOfficeImage from '../../assets/images/collector-office.jpeg';
 import emblemOfIndia from '../../assets/images/emblem-of-india.png';
+import { useNavigate } from 'react-router-dom';
 
 interface GovernmentLayoutProps {
   children: React.ReactNode;
@@ -16,9 +17,11 @@ const GovernmentLayout: React.FC<GovernmentLayoutProps> = ({
   subtitle = "System for Automated Resourceful Acquisition of Land"
 }) => {
   const { logout, user, switchLanguage } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
+    navigate('/saral/login');
   };
 
   const handleLanguageChange = (language: 'marathi' | 'english' | 'hindi') => {
@@ -191,4 +194,4 @@ const GovernmentLayout: React.FC<GovernmentLayoutProps> = ({
   );
 };
 
-export default GovernmentLayout; 
+export default GovernmentLayout;

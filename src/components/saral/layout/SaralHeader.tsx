@@ -20,17 +20,17 @@ const SaralHeader = () => {
       marathi: {
         admin: 'प्रशासक',
         officer: 'अधिकारी',
-        agent: 'एजंट'
+        agent: 'फील्ड अधिकारी'
       },
       english: {
         admin: 'Administrator',
         officer: 'Land Officer',
-        agent: 'Field Agent'
+        agent: 'Field Officer'
       },
       hindi: {
         admin: 'प्रशासक',
         officer: 'भूमि अधिकारी',
-        agent: 'फील्ड एजेंट'
+        agent: 'फील्ड अधिकारी'
       }
     };
     return roleTranslations[language]?.[role] || role;

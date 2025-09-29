@@ -87,7 +87,7 @@ const SimpleAgentDashboard: React.FC = () => {
     },
     english: {
       welcome: 'Welcome',
-      dashboard: 'Agent Dashboard',
+      dashboard: 'Field Officer Dashboard',
       assignedRecords: 'Assigned Records',
       totalAssigned: 'Total Assigned',
       pendingKYC: 'Pending KYC',
@@ -107,7 +107,7 @@ const SimpleAgentDashboard: React.FC = () => {
     },
     hindi: {
       welcome: 'स्वागत',
-      dashboard: 'एजेंट डैशबोर्ड',
+      dashboard: 'फील्ड अधिकारी डैशबोर्ड',
       assignedRecords: 'आवंटित रिकॉर्ड',
       totalAssigned: 'कुल आवंटित',
       pendingKYC: 'लंबित KYC',

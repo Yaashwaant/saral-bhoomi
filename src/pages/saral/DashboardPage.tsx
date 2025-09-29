@@ -43,7 +43,7 @@ const DashboardPage = () => {
       case 'officer':
         return 'Officer Dashboard';
       case 'agent':
-        return 'Agent Dashboard';
+        return 'Field Officer Dashboard';
       default:
         return 'Dashboard';
     }
@@ -56,7 +56,7 @@ const DashboardPage = () => {
       case 'officer':
         return 'Land Acquisition Management';
       case 'agent':
-        return 'Field Operations & Data Collection';
+        return 'Field Officer Operations & Data Collection';
       default:
         return 'System Dashboard';
     }

@@ -22,7 +22,7 @@ interface GeneratedNotice {
   content: string;
   status: 'draft' | 'generated' | 'sent' | 'assigned_for_kyc';
   kycStatus?: 'pending' | 'assigned' | 'in_progress' | 'completed';
-  assignedAgent?: {
+  assignedFieldOfficer?: {
     id: string;
     name: string;
     phone: string;
@@ -31,7 +31,7 @@ interface GeneratedNotice {
 }
 
 const NoticeGenerator: React.FC = () => {
-  const { projects, landownerRecords, updateLandownerRecord, assignAgent, assignAgentWithNotice } = useSaral();
+  const { projects, landownerRecords, updateLandownerRecord, assignFieldOfficer, assignFieldOfficerWithNotice } = useSaral();
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedRecords, setSelectedRecords] = useState<string[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -243,10 +243,10 @@ const NoticeGenerator: React.FC = () => {
               content: record.noticeContent || 'Notice content not available',
               status: record.noticeGenerated ? 'generated' : 'draft',
               kycStatus: record.kycStatus || 'pending',
-              assignedAgent: record.assignedAgent ? {
-                id: record.assignedAgent._id,
-                name: record.assignedAgent.name,
-                phone: record.assignedAgent.phone || '',
+              assignedFieldOfficer: record.assignedFieldOfficer ? {
+                id: record.assignedFieldOfficer._id,
+                  name: record.assignedFieldOfficer.name,
+                  phone: record.assignedFieldOfficer.phone || '',
                 assignedAt: new Date()
               } : undefined
             }));
@@ -768,7 +768,7 @@ const NoticeGenerator: React.FC = () => {
       const surveyNumber = record['सर्वे_नं'] || record['स.नं./हि.नं./ग.नं.'] || safeField(record, 'स.नं./हि.नं./ग.नं.');
       const projectId = String((record as any).projectId ?? (record as any).project_id ?? selectedProject);
 
-      const success = await assignAgentWithNotice(String(record.id), String(agentId), {
+      const success = await assignFieldOfficerWithNotice(String(record.id), String(agentId), {
         noticeNumber,
         noticeDate,
         noticeContent
@@ -784,7 +784,7 @@ const NoticeGenerator: React.FC = () => {
               ? {
                   ...prevRecord,
                   kycStatus: 'assigned',
-                  assignedAgent: {
+                  assignedFieldOfficer: {
                     id: agentId,
                     name: 'Rajesh Patil - Field Officer',
                     phone: fieldOfficer.phone || '+91 9876543216',
@@ -802,7 +802,7 @@ const NoticeGenerator: React.FC = () => {
               ? {
                   ...prevRecord,
                   kycStatus: 'assigned',
-                  assignedAgent: {
+                  assignedFieldOfficer: {
                     id: agentId,
                     name: 'Rajesh Patil - Field Officer',
                     phone: fieldOfficer.phone || '+91 9876543216',
@@ -1043,25 +1043,25 @@ const NoticeGenerator: React.FC = () => {
     setIsKycAssignmentOpen(true);
   };
 
-  const assignAgentForKyc = async (agentId: string) => {
+  const assignFieldOfficerForKyc = async (fieldOfficerId: string) => {
     if (!selectedNoticeForKyc) return;
 
     try {
-      const agent = availableAgents.find(a => a.id === agentId);
-      if (!agent) {
-        toast.error('Agent not found');
+      const fieldOfficer = availableAgents.find(a => a.id === fieldOfficerId);
+      if (!fieldOfficer) {
+        toast.error('Field Officer not found');
         return;
       }
 
-      console.log('🔄 Assigning agent for KYC:', {
+      console.log('🔄 Assigning field officer for KYC:', {
         landownerId: selectedNoticeForKyc.landownerId,
-        agentId: agentId,
-        agentName: agent.name,
+        fieldOfficerId: fieldOfficerId,
+        fieldOfficerName: fieldOfficer.name,
         noticeNumber: selectedNoticeForKyc.noticeNumber
       });
 
-      // Use the enhanced agent assignment with notice data
-      const success = await assignAgentWithNotice(String(selectedNoticeForKyc.landownerId), String(agentId), {
+      // Use the enhanced field officer assignment with notice data
+      const success = await assignFieldOfficerWithNotice(String(selectedNoticeForKyc.landownerId), String(fieldOfficerId), {
         noticeNumber: selectedNoticeForKyc.noticeNumber,
         noticeDate: selectedNoticeForKyc.noticeDate,
         noticeContent: selectedNoticeForKyc.content
@@ -1075,10 +1075,10 @@ const NoticeGenerator: React.FC = () => {
           ...selectedNoticeForKyc,
           status: 'assigned_for_kyc' as const,
           kycStatus: 'assigned' as const,
-          assignedAgent: {
-            id: agent.id,
-            name: agent.name,
-            phone: agent.phone,
+          assignedFieldOfficer: {
+            id: fieldOfficer.id,
+            name: fieldOfficer.name,
+            phone: fieldOfficer.phone,
             assignedAt: new Date()
           }
         };
@@ -1091,12 +1091,12 @@ const NoticeGenerator: React.FC = () => {
         // Also update the landowner record locally
         await updateLandownerRecord(selectedNoticeForKyc.landownerId, {
           kycStatus: 'in_progress',
-          assignedAgent: agentId,
+          assignedFieldOfficer: fieldOfficerId,
           assignedAt: new Date()
         });
 
-        toast.success(`✅ Successfully assigned ${agent.name} for KYC processing`);
-        console.log('✅ Agent assignment completed successfully');
+        toast.success(`✅ Successfully assigned ${fieldOfficer.name} for KYC processing`);
+        console.log('✅ Field Officer assignment completed successfully');
       } else {
         throw new Error('Assignment API call failed');
       }
@@ -1104,8 +1104,8 @@ const NoticeGenerator: React.FC = () => {
       setIsKycAssignmentOpen(false);
       setSelectedNoticeForKyc(null);
     } catch (error) {
-      console.error('❌ Failed to assign agent:', error);
-      toast.error('Failed to assign agent for KYC processing');
+      console.error('❌ Failed to assign field officer:', error);
+      toast.error('Failed to assign field officer for KYC processing');
     }
   };
 
@@ -1151,7 +1151,7 @@ const NoticeGenerator: React.FC = () => {
       });
 
       // Use the enhanced agent assignment with notice data
-      const success = await assignAgentWithNotice(notice.landownerId, agentId, {
+      const success = await assignFieldOfficerWithNotice(notice.landownerId, agentId, {
         noticeNumber: notice.noticeNumber,
         noticeDate: notice.noticeDate,
         noticeContent: notice.content
@@ -1165,7 +1165,7 @@ const NoticeGenerator: React.FC = () => {
           ...notice,
           status: 'assigned_for_kyc' as const,
           kycStatus: 'assigned' as const,
-          assignedAgent: {
+          assignedFieldOfficer: {
             id: agentId,
             name: 'Rajesh Patil - Field Officer',
             phone: fieldOfficer.phone || '+91 9876543210',
@@ -1181,7 +1181,7 @@ const NoticeGenerator: React.FC = () => {
         // Also update the landowner record locally
         await updateLandownerRecord(notice.landownerId, {
           kycStatus: 'in_progress',
-          assignedAgent: agentId,
+          assignedFieldOfficer: agentId,
           assignedAt: new Date()
         });
 
@@ -1299,9 +1299,9 @@ const NoticeGenerator: React.FC = () => {
     }
   };
 
-  // Load agents from API
+  // Load field officers from API
   useEffect(() => {
-    const loadAgents = async () => {
+    const loadFieldOfficers = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/agents/list`);
         if (response.ok) {
@@ -1309,11 +1309,11 @@ const NoticeGenerator: React.FC = () => {
           setAvailableAgents(data.agents || []);
         }
       } catch (error) {
-        console.error('Error loading agents:', error);
+        console.error('Error loading field officers:', error);
       }
     };
 
-    loadAgents();
+    loadFieldOfficers();
   }, []);
 
   return (
@@ -1840,10 +1840,10 @@ const NoticeGenerator: React.FC = () => {
                             content: record.noticeContent || 'Notice content not available',
                             status: record.noticeGenerated ? 'generated' : 'draft',
                             kycStatus: record.kycStatus || 'pending',
-                            assignedAgent: record.assignedAgent ? {
-                              id: record.assignedAgent._id,
-                              name: record.assignedAgent.name,
-                              phone: record.assignedAgent.phone || '',
+                            assignedFieldOfficer: record.assignedFieldOfficer ? {
+                              id: record.assignedFieldOfficer._id,
+                              name: record.assignedFieldOfficer.name,
+                              phone: record.assignedFieldOfficer.phone || '',
                               assignedAt: new Date()
                             } : undefined
                           }));
@@ -1904,9 +1904,9 @@ const NoticeGenerator: React.FC = () => {
                             }>
                               {notice.kycStatus}
                             </Badge>
-                            {notice.assignedAgent && (
+                            {notice.assignedFieldOfficer && (
                               <div className="text-xs text-gray-500">
-                                {notice.assignedAgent.name}
+                                {notice.assignedFieldOfficer.name}
                               </div>
                             )}
                           </div>
@@ -2024,7 +2024,7 @@ const NoticeGenerator: React.FC = () => {
               Assign for KYC Processing
             </DialogTitle>
             <DialogDescription>
-              Assign this notice to an agent for KYC document collection and verification
+              Assign this notice to a field officer for KYC document collection and verification
             </DialogDescription>
           </DialogHeader>
           
@@ -2053,7 +2053,7 @@ const NoticeGenerator: React.FC = () => {
 
               {/* Agent Selection */}
               <div className="space-y-3">
-                <h4 className="font-medium">Select Agent for KYC Processing</h4>
+                <h4 className="font-medium">Select Field Officer for KYC Processing</h4>
                 <div className="grid gap-3">
                   {availableAgents.map(agent => (
                     <div 
