@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { config } from '../config';
 
 export type UserRole = 'admin' | 'officer' | 'field_officer' | 'agent';
 
@@ -44,28 +45,28 @@ const demoUsers: User[] = [
   },
   {
     id: '2', 
-    name: 'Land Officer',
+    name: 'Officer User',
     email: 'officer@saral.gov.in',
     role: 'officer',
-    department: 'District Office',
+    department: 'Revenue Department',
     phone: '+91-9876543211',
     language: 'marathi'
   },
   {
     id: '3',
-    name: 'Field Agent',
+    name: 'Field Officer',
     email: 'agent@saral.gov.in', 
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543212',
     language: 'marathi'
   },
-  // Additional field agents for testing
+  // Additional field officers for testing
   {
     id: '4',
     name: 'राजेश पाटील',
     email: 'rajesh.patil@saral.gov.in',
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543210',
     language: 'marathi'
@@ -74,7 +75,7 @@ const demoUsers: User[] = [
     id: '5',
     name: 'सुनील कांबळे',
     email: 'sunil.kambale@saral.gov.in',
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543211',
     language: 'marathi'
@@ -83,7 +84,7 @@ const demoUsers: User[] = [
     id: '6',
     name: 'महेश देशमुख',
     email: 'mahesh.deshmukh@saral.gov.in',
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543212',
     language: 'marathi'
@@ -92,7 +93,7 @@ const demoUsers: User[] = [
     id: '7',
     name: 'विठ्ठल जाधव',
     email: 'vithal.jadhav@saral.gov.in',
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543213',
     language: 'marathi'
@@ -101,7 +102,7 @@ const demoUsers: User[] = [
     id: '8',
     name: 'रामराव पवार',
     email: 'ramrao.pawar@saral.gov.in',
-    role: 'agent',
+    role: 'field_officer',
     department: 'Field Operations',
     phone: '+91-9876543214',
     language: 'marathi'
@@ -147,8 +148,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🔐 Attempting login for:', email);
       
-      // Connect to backend API
-      const response = await fetch('/api/auth/login', {
+      // Connect to backend API using the configured API base URL
+      const apiUrl = `${config.API_BASE_URL}/auth/login`;
+      console.log('📡 Connecting to API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +202,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const foundUser = demoUsers.find(u => u.email === email);
       console.log('🔍 Found demo user:', foundUser);
       
-      if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+      if (foundUser && (password === 'admin' || password === 'officer' || password === 'field123')) {
         console.log('✅ Demo user authentication successful');
         setUser(foundUser);
         localStorage.setItem('saral_user', JSON.stringify(foundUser));
@@ -216,7 +220,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const foundUser = demoUsers.find(u => u.email === email);
       console.log('🔍 Found demo user:', foundUser);
       
-      if (foundUser && (password === 'admin' || password === 'officer' || password === 'agent' || password === 'agent123' || password === 'field123')) {
+      if (foundUser && (password === 'admin' || password === 'officer' || password === 'field123')) {
         console.log('✅ Demo user authentication successful after error');
         setUser(foundUser);
         localStorage.setItem('saral_user', JSON.stringify(foundUser));

@@ -64,7 +64,7 @@ const UserManagement = () => {
       noUsers: 'कोणतेही वापरकर्ते नाहीत',
       admin: 'प्रशासक',
       officer: 'अधिकारी',
-      agent: 'एजंट',
+      agent: 'फील्ड अधिकारी',
       marathi: 'मराठी',
       english: 'इंग्रजी',
       hindi: 'हिंदी'
@@ -90,7 +90,7 @@ const UserManagement = () => {
       noUsers: 'No users found',
       admin: 'Administrator',
       officer: 'Land Officer',
-      agent: 'Field Agent',
+      agent: 'Field Officer',
       marathi: 'Marathi',
       english: 'English',
       hindi: 'Hindi'
@@ -116,7 +116,7 @@ const UserManagement = () => {
       noUsers: 'कोई उपयोगकर्ता नहीं मिला',
       admin: 'प्रशासक',
       officer: 'भूमि अधिकारी',
-      agent: 'फील्ड एजेंट',
+      agent: 'फील्ड अधिकारी',
       marathi: 'मराठी',
       english: 'अंग्रेजी',
       hindi: 'हिंदी'
@@ -148,12 +148,12 @@ const UserManagement = () => {
       status: 'active'
     },
     {
-      id: '3',
-      name: 'Field Agent',
+      id: '5',
+      name: 'Field Officer',
       email: 'agent@saral.gov.in',
-      role: 'agent',
+      role: 'field_officer',
       department: 'Field Operations',
-      phone: '+91-9876543212',
+      phone: '+91-9876543211',
       language: 'marathi',
       status: 'active'
     }

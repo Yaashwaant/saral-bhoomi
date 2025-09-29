@@ -312,7 +312,7 @@ const KYCAssignmentManager: React.FC = () => {
 
   const assignKYC = async (recordId: string) => {
     if (!selectedAgent) {
-      toast.error('Please select an agent');
+      toast.error('Please select a field officer');
       return;
     }
 

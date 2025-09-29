@@ -41,7 +41,7 @@ const KYCApprovalQueue = () => {
       landownerName: 'जमीन मालकाचे नाव',
       surveyNumber: 'सर्वे नं.',
       village: 'गाव',
-      agent: 'एजंट',
+      agent: 'फील्ड अधिकारी',
       documents: 'दस्तऐवज',
       status: 'स्थिती',
       actions: 'कृती',
@@ -69,12 +69,12 @@ const KYCApprovalQueue = () => {
       approvedRecords: 'मंजूर नोंदी',
       rejectedRecords: 'नाकारलेल्या नोंदी',
       physicalVerification: 'भौतिक पडताळणी',
-      agentVerified: 'एजंटाने पडताळले',
+      agentVerified: 'फील्ड अधिकारीने पडताळले',
       recordKeeping: 'नोंद ठेवण्यासाठी'
     },
     english: {
       title: 'KYC Approval Queue',
-      subtitle: 'Approval of documents physically verified by agents',
+      subtitle: 'Approval of documents physically verified by field officers',
       pending: 'Pending',
       approved: 'Approved',
       rejected: 'Rejected',
@@ -83,7 +83,7 @@ const KYCApprovalQueue = () => {
       landownerName: 'Landowner Name',
       surveyNumber: 'Survey No.',
       village: 'Village',
-      agent: 'Agent',
+      agent: 'Field Officer',
       documents: 'Documents',
       status: 'Status',
       actions: 'Actions',
@@ -111,12 +111,12 @@ const KYCApprovalQueue = () => {
       approvedRecords: 'Approved Records',
       rejectedRecords: 'Rejected Records',
       physicalVerification: 'Physical Verification',
-      agentVerified: 'Verified by Agent',
+      agentVerified: 'Verified by Field Officer',
       recordKeeping: 'For Record Keeping'
     },
     hindi: {
       title: 'KYC अनुमोदन क्यू',
-      subtitle: 'एजेंटों द्वारा भौतिक रूप से सत्यापित दस्तावेजों का अनुमोदन',
+      subtitle: 'फील्ड अधिकारियों द्वारा भौतिक रूप से सत्यापित दस्तावेजों का अनुमोदन',
       pending: 'लंबित',
       approved: 'अनुमोदित',
       rejected: 'अस्वीकृत',
@@ -125,7 +125,7 @@ const KYCApprovalQueue = () => {
       landownerName: 'भूमि मालिक का नाम',
       surveyNumber: 'सर्वेक्षण संख्या',
       village: 'गांव',
-      agent: 'एजेंट',
+      agent: 'फील्ड अधिकारी',
       documents: 'दस्तावेज',
       status: 'स्थिति',
       actions: 'कार्रवाई',
@@ -153,7 +153,7 @@ const KYCApprovalQueue = () => {
       approvedRecords: 'अनुमोदित रिकॉर्ड',
       rejectedRecords: 'अस्वीकृत रिकॉर्ड',
       physicalVerification: 'भौतिक सत्यापन',
-      agentVerified: 'एजेंट द्वारा सत्यापित',
+      agentVerified: 'फील्ड अधिकारी द्वारा सत्यापित',
       recordKeeping: 'रिकॉर्ड रखने के लिए'
     }
   };

@@ -4,11 +4,11 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
-import LoginPage from "@/pages/saral/LoginPage";
 import DashboardPage from "@/pages/saral/DashboardPage";
 import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-
+import HtmlLoginPage from "@/pages/saral/HtmlLoginPage";
+import OfficerDashboard from "@/components/saral/officer/OfficerDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,15 +30,20 @@ const App = () => {
             <TooltipProvider>
               <Routes>
                 <Route path="/" element={<Navigate to="/saral/login" replace />} />
-                <Route path="/saral/login" element={<LoginPage />} />
+                <Route path="/saral/login" element={<HtmlLoginPage />} />
                 <Route path="/saral/dashboard" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin']}>
                     <DashboardPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/field-officer" element={
                   <ProtectedRoute allowedRoles={['field_officer', 'officer', 'admin']}>
                     <FieldOfficerPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/officer-dashboard" element={
+                  <ProtectedRoute allowedRoles={['officer', 'admin']}>
+                    <OfficerDashboard />
                   </ProtectedRoute>
                 } />
 

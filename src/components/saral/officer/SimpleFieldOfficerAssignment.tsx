@@ -45,7 +45,7 @@ interface Agent {
 import { config } from '../../../config';
 const API_BASE_URL = config.API_BASE_URL;
 
-const SimpleAgentAssignment: React.FC = () => {
+const SimpleFieldOfficerAssignment: React.FC = () => {
   const [records, setRecords] = useState<LandownerRecord[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +131,7 @@ const SimpleAgentAssignment: React.FC = () => {
       if (data.success) {
         toast({
           title: "Success",
-          description: "Agent assigned successfully"
+          description: "Field Officer assigned successfully"
         });
         
         // Update local state
@@ -151,15 +151,15 @@ const SimpleAgentAssignment: React.FC = () => {
       } else {
         toast({
           title: "Error",
-          description: data.message || "Failed to assign agent",
+          description: data.message || "Failed to assign field officer",
           variant: "destructive"
         });
       }
     } catch (error) {
-      console.error('Error assigning agent:', error);
+      console.error('Error assigning field officer:', error);
       toast({
         title: "Error",
-        description: "Failed to assign agent",
+        description: "Failed to assign field officer",
         variant: "destructive"
       });
     } finally {
@@ -192,7 +192,7 @@ const SimpleAgentAssignment: React.FC = () => {
       return (
         <div className="space-y-1">
           <Badge variant="default" className="bg-blue-500">
-            Assigned to {agent?.name || 'Unknown'}
+            Assigned to {agent?.name || 'Unknown Field Officer'}
           </Badge>
           <div className="text-xs text-muted-foreground">
             {record.assignedAt ? new Date(record.assignedAt).toLocaleDateString() : ''}
@@ -229,8 +229,8 @@ const SimpleAgentAssignment: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Agent Assignment</h1>
-          <p className="text-muted-foreground">Assign CSV-uploaded landowner records (with notices) to agents for KYC processing.</p>
+          <h1 className="text-3xl font-bold">Field Officer Assignment</h1>
+          <p className="text-muted-foreground">Assign CSV-uploaded landowner records (with notices) to field officers for KYC processing.</p>
         </div>
         <Button onClick={() => { loadRecords(); loadAgents(); }} variant="outline">
           Refresh
@@ -272,7 +272,7 @@ const SimpleAgentAssignment: React.FC = () => {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Agents</CardTitle>
+            <CardTitle className="text-sm font-medium">Available Field Officers</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{agents.length}</div>
@@ -284,7 +284,7 @@ const SimpleAgentAssignment: React.FC = () => {
       {selectedRecord && (
         <Card>
           <CardHeader>
-            <CardTitle>Assign Agent</CardTitle>
+            <CardTitle>Assign Field Officer</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -295,10 +295,10 @@ const SimpleAgentAssignment: React.FC = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium">Select Agent</label>
+              <label className="text-sm font-medium">Select Field Officer</label>
               <Select value={selectedAgent} onValueChange={setSelectedAgent}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose an agent" />
+                  <SelectValue placeholder="Choose a field officer" />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.map((agent) => (
@@ -324,7 +324,7 @@ const SimpleAgentAssignment: React.FC = () => {
                 onClick={assignAgent}
                 disabled={!selectedAgent || isAssigning}
               >
-                {isAssigning ? 'Assigning...' : 'Assign Agent'}
+                {isAssigning ? 'Assigning...' : 'Assign Field Officer'}
               </Button>
             </div>
           </CardContent>
@@ -402,7 +402,7 @@ const SimpleAgentAssignment: React.FC = () => {
                           size="sm"
                           onClick={() => setSelectedRecord(record)}
                         >
-                          Assign Agent
+                          Assign Field Officer
                         </Button>
                       ) : (
                         <Button
@@ -425,4 +425,4 @@ const SimpleAgentAssignment: React.FC = () => {
   );
 };
 
-export default SimpleAgentAssignment; 
+export default SimpleFieldOfficerAssignment;

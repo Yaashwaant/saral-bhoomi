@@ -67,20 +67,20 @@ async function seedDemoUsers() {
         language: 'marathi'
       },
       {
-        name: 'Field Agent',
+        name: 'Field Officer',
         email: 'agent@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543212',
         language: 'marathi'
       },
-      // Additional field agents for testing
+      // Additional field officers for testing
       {
         name: 'राजेश पाटील',
         email: 'rajesh.patil@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543213',
         language: 'marathi'
@@ -88,8 +88,8 @@ async function seedDemoUsers() {
       {
         name: 'सुनील कांबळे',
         email: 'sunil.kambale@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543214',
         language: 'marathi'
@@ -97,8 +97,8 @@ async function seedDemoUsers() {
       {
         name: 'महेश देशमुख',
         email: 'mahesh.deshmukh@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543215',
         language: 'marathi'
@@ -106,8 +106,8 @@ async function seedDemoUsers() {
       {
         name: 'विठ्ठल जाधव',
         email: 'vithal.jadhav@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543216',
         language: 'marathi'
@@ -115,8 +115,8 @@ async function seedDemoUsers() {
       {
         name: 'रामराव पवार',
         email: 'ramrao.pawar@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543217',
         language: 'marathi'
@@ -135,8 +135,8 @@ async function seedDemoUsers() {
     console.log('\n=== Login Credentials ===');
     console.log('Admin: admin@saral.gov.in / admin123');
     console.log('Officer: officer@saral.gov.in / officer123');
-    console.log('Agent: agent@saral.gov.in / agent123');
-    console.log('Additional agents use: agent123 as password');
+    console.log('Field Officer: agent@saral.gov.in / field123');
+    console.log('Additional field officers use: field123 as password');
 
     process.exit(0);
   } catch (error) {

@@ -30,12 +30,13 @@ import {
   BarChart3
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
+import GovernmentLayout from '@/components/layout/GovernmentLayout';
 import ProjectManagement from './ProjectManagement';
 import VillageWiseReports from './VillageWiseReports';
 import KYCAssignmentManager from './KYCAssignmentManager';
 import PaymentInitiation from './PaymentInitiation';
 import NoticeGenerator from './NoticeGenerator';
-import SimpleAgentAssignment from './SimpleAgentAssignment';
+import SimpleFieldOfficerAssignment from './SimpleFieldOfficerAssignment';
 // Import new enhanced components
 import EnhancedAwardManager from './EnhancedAwardManager';
 import LandRecordsManager from './LandRecordsManager';
@@ -203,32 +204,34 @@ const OfficerDashboard = () => {
   const recentProjects = projects.slice(0, 5);
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ 
-              fontFamily: "'Noto Sans', 'Arial', sans-serif",
-              fontWeight: 700,
-              letterSpacing: '0.5px',
-              textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-            }}>{t.welcome}, {user?.name}!</h1>
-            <p className="text-blue-100 mt-1" style={{ 
-              fontFamily: "'Noto Sans', 'Arial', sans-serif",
-              fontWeight: 500,
-              letterSpacing: '0.2px'
-            }}>{t.dashboard}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium" style={{ 
-              fontFamily: "'Noto Sans', 'Arial', sans-serif",
-              fontWeight: 600,
-              letterSpacing: '0.2px'
-            }}>Land Officer</span>
+    <GovernmentLayout>
+      {/* Main Content */}
+      <div className="relative z-10 container mx-auto px-4 py-6 space-y-6">
+        {/* Welcome Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)'
+              }}>{t.welcome}, {user?.name}!</h1>
+              <p className="text-blue-100 mt-1" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 500,
+                letterSpacing: '0.2px'
+              }}>{t.dashboard}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-medium" style={{ 
+                fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                fontWeight: 600,
+                letterSpacing: '0.2px'
+              }}>Land Officer</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Removed top-level stats cards. Summary now lives inside the Overview tab. */}
 
@@ -363,7 +366,8 @@ const OfficerDashboard = () => {
           </Tabs>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </GovernmentLayout>
   );
 };
 

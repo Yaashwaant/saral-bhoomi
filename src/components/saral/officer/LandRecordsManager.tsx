@@ -1354,7 +1354,7 @@ const LandRecordsManager: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <Label htmlFor="edit-assigned_agent">Assigned Agent</Label>
+                        <Label htmlFor="edit-assigned_agent">Assigned Field Officer</Label>
                         <Input
                           id="edit-assigned_agent"
                           value={editForm.assigned_agent || ''}
@@ -1523,7 +1523,7 @@ const LandRecordsManager: React.FC = () => {
                         <TableHead className="min-w-[100px]">KYC Status</TableHead>
                         <TableHead className="min-w-[120px]">Payment Status</TableHead>
                         <TableHead className="min-w-[100px]">Notice Generated</TableHead>
-                        <TableHead className="min-w-[120px]">Assigned Agent</TableHead>
+                        <TableHead className="min-w-[120px]">Assigned Field Officer</TableHead>
                         
                         {/* Additional Fields */}
                         <TableHead className="min-w-[200px]">Notes</TableHead>

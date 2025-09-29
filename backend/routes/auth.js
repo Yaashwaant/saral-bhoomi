@@ -443,20 +443,20 @@ router.post('/seed', async (req, res) => {
         language: 'marathi'
       },
       {
-        name: 'Field Agent',
+        name: 'Field Officer',
         email: 'agent@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543212',
         language: 'marathi'
       },
-      // Additional field agents for testing
+      // Additional field officers for testing
       {
         name: 'राजेश पाटील',
         email: 'rajesh.patil@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543210',
         language: 'marathi'
@@ -464,8 +464,8 @@ router.post('/seed', async (req, res) => {
       {
         name: 'सुनील कांबळे',
         email: 'sunil.kambale@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543211',
         language: 'marathi'
@@ -473,8 +473,8 @@ router.post('/seed', async (req, res) => {
       {
         name: 'महेश देशमुख',
         email: 'mahesh.deshmukh@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543212',
         language: 'marathi'
@@ -482,8 +482,8 @@ router.post('/seed', async (req, res) => {
       {
         name: 'विठ्ठल जाधव',
         email: 'vithal.jadhav@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543213',
         language: 'marathi'
@@ -491,8 +491,8 @@ router.post('/seed', async (req, res) => {
       {
         name: 'रामराव पवार',
         email: 'ramrao.pawar@saral.gov.in',
-        password: 'agent123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543214',
         language: 'marathi'
@@ -549,4 +549,4 @@ router.get('/validate', authMiddleware, async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

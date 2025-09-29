@@ -1,4 +1,6 @@
 
+/* Add Poppins font for headings inspired styling */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
@@ -242,4 +244,9 @@
 
 .hover-lift {
   @apply transition-transform duration-300 ease-out hover:-translate-y-1;
+}
+
+/* Helper class to opt-in Poppins for headings where desired */
+.poppins-heading {
+  font-family: 'Poppins', 'Inter', sans-serif;
 }

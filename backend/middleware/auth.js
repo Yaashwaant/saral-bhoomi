@@ -171,7 +171,7 @@ export const authorize = (...roles) => {
 // Specific role authorizations
 export const authorizeAdmin = authorize('admin');
 export const authorizeOfficer = authorize('admin', 'officer');
-export const authorizeAgent = authorize('admin', 'officer', 'agent');
+export const authorizeAgent = authorize('admin', 'officer', 'field_officer', 'agent');
 
 // Enhanced refresh token middleware
 export const refreshTokenMiddleware = async (req, res, next) => {
@@ -312,4 +312,4 @@ export const optionalAuth = async (req, res, next) => {
     console.error('Optional auth error:', error);
     next(); // Continue without user
   }
-}; 
+};

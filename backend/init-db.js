@@ -24,10 +24,10 @@ const initDatabase = async () => {
         isActive: true
       },
       {
-        name: 'Demo Agent',
+        name: 'Demo Field Officer',
         email: 'agent@saral.gov.in',
-        password: 'password123',
-        role: 'agent',
+        password: 'field123',
+        role: 'field_officer',
         department: 'Field Operations',
         phone: '9876543211',
         isActive: true
