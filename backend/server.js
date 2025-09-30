@@ -122,11 +122,16 @@ initializeCloudinary();
 app.use(helmet());
 app.use(compression());
 
-// CORS configuration (use env when available)
-const corsOrigins = (process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003,http://localhost:5173,http://127.0.0.1:5173')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+// CORS configuration: always include common local dev origins even if env is set
+const defaultLocalOrigins = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003,http://localhost:5173,http://127.0.0.1:5173';
+const envCorsOrigins = process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || '';
+const mergedOriginsStr = envCorsOrigins ? `${envCorsOrigins},${defaultLocalOrigins}` : defaultLocalOrigins;
+const corsOrigins = Array.from(new Set(
+  mergedOriginsStr
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+));
 app.use(cors({
   origin: corsOrigins,
   credentials: true,

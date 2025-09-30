@@ -30,9 +30,9 @@ export const safeGetField = (record: LandownerRecordAny, fieldName: string): any
     'area': ['area', 'क्षेत्र'],
     'acquired_area': ['acquired_area', 'संपादित_क्षेत्र'],
     'rate': ['rate', 'दर'],
-    'total_compensation': ['total_compensation', 'एकूण_मोबदला'],
+    'total_compensation': ['total_compensation', 'total_compensation_amount', 'total_final_compensation', 'एकूण_मोबदला'],
     'solatium': ['solatium', 'सोलेशियम_100'],
-    'final_amount': ['final_amount', 'अंतिम_रक्कम'],
+    'final_amount': ['final_payable_amount', 'final_amount', 'total_final_compensation', 'FinalAmount', 'finalCompensation', 'अंतिम_रक्कम'],
     'structure_trees_wells_amount': ['structure_trees_wells_amount', 'संरचना_झाडे_विहिरी_रक्कम']
   };
   

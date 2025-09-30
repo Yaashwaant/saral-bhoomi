@@ -1,0 +1,9 @@
+Import Summary - 2025-09-29T13:22:25.609Z
+Project: Chandrapada Land Acquisition Project
+Project Number: PRJ-0008
+Project ID: 68da854996a3d559f5005b5c
+Total Excel records: 161
+Successfully imported: 161
+Errors/Skipped: 0
+Database records for project: 0
+MongoDB URI: mongodb+srv://bhiseyashwant8:wmcdBGmsJvSTjeuh@saral-bhoomi-cluster.ytoaysp.mongodb.net/saral_bhoomi?retryWrites=true&w=majority&appName=saral-bhoomi-cluster

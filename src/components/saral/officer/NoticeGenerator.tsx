@@ -31,7 +31,7 @@ interface GeneratedNotice {
 }
 
 const NoticeGenerator: React.FC = () => {
-  const { projects, landownerRecords, updateLandownerRecord, assignFieldOfficer, assignFieldOfficerWithNotice } = useSaral();
+  const { projects, landownerRecords, updateLandownerRecord, assignAgent, assignAgentWithNotice } = useSaral();
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedRecords, setSelectedRecords] = useState<string[]>([]);
   const [filteredRecords, setFilteredRecords] = useState<any[]>([]);
@@ -768,7 +768,7 @@ const NoticeGenerator: React.FC = () => {
       const surveyNumber = record['सर्वे_नं'] || record['स.नं./हि.नं./ग.नं.'] || safeField(record, 'स.नं./हि.नं./ग.नं.');
       const projectId = String((record as any).projectId ?? (record as any).project_id ?? selectedProject);
 
-      const success = await assignFieldOfficerWithNotice(String(record.id), String(agentId), {
+      const success = await assignAgentWithNotice(String(record.id), String(agentId), {
         noticeNumber,
         noticeDate,
         noticeContent
@@ -1061,7 +1061,7 @@ const NoticeGenerator: React.FC = () => {
       });
 
       // Use the enhanced field officer assignment with notice data
-      const success = await assignFieldOfficerWithNotice(String(selectedNoticeForKyc.landownerId), String(fieldOfficerId), {
+      const success = await assignAgentWithNotice(String(selectedNoticeForKyc.landownerId), String(fieldOfficerId), {
         noticeNumber: selectedNoticeForKyc.noticeNumber,
         noticeDate: selectedNoticeForKyc.noticeDate,
         noticeContent: selectedNoticeForKyc.content
@@ -1151,7 +1151,7 @@ const NoticeGenerator: React.FC = () => {
       });
 
       // Use the enhanced agent assignment with notice data
-      const success = await assignFieldOfficerWithNotice(notice.landownerId, agentId, {
+      const success = await assignAgentWithNotice(notice.landownerId, agentId, {
         noticeNumber: notice.noticeNumber,
         noticeDate: notice.noticeDate,
         noticeContent: notice.content
@@ -2054,24 +2054,30 @@ const NoticeGenerator: React.FC = () => {
               {/* Agent Selection */}
               <div className="space-y-3">
                 <h4 className="font-medium">Select Field Officer for KYC Processing</h4>
-                <div className="grid gap-3">
-                  {availableAgents.map(agent => (
-                    <div 
-                      key={agent.id}
-                      className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => assignAgentForKyc(agent.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">{agent.name}</div>
-                          <div className="text-sm text-gray-600">{agent.phone}</div>
-                          <div className="text-sm text-gray-500">Area: {agent.area}</div>
+                {availableAgents.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">
+                    Loading field officers...
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {availableAgents.map(agent => (
+                      <div 
+                        key={agent.id}
+                        className="border rounded-lg p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                        onClick={() => assignFieldOfficerForKyc(agent.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">{agent.name}</div>
+                            <div className="text-sm text-gray-600">{agent.phone}</div>
+                            <div className="text-sm text-gray-500">Area: {agent.area}</div>
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-gray-400" />
                         </div>
-                        <ArrowRight className="h-4 w-4 text-gray-400" />
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* KYC Requirements Summary */}

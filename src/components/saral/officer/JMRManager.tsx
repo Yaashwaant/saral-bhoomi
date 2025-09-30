@@ -40,6 +40,9 @@ interface JMRRecord {
   sampadit_bhumapan_gat?: string; // संपादित क्षेत्र -> भुमापन गट क्र.
   sampadit_hectare?: number; // संपादित क्षेत्र -> इक्क हेक्टर
   sampadit_are?: number; // संपादित क्षेत्र -> इक्व आर
+  forest_land_area?: number; // वन जमीन क्षेत्र (हे.)
+  agricultural_land_area?: number; // कृषी जमीन क्षेत्र (हे.)
+  non_agricultural_land_area?: number; // अकृषी जमीन क्षेत्र (हे.)
   structure_details_note?: string; // तपशील -> बांधकाम
   well_details_note?: string; // तपशील -> विहीर/कंपनीका
   tree_details_note?: string; // तपशील -> झाडे
@@ -74,6 +77,9 @@ const JMRManager = () => {
     sampadit_bhumapan_gat: '',
     sampadit_hectare: 0,
     sampadit_are: 0,
+    forest_land_area: 0,
+    agricultural_land_area: 0,
+    non_agricultural_land_area: 0,
     structure_details_note: '',
     well_details_note: '',
     tree_details_note: '',
@@ -290,6 +296,10 @@ const JMRManager = () => {
       owner_name: formData.owner_name,
       remarks: formData.remarks,
       status: formData.status,
+      // New land type area fields
+      forest_land_area: Number(formData.forest_land_area || 0),
+      agricultural_land_area: Number(formData.agricultural_land_area || 0),
+      non_agricultural_land_area: Number(formData.non_agricultural_land_area || 0),
       // Preserve UI grouping as metadata for future use
       metadata: {
         serialNo: formData.serialNo,
@@ -554,6 +564,46 @@ const JMRManager = () => {
                       placeholder="गाव निवडा..."
                       emptyText="कोणताही गाव सापडले नाही"
                     />
+                  </div>
+
+                  {/* संपादित जमिनीचे प्रकार */}
+                  <div className="col-span-2">
+                    <Label className="text-lg font-bold">संपादित जमिनीचे प्रकार (हेक्टरमध्ये)</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                      <div>
+                        <Label htmlFor="forest_land_area">वन जमीन क्षेत्र (हे.)</Label>
+                        <Input
+                          id="forest_land_area"
+                          type="number"
+                          step="0.01"
+                          value={formData.forest_land_area ?? 0}
+                          onChange={(e) => handleInputChange('forest_land_area', e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="agricultural_land_area">कृषी जमीन क्षेत्र (हे.)</Label>
+                        <Input
+                          id="agricultural_land_area"
+                          type="number"
+                          step="0.01"
+                          value={formData.agricultural_land_area ?? 0}
+                          onChange={(e) => handleInputChange('agricultural_land_area', e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="non_agricultural_land_area">अकृषी जमीन क्षेत्र (हे.)</Label>
+                        <Input
+                          id="non_agricultural_land_area"
+                          type="number"
+                          step="0.01"
+                          value={formData.non_agricultural_land_area ?? 0}
+                          onChange={(e) => handleInputChange('non_agricultural_land_area', e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div>

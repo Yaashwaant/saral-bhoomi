@@ -20,10 +20,10 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://saral-bhoomi-backend.onrender.com/api/:splat
+        destination: https://saral-bhoomi-1.onrender.com/api/:splat
       - type: rewrite
         source: /uploads/*
-        destination: https://saral-bhoomi-backend.onrender.com/uploads/:splat
+        destination: https://saral-bhoomi-1.onrender.com/uploads/:splat
       - type: rewrite
         source: /*
         destination: /index.html
@@ -42,7 +42,7 @@ services:
         value: production
       # Render will inject PORT automatically; no need to hardcode
       - key: CORS_ORIGIN
-        value: https://saral-bhoomi-frontend.onrender.com
+        value: https://saral-bhoomi-frontend.onrender.com,https://saral-bhoomi-2.onrender.com
       # MongoDB Atlas connection string (set value in Render dashboard)
       - key: MONGODB_URI
         sync: false
