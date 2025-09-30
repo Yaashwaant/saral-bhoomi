@@ -55,44 +55,29 @@ export async function getOverviewKPIs(filters = {}) {
   // Payments (status filterable)
   const requestedStatus = filters.paymentStatus;
   const paymentStatus = requestedStatus && requestedStatus !== 'all' ? requestedStatus : 'completed';
-  const paymentDateMatch = { payment_status: paymentStatus };
+
+  // Payments completed (with status 'completed') - query landownerrecords directly
+  const paymentMatch = { ...match, payment_status: paymentStatus };
+  
+  // Add date filtering if provided (assuming updatedAt field for payment completion date)
   if (fromDate || toDate) {
-    paymentDateMatch.payment_date = {};
-    if (fromDate) paymentDateMatch.payment_date.$gte = fromDate;
-    if (toDate) paymentDateMatch.payment_date.$lte = toDate;
+    paymentMatch.updatedAt = {};
+    if (fromDate) paymentMatch.updatedAt.$gte = fromDate;
+    if (toDate) paymentMatch.updatedAt.$lte = toDate;
   }
-  // If location/tribal filters provided, join with landowner records on survey_number
-  const needsLocationFilter = !!(match.district || match.taluka || match.village || typeof match.is_tribal === 'boolean' || match.project_id);
-  const paymentsPipeline = [];
-  paymentsPipeline.push({ $match: paymentDateMatch });
-  if (needsLocationFilter) {
-    paymentsPipeline.push({
-      $lookup: {
-        from: 'landownerrecords',
-        localField: 'survey_number',
-        foreignField: 'survey_number',
-        as: 'lor'
+
+  // Query landownerrecords directly for payment data
+  const paymentsPipeline = [
+    { $match: paymentMatch },
+    {
+      $group: {
+        _id: null,
+        paymentsCount: { $sum: 1 },
+        budgetSum: { $sum: { $ifNull: ['$final_amount', 0] } }
       }
-    });
-    paymentsPipeline.push({ $unwind: '$lor' });
-    const locMatch = {};
-    if (match.project_id) locMatch['lor.project_id'] = match.project_id;
-    if (match.district) locMatch['lor.district'] = match.district;
-    if (match.taluka) locMatch['lor.taluka'] = match.taluka;
-    if (match.village) locMatch['lor.village'] = match.village;
-    if (typeof match.is_tribal === 'boolean') locMatch['lor.is_tribal'] = match.is_tribal;
-    paymentsPipeline.push({ $match: locMatch });
-  } else if (match.project_id) {
-    paymentsPipeline.push({ $match: { project_id: match.project_id } });
-  }
-  paymentsPipeline.push({
-    $group: {
-      _id: null,
-      paymentsCount: { $sum: 1 },
-      budgetSum: { $sum: { $ifNull: ['$amount', 0] } }
     }
-  });
-  const [paymentsAgg] = await MongoPayment.aggregate(paymentsPipeline);
+  ];
+  const [paymentsAgg] = await MongoLandownerRecord.aggregate(paymentsPipeline);
 
   // Notices issued
   const noticeMatch = {};
@@ -147,7 +132,7 @@ export async function getOverviewKPIs(filters = {}) {
     {
       $group: {
         _id: null,
-        totalAcquiredArea: { $sum: { $ifNull: ['$acquired_area', 0] } },
+        totalAcquiredArea: { $sum: { $ifNull: ['$area_acquired', 0] } },
         totalArea: { $sum: { $ifNull: ['$area', 0] } }
       }
     }

@@ -30,9 +30,21 @@ router.get('/list', async (req, res) => {
       records: records.map(record => {
         const plain = record.toObject({ getters: true });
         const createdBy = plain.created_by;
+        
+        // Map payment_status from database to paymentStatus expected by frontend
+        let paymentStatus = 'pending'; // default
+        if (plain.payment_status === 'completed') {
+          paymentStatus = 'success';
+        } else if (plain.payment_status === 'pending') {
+          paymentStatus = 'pending';
+        } else if (plain.payment_status === 'rejected') {
+          paymentStatus = 'rejected';
+        }
+        
         return {
           id: record._id,
           ...plain,
+          paymentStatus, // Add mapped paymentStatus field
           created_by: createdBy ? {
             id: createdBy._id,
             name: createdBy.name,
@@ -79,9 +91,21 @@ router.get('/:projectId', async (req, res) => {
       data: records.map(record => {
         const plain = record.toObject({ getters: true });
         const createdBy = plain.created_by;
+        
+        // Map payment_status from database to paymentStatus expected by frontend
+        let paymentStatus = 'pending'; // default
+        if (plain.payment_status === 'completed') {
+          paymentStatus = 'success';
+        } else if (plain.payment_status === 'pending') {
+          paymentStatus = 'pending';
+        } else if (plain.payment_status === 'rejected') {
+          paymentStatus = 'rejected';
+        }
+        
         return {
           id: record._id,
           ...plain,
+          paymentStatus, // Add mapped paymentStatus field
           created_by: createdBy ? {
             id: createdBy._id,
             name: createdBy.name,
@@ -302,14 +326,15 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
                 continue;
               }
 
-              // Check if survey number already exists
+              // Check if survey number already exists within the same village
               const existingRecord = await MongoLandownerRecord.findOne({ 
                 survey_number: record.survey_number,
-                project_id 
+                project_id,
+                village: record.village
               });
               
               if (existingRecord) {
-                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.survey_number} already exists`);
+                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.survey_number} already exists in village ${record.village}`);
                 continue;
               }
 

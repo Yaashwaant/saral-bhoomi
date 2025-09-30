@@ -132,10 +132,10 @@ function convertExcelRowToDbRecord(excelRow, projectId) {
   const dbRecord = {
     project_id: projectId,
     
-    // Set location for Palghar DFCC Project
-    village: 'पालघर', // Palghar
-    taluka: 'पालघर', // Palghar
-    district: 'पालघर', // Palghar
+    // Set location for Dongare Railway Overbridge project
+    village: 'Dongare',
+    taluka: 'Vasai',
+    district: 'Palghar',
     
     // Basic required fields
     survey_number: cleanValue(excelRow['नविन स.नं.'] || excelRow['जुना स.नं.'] || 'Unknown'),
@@ -248,15 +248,16 @@ async function importPalgharDFCCData() {
         const excelRow = excelRecords[i];
         const dbRecord = convertExcelRowToDbRecord(excelRow, project._id);
         
-        // Check if record already exists (by survey number and landowner)
+        // Check if record already exists within the same village (by survey number and landowner)
         const existingRecord = await MongoLandownerRecord.findOne({
           survey_number: dbRecord.survey_number,
           landowner_name: dbRecord.landowner_name,
-          project_id: project._id
+          project_id: project._id,
+          village: dbRecord.village
         });
         
         if (existingRecord) {
-          console.log(`⚠️  Skipping duplicate record: ${dbRecord.survey_number} - ${dbRecord.landowner_name}`);
+          console.log(`⚠️  Skipping duplicate record in village ${dbRecord.village}: ${dbRecord.survey_number} - ${dbRecord.landowner_name}`);
           continue;
         }
         

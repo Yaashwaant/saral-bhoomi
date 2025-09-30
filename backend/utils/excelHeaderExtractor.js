@@ -1,6 +1,23 @@
 import XLSX from 'xlsx';
 import { normalizeRowEnhanced, PARIKSHIT_16_FIELD_MAPPINGS } from './excelFieldMappings.js';
 
+// Helper: fill down merged/blank cells using last seen non-empty values for selected columns
+function fillDownMergedCells(rows = [], indices = []) {
+  const lastSeen = {};
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r] || [];
+    for (const idx of indices) {
+      const val = (row[idx] !== undefined) ? String(row[idx]).trim() : '';
+      if (val) {
+        lastSeen[idx] = val;
+      } else if (lastSeen[idx] !== undefined) {
+        row[idx] = lastSeen[idx];
+      }
+    }
+  }
+  return rows;
+}
+
 /**
  * Extract header information from row 7 of Excel file
  * Typically contains: गावाचे नाव (Village Name), तालुक्याचे नाव (Taluka Name), जिल्ह्याचे नाव (District Name)
@@ -140,12 +157,16 @@ export const extractJMRDataFromExcel = (fileBuffer, startRow = 2) => {
     const headerInfo = extractHeaderFromExcel(fileBuffer, 7);
     
     // Convert worksheet to JSON starting from data row (CSV format starts from row 2)
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+    let jsonData = XLSX.utils.sheet_to_json(worksheet, {
       range: startRow - 1, // 0-indexed
       header: 1,
       defval: '',
       raw: false
     });
+
+    // Fill down merged or blank cells for key columns to handle merged cells in Marathi Parishisht-K sheets
+    // Indices: 1=landowner_name, 2=old_survey_number, 3=new_survey_number, 0=serial_number, 31=village, 32=taluka, 33=district
+    jsonData = fillDownMergedCells(jsonData, [1, 2, 3, 0, 31, 32, 33]);
     
     const extractedRecords = jsonData.map((row, index) => {
       // Map exact 31 columns from Parishisht-K format

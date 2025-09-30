@@ -51,7 +51,8 @@ export const NEW_EXCEL_FIELD_MAPPINGS = {
   
   // Additional fields found in actual data
   'शेती': 'agricultural_type',
-  'शेती/वर्ग -1': 'agricultural_classification'
+  'शेती/वर्ग -1': 'agricultural_classification',
+  'मोबदला वाटप तपशिल': 'payment_status'
 };
 
 /**
@@ -262,6 +263,19 @@ export const normalizeRowEnhanced = (row = {}) => {
   r['group_number'] = r['group_number'] || r['गट नंबर'] || '';
   r['cts_number'] = r['cts_number'] || r['सी.टी.एस. नंबर'] || '';
   r['land_type_classification'] = r['land_type_classification'] || r['जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार'] || '';
+  
+  // Payment status mapping (Marathi -> internal)
+  r['payment_status'] = r['payment_status'] || r['मोबदला वाटप तपशिल'] || '';
+
+  // Normalize payment_status values (e.g., 'paid'/'unpaid' -> 'completed'/'pending')
+  if (typeof r['payment_status'] === 'string') {
+    const ps = r['payment_status'].trim().toLowerCase();
+    if (ps === 'paid') {
+      r['payment_status'] = 'completed';
+    } else if (ps === 'unpaid') {
+      r['payment_status'] = 'pending';
+    }
+  }
   
   return r;
 };
