@@ -190,6 +190,24 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database status endpoint
+app.get('/api/db/status', (req, res) => {
+  try {
+    const status = getMongoAtlasConnectionStatus();
+    res.status(200).json({
+      success: true,
+      environment: {
+        node_env: process.env.NODE_ENV,
+        has_mongodb_uri: Boolean(process.env.MONGODB_URI),
+        cors_origin: process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || null
+      },
+      mongo: status
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error && (error.message || error) });
+  }
+});
+
 // Test endpoint without authentication
 app.get('/api/test', (req, res) => {
   res.status(200).json({
