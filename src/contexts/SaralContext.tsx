@@ -350,6 +350,11 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
+      // When demo analytics are forced, seed demo projects immediately
+      if (config.FORCE_DEMO_ANALYTICS) {
+        setProjects(demoProjects as any);
+        return;
+      }
       const response = await apiCall('/projects');
       const apiProjects = Array.isArray(response.data) ? response.data : [];
       if (apiProjects.length === 0 && import.meta.env.DEV) {
@@ -359,7 +364,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       }
     } catch (err) {
       console.warn('Projects API failed; seeding demo projects for development');
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV || config.FORCE_DEMO_ANALYTICS) {
         setProjects(demoProjects as any);
       } else {
         setProjects([]);
