@@ -5,7 +5,8 @@
 const getApiBaseUrl = () => {
   // In production, use the environment variable or default backend URL
   if (import.meta.env.PROD) {
-    return import.meta.env.VITE_API_URL || 'https://saral-bhoomi-1.onrender.com/api';
+    // Prefer relative '/api' to leverage platform rewrite rules
+    return import.meta.env.VITE_API_URL || '/api';
   }
   // In development, prefer localhost backend if running locally; fallback to env or Render
   const devHosts = new Set(['localhost', '127.0.0.1']);
@@ -21,6 +22,9 @@ export const config = {
   // Development Settings
   DEV_MODE: !import.meta.env.PROD,
   DEBUG_ENABLED: !import.meta.env.PROD,
+  
+  // Force demo-mode analytics in any environment (set VITE_FORCE_DEMO_ANALYTICS=1)
+  FORCE_DEMO_ANALYTICS: !!(import.meta.env.VITE_FORCE_DEMO_ANALYTICS && import.meta.env.VITE_FORCE_DEMO_ANALYTICS !== '0' && import.meta.env.VITE_FORCE_DEMO_ANALYTICS !== 'false'),
   
   // Feature Flags
   ENABLE_BLOCKCHAIN: true,

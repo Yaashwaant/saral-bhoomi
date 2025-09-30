@@ -376,7 +376,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       
       const response = await apiCall('/landowners/list');
       const rows: any[] = Array.isArray(response.records) ? response.records : [];
-      if (rows.length === 0 && import.meta.env.DEV) {
+      if (config.FORCE_DEMO_ANALYTICS || (rows.length === 0 && import.meta.env.DEV)) {
         // Seed demo landowners when API has no data
         setLandownerRecords(demoLandownerRecords as any);
         return;
@@ -979,8 +979,10 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
     if (filters.paymentStatus) params.set('paymentStatus', String(filters.paymentStatus));
     if (typeof filters.isTribal === 'boolean') params.set('isTribal', String(filters.isTribal));
     try {
-      const res = await apiCall(`/insights/overview-kpis?${params.toString()}`);
-      if (res?.data && Object.keys(res.data).length > 0) return res.data;
+      if (!config.FORCE_DEMO_ANALYTICS) {
+        const res = await apiCall(`/insights/overview-kpis?${params.toString()}`);
+        if (res?.data && Object.keys(res.data).length > 0) return res.data;
+      }
     } catch (e) {
       // ignore; we'll fallback below
     }

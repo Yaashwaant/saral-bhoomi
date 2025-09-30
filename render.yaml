@@ -7,6 +7,9 @@ services:
     staticPublishPath: ./dist
     branch: features/working-fine
     autoDeploy: true
+    envVars:
+      - key: VITE_FORCE_DEMO_ANALYTICS
+        value: "1"
     headers:
       - path: /*
         name: X-Frame-Options
