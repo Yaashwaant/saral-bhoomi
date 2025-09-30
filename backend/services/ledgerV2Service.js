@@ -219,3 +219,13 @@ class LedgerV2Service {
 export default LedgerV2Service;
 
 
+
+export function getSectionHashesForLedger(ledger) {
+  return {
+    landowner_hash: ledger?.survey_data?.landowner?.hash || null,
+    data_root: ledger?.data_root || null,
+    block_hash: ledger?.current_hash || null
+  };
+}
+
+

@@ -420,10 +420,12 @@ class SurveyDataAggregationService {
    */
   buildLandownerRowKey(record) {
     const pid = String(record.project_id || 'noproj');
-    const ns = String(record.new_survey_number || 'NA');
+    const oldS = String(record.old_survey_number || 'NA');
+    const newS = String(record.new_survey_number || 'NA');
+    const compositeSurvey = `${oldS}+${newS}`;
     const cts = String(record.cts_number || 'NA');
     const sn = String(record.serial_number || 'NA');
-    return `${pid}:${ns}:${cts}:${sn}`;
+    return `${pid}:${compositeSurvey}:${cts}:${sn}`;
   }
 
   /**
@@ -497,14 +499,32 @@ class SurveyDataAggregationService {
   /**
    * Verify a specific landowner row by recomputing its landowner section hash
    */
-  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber = null) {
+  async verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber = null, oldSurveyNumber = null) {
     try {
-      const record = await MongoLandownerRecord.findOne({
-        project_id: projectId,
-        new_survey_number: newSurveyNumber,
-        cts_number: ctsNumber,
-        ...(serialNumber ? { serial_number: serialNumber } : {})
-      });
+      // Normalize CTS: treat 'NA'/blank as null and match missing values too
+      const ctsNorm = ctsNumber && String(ctsNumber).trim().toUpperCase() !== 'NA' && String(ctsNumber).trim() !== '' ? ctsNumber : null;
+      const ctsMatch = ctsNorm
+        ? { cts_number: ctsNorm }
+        : { $or: [ { cts_number: null }, { cts_number: { $exists: false } }, { cts_number: '' } ] };
+
+      // Build dynamic query allowing serial-only when surveys are missing
+      const projectMatchClause = { $or: [ { project_id: projectId }, { project_id: String(projectId) } ] };
+      const surveyOrClauses = [];
+      if (newSurveyNumber) {
+        surveyOrClauses.push({ new_survey_number: newSurveyNumber }, { survey_number: newSurveyNumber });
+      }
+      if (oldSurveyNumber) {
+        surveyOrClauses.push({ old_survey_number: oldSurveyNumber }, { survey_number: oldSurveyNumber });
+      }
+      const andClauses = [ projectMatchClause, ctsMatch ];
+      if (surveyOrClauses.length > 0) {
+        andClauses.push({ $or: surveyOrClauses });
+      }
+      if (serialNumber) {
+        andClauses.push({ serial_number: serialNumber });
+      }
+
+      const record = await MongoLandownerRecord.findOne({ $and: andClauses });
       if (!record) {
         return { isValid: false, reason: 'row_not_found' };
       }
@@ -513,31 +533,59 @@ class SurveyDataAggregationService {
       const liveHash = this.generateDataHash(cleanData);
       const legacyLiveHash = legacyHash(cleanData);
 
-      const ledger = await MongoBlockchainLedger.findOne({
-        $and: [
-          { $or: [ { project_id: projectId }, { project_id: String(projectId) }, { project_id: null }, { project_id: { $exists: false } } ] },
-          { 'survey_data.landowner.data.new_survey_number': newSurveyNumber, 'survey_data.landowner.data.cts_number': ctsNumber, ...(serialNumber ? { 'survey_data.landowner.data.serial_number': serialNumber } : {}) }
+      const projectMatch = {
+        $or: [
+          { project_id: record.project_id },
+          { project_id: String(record.project_id) },
+          { project_id: projectId },
+          { project_id: String(projectId) }
         ]
-      }).sort({ timestamp: -1 });
+      };
 
+      const rowMatchVariants = {
+        $or: [
+          { 'survey_data.landowner.data.new_survey_number': record.new_survey_number, 'survey_data.landowner.data.cts_number': record.cts_number, ...(record.serial_number ? { 'survey_data.landowner.data.serial_number': record.serial_number } : {}) },
+          { 'survey_data.landowner.data.survey_number': record.survey_number, 'survey_data.landowner.data.cts_number': record.cts_number, ...(record.serial_number ? { 'survey_data.landowner.data.serial_number': record.serial_number } : {}) },
+          { 'survey_data.landowner.data.old_survey_number': record.old_survey_number, 'survey_data.landowner.data.cts_number': record.cts_number, ...(record.serial_number ? { 'survey_data.landowner.data.serial_number': record.serial_number } : {}) }
+        ]
+      };
+
+      let ledger = await MongoBlockchainLedger.findOne({ $and: [ projectMatch, rowMatchVariants ] }).sort({ timestamp: -1 });
       if (!ledger) {
-        return { isValid: false, reason: 'not_on_blockchain', live_hash: liveHash };
+        // Fallback: any block tagged for survey_number equals either new or old survey
+        ledger = await MongoBlockchainLedger.findOne({
+          $and: [
+            projectMatch,
+            { $or: [
+              { survey_number: record.new_survey_number },
+              { survey_number: record.survey_number },
+              { survey_number: record.old_survey_number }
+            ] }
+          ]
+        }).sort({ timestamp: -1 });
+      }
+      if (!ledger) {
+        return { isValid: false, reason: 'not_on_blockchain' };
       }
 
-      const chainHash = ledger?.survey_data?.landowner?.hash || null;
-      const isValid = !!chainHash && (chainHash === liveHash || chainHash === legacyLiveHash);
+      // Prefer section-level hashes for verification
+      const candidateChainHashes = [
+        ledger?.survey_data?.landowner?.hash,
+        ledger?.data_root,
+        ledger?.current_hash
+      ].filter(Boolean);
+
+      const isValid = candidateChainHashes.some(h => h === liveHash || h === legacyLiveHash);
       return {
         isValid,
         reason: isValid ? 'ok' : 'hash_mismatch',
         live_hash: liveHash,
         legacy_live_hash: legacyLiveHash,
-        chain_hash: chainHash,
-        block_id: ledger.block_id,
-        last_updated: ledger.updatedAt
+        chain_hash: candidateChainHashes[0] || null,
+        last_updated: ledger.updatedAt || ledger.timestamp
       };
     } catch (error) {
-      console.error('❌ verifyLandownerRow error:', error);
-      return { isValid: false, reason: 'error', error: error.message };
+      return { isValid: false, reason: 'verification_failed', error: error.message };
     }
   }
 }

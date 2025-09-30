@@ -308,7 +308,9 @@ const BlockchainDashboard: React.FC = () => {
           if (!s) break;
           try {
             const projectId = String(s.project_id || '');
-            const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || '') });
+            const oldSurvey = (String(s.old_survey_number || s.survey_number || '') || 'NA');
+            const newSurvey = (String(s.new_survey_number || '') || 'NA');
+            const qs = new URLSearchParams({ projectId, oldSurveyNumber: oldSurvey, newSurveyNumber: newSurvey, ctsNumber: String(s.cts_number || '') });
             const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`,
               { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
             let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = 'pending';
@@ -358,7 +360,7 @@ const BlockchainDashboard: React.FC = () => {
           const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-            body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: 'Overview sync' })
+            body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || '') || 'NA', cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: 'Overview sync' })
           });
           if (resp.ok) {
             setSurveyOverview((prev) => prev.map((x) => x.row_key === s.row_key ? { ...x, exists_on_blockchain: true, blockchain_status: 'pending' } : x));
@@ -381,7 +383,9 @@ const BlockchainDashboard: React.FC = () => {
   const verifySingleRow = async (s: any) => {
     try {
       const projectId = String(s.project_id || '');
-      const qs = new URLSearchParams({ projectId, newSurveyNumber: String(s.new_survey_number || ''), ctsNumber: String(s.cts_number || ''), serialNumber: String(s.serial_number || ''), rowKey: String(s.row_key || '') });
+      const oldSurvey = (String(s.old_survey_number || s.survey_number || '') || 'NA');
+      const newSurvey = (String(s.new_survey_number || '') || 'NA');
+      const qs = new URLSearchParams({ projectId, oldSurveyNumber: oldSurvey, newSurveyNumber: newSurvey, ctsNumber: String(s.cts_number || ''), serialNumber: String(s.serial_number || ''), rowKey: String(s.row_key || '') });
       const resp = await fetchWithTimeout(`${config.API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`, { headers: { 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' } }, 8000);
       let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = s.exists_on_blockchain ? 'pending' : 'not_on_blockchain';
       if (resp.ok) {
@@ -1191,7 +1195,7 @@ const BlockchainDashboard: React.FC = () => {
                                     const resp = await fetch(`${config.API_BASE_URL}/blockchain/create-landowner-row-block`, {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer demo-jwt-token', 'x-demo-role': 'officer' },
-                                      body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || ''), cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: `landowner row sync ${s.row_key}` })
+                                      body: JSON.stringify({ project_id: String(s.project_id || ''), new_survey_number: String(s.new_survey_number || '') || 'NA', cts_number: String(s.cts_number || ''), serial_number: String(s.serial_number || ''), officer_id: 'demo-officer', remarks: `landowner row sync ${s.row_key}` })
                                     });
                                     if (resp.ok) {
                                       const json = await resp.json().catch(() => null);

@@ -46,6 +46,12 @@ interface LandRecord {
   total_compensation?: number;
   kyc_status: 'pending' | 'approved' | 'rejected';
   payment_status: 'pending' | 'initiated' | 'completed';
+  // Optional blockchain-related fields and identifiers
+  blockchain_verified?: boolean;
+  blockchain_status?: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain';
+  new_survey_number?: string;
+  cts_number?: string;
+  serial_number?: string;
 }
 
 const LandRecordsManager: React.FC = () => {
@@ -78,6 +84,18 @@ const LandRecordsManager: React.FC = () => {
   });
 
   const API_BASE_URL = config.API_BASE_URL;
+
+  // Lightweight fetch with timeout utility (local to this component)
+  const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs = 8000): Promise<Response> => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      return resp as Response;
+    } finally {
+      clearTimeout(id);
+    }
+  };
 
   useEffect(() => {
     if (selectedProject) {
@@ -143,9 +161,16 @@ const LandRecordsManager: React.FC = () => {
       });
 
       if (response.ok) {
+        const respJson = await response.json().catch(() => ({} as any));
+        const updated = respJson?.record || respJson?.data || editForm;
         toast.success('Land record updated successfully');
         setEditingRecord(null);
         setEditForm({});
+
+        // Post-save blockchain row re-sync and verification
+        await resyncAndVerifyRow(updated);
+
+        // Refresh list after verification updates
         loadLandRecords();
       } else {
         const errorData = await response.json();
@@ -166,6 +191,119 @@ const LandRecordsManager: React.FC = () => {
 
   const handleEditFormChange = (field: keyof LandRecord, value: any) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Helper to re-sync a single row on blockchain and verify its integrity
+  const resyncAndVerifyRow = async (updatedRecord: any) => {
+    try {
+      const rawToken = localStorage.getItem('authToken') || '';
+      const isDemo = !rawToken || rawToken === 'demo-jwt-token' || (user?.id && user.id.length !== 24);
+      const authToken = isDemo ? 'demo-jwt-token' : rawToken;
+      const baseHeaders: Record<string, string> = {
+        'Authorization': `Bearer ${authToken}`
+      };
+      if (isDemo) baseHeaders['x-demo-role'] = 'officer';
+
+      // Build composite survey identifiers with NA fallback
+      const oldSurveyCandidate = String(((updatedRecord as any)?.old_survey_number) || updatedRecord?.survey_number || editForm.survey_number || '');
+      const newSurveyCandidate = String(updatedRecord?.new_survey_number || '');
+
+      const identifiers = {
+        projectId: String(selectedProject || ''),
+        oldSurveyNumber: oldSurveyCandidate || 'NA',
+        newSurveyNumber: newSurveyCandidate || 'NA',
+        ctsNumber: String(updatedRecord?.cts_number || editForm.cts_number || ''),
+        serialNumber: String(updatedRecord?.serial_number || editForm.serial_number || '')
+      };
+
+      // Do not block on missing new survey number; require project and CTS
+      if (!identifiers.projectId || !identifiers.ctsNumber) {
+        console.warn('⚠️ Missing identifiers for row re-sync/verify:', identifiers);
+        toast.warning('Row updated, but missing identifiers for blockchain re-sync');
+        return;
+      }
+
+      // 1) Create or update the row-level block
+      try {
+        const resp = await fetch(`${API_BASE_URL}/blockchain/create-landowner-row-block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...baseHeaders },
+          body: JSON.stringify({
+            project_id: identifiers.projectId,
+            new_survey_number: identifiers.newSurveyNumber,
+            cts_number: identifiers.ctsNumber,
+            serial_number: identifiers.serialNumber,
+            officer_id: user?.id || 'demo-officer',
+            remarks: 'post-save row re-sync'
+          })
+        });
+        if (resp.ok) {
+          toast.success('Blockchain row synced');
+        } else {
+          const text = await resp.text().catch(() => '');
+          console.warn('Row sync failed:', text);
+          toast.warning('Blockchain row re-sync failed');
+        }
+      } catch (e) {
+        console.error('Row sync error:', e);
+        toast.warning('Blockchain row re-sync encountered an error');
+      }
+
+      // 2) Verify the row status
+      try {
+        const qs = new URLSearchParams({
+          projectId: identifiers.projectId,
+          oldSurveyNumber: identifiers.oldSurveyNumber,
+          newSurveyNumber: identifiers.newSurveyNumber,
+          ctsNumber: identifiers.ctsNumber,
+          serialNumber: identifiers.serialNumber
+        });
+        const verifyResp = await fetchWithTimeout(
+          `${API_BASE_URL}/blockchain/verify-landowner-row?${qs.toString()}`,
+          { headers: baseHeaders },
+          8000
+        );
+        if (verifyResp.ok) {
+          const r = await verifyResp.json().catch(() => null);
+          const data = r?.data || {};
+          let status: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain' = 'pending';
+          if (data?.reason === 'not_on_blockchain') status = 'not_on_blockchain';
+          else if (data?.isValid === true) status = 'verified';
+          else if (data?.isValid === false) status = 'compromised';
+
+          if (status === 'verified') {
+            toast.success('Row verified on blockchain');
+          } else if (status === 'compromised') {
+            const lh = (data?.live_hash || '').slice(0, 8) + '...' + (data?.live_hash || '').slice(-6);
+            const ch = (data?.chain_hash || '').slice(0, 8) + '...' + (data?.chain_hash || '').slice(-6);
+            toast.error(`Integrity mismatch: live=${lh} chain=${ch}`);
+          } else if (status === 'not_on_blockchain') {
+            toast.warning('Row not present on blockchain yet');
+          }
+
+          // Update local state for this record
+          setLandRecords(prev => prev.map(r => {
+            const matches = (r.id && (r.id === (updatedRecord?._id || updatedRecord?.id))) ||
+                            String(r.survey_number) === String(updatedRecord?.survey_number || identifiers.newSurveyNumber);
+            if (matches) {
+              return {
+                ...r,
+                blockchain_status: status,
+                blockchain_verified: status === 'verified'
+              } as LandRecord;
+            }
+            return r;
+          }));
+        } else {
+          toast.warning('Row verification request failed');
+        }
+      } catch (e) {
+        console.error('Row verification error:', e);
+        toast.warning('Blockchain row verification encountered an error');
+      }
+    } catch (e) {
+      console.error('resyncAndVerifyRow error:', e);
+    }
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {

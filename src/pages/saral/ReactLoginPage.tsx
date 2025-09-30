@@ -75,7 +75,7 @@ const ReactLoginPage: React.FC = () => {
             className="h-10 w-auto object-contain"
           />
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-orange-800">SARAL Bhoomi</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-orange-800">eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN</h1>
             <p className="text-xs md:text-sm text-orange-600">System for Automated Resourceful Acquisition of Land</p>
           </div>
         </div>
@@ -99,7 +99,7 @@ const ReactLoginPage: React.FC = () => {
               Empowering Land Acquisition with Transparency and Efficiency
             </h2>
             <p className="text-muted-foreground max-w-xl">
-              Sign in to continue to the SARAL Bhoomi portal. Manage projects, land records, notices and work seamlessly across departments.
+              Sign in to continue to the eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN portal. Manage projects, land records, notices and work seamlessly across departments.
             </p>
 
             {/* Demo credentials helper (retain core basic access) */}
@@ -182,7 +182,7 @@ const ReactLoginPage: React.FC = () => {
             />
             <p className="text-xs text-orange-600">Government of Maharashtra • Land Acquisition Department</p>
           </div>
-          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} SARAL Bhoomi</p>
+          <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN</p>
         </div>
       </footer>
     </div>
