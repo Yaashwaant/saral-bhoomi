@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import ResponsiveSlider from '@/components/ui/ResponsiveSlider';
 
 const HtmlLoginPage = () => {
   const [showModal, setShowModal] = useState(false);
@@ -111,6 +112,9 @@ const HtmlLoginPage = () => {
           </button>
         </div>
       </main>
+
+      {/* Feature Slider Section */}
+      <ResponsiveSlider />
 
       {/* Why Saral Bhoomi Section */}
       <section className="py-16 bg-white">
