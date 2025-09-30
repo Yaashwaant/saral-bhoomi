@@ -9,7 +9,7 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_FORCE_DEMO_ANALYTICS
-        value: "1"
+        value: "0"
     headers:
       - path: /*
         name: X-Frame-Options
@@ -43,6 +43,9 @@ services:
       # Render will inject PORT automatically; no need to hardcode
       - key: CORS_ORIGIN
         value: https://saral-bhoomi-frontend.onrender.com
+      # MongoDB Atlas connection string (set value in Render dashboard)
+      - key: MONGODB_URI
+        sync: false
       - key: DATABASE_URL
         value: postgres://user:password@host:5432/dbname?sslmode=require
       - key: JWT_SECRET
