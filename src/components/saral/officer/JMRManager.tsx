@@ -100,6 +100,9 @@ const JMRManager = () => {
     village: ''
   });
 
+  // Upload tab filters (used while uploading PDFs)
+  const [uploadFilters, setUploadFilters] = useState({ project: '', district: '', taluka: '', village: '' });
+
   // Sample data for dropdowns (this would come from API in real implementation)
   const [projects] = useState(['घोळ विकास प्रकल्प', 'नवी मुंबई विकास प्रकल्प', 'पुणे मेट्रो प्रकल्प']);
   const [districts] = useState(['पुणे', 'मुंबई', 'नाशिक', 'औरंगाबाद']);
@@ -466,6 +469,40 @@ const JMRManager = () => {
     }
   };
 
+  // PDF upload handler
+  const handlePDFUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast({ title: 'Invalid file', description: 'Please upload a PDF file', variant: 'destructive' });
+      return;
+    }
+    try {
+      setLoading(true);
+      const formDataData = new FormData();
+      formDataData.append('pdfFile', file);
+      formDataData.append('project', uploadFilters.project || '');
+      formDataData.append('district', uploadFilters.district || '');
+      formDataData.append('taluka', uploadFilters.taluka || '');
+      formDataData.append('village', uploadFilters.village || '');
+  
+      const response = await fetch(`${config.API_BASE_URL}/jmr/upload-pdf`, { method: 'POST', body: formDataData });
+      if (response.ok) {
+        const result = await response.json();
+        toast({ title: 'Success', description: `${result.count ?? result.message ?? 'PDF processed successfully'}` });
+        loadJMRRecords();
+      } else {
+        toast({ title: 'Upload failed', description: 'Failed to upload PDF', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      toast({ title: 'Error', description: 'Failed to upload PDF file to MongoDB', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const exportToCSV = () => {
     const headers = [
       'ID', 'Survey Number', 'Owner ID', 'Project ID', 'Officer ID', 'Measured Area', 
@@ -514,7 +551,7 @@ const JMRManager = () => {
               </TabsTrigger>
               <TabsTrigger value="upload" className="flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                CSV Upload
+                PDF Upload
               </TabsTrigger>
               <TabsTrigger value="view" className="flex items-center gap-2" onClick={() => console.log('View Records tab clicked!')}>
                 <Search className="h-4 w-4" />
@@ -769,24 +806,68 @@ const JMRManager = () => {
               </form>
             </TabsContent>
 
+
+
             <TabsContent value="upload" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>CSV Upload</CardTitle>
+                  <CardTitle>PDF Upload</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Filters row */}
+                  <div className="space-y-2">
+                    <Label className="text-lg font-bold">स्थान फिल्टर्स (Location Filters)</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label htmlFor="uploadProject">प्रकल्प (Project)</Label>
+                        <Autocomplete
+                          options={projects}
+                          value={uploadFilters.project}
+                          onChange={(value) => setUploadFilters(prev => ({ ...prev, project: value }))}
+                          placeholder="प्रकल्प निवडा..."
+                          emptyText="कोणताही प्रकल्प सापडला नाही"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="uploadDistrict">जिल्हा (District)</Label>
+                        <Autocomplete
+                          options={districts}
+                          value={uploadFilters.district}
+                          onChange={(value) => setUploadFilters(prev => ({ ...prev, district: value }))}
+                          placeholder="जिल्हा निवडा..."
+                          emptyText="कोणताही जिल्हा सापडला नाही"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="uploadTaluka">तालुका</Label>
+                        <Autocomplete
+                          options={talukas}
+                          value={uploadFilters.taluka}
+                          onChange={(value) => setUploadFilters(prev => ({ ...prev, taluka: value }))}
+                          placeholder="तालुका निवडा..."
+                          emptyText="कोणताही तालुका सापडला नाही"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="uploadVillage">गाव</Label>
+                        <Autocomplete
+                          options={villages}
+                          value={uploadFilters.village}
+                          onChange={(value) => setUploadFilters(prev => ({ ...prev, village: value }))}
+                          placeholder="गाव निवडा..."
+                          emptyText="कोणताही गाव सापडले नाही"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PDF file input */}
                   <div>
-                    <Label htmlFor="csvFile">Upload CSV File</Label>
-                    <Input
-                      id="csvFile"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCSVUpload}
-                    />
+                    <Label htmlFor="pdfFile">Upload PDF File</Label>
+                    <Input id="pdfFile" type="file" accept=".pdf,application/pdf" onChange={handlePDFUpload} />
                   </div>
                   <div className="text-sm text-gray-600">
-                    <p><strong>CSV Format:</strong></p>
-                    <p>Survey Number, Owner ID, Project ID, Officer ID, Measured Area, Land Type, Tribal Classification, District, Taluka, Village, Category, Measurement Date, Status, Remarks</p>
+                    <p><strong>PDF Upload:</strong> Select a PDF containing JMR details. The system will parse fields and create records.</p>
                   </div>
                 </CardContent>
               </Card>
