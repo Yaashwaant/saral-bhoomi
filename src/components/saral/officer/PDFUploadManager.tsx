@@ -35,11 +35,13 @@ const PDFUploadManager: React.FC<PDFUploadManagerProps> = ({ onUploadSuccess }) 
 
   const loadFilterOptions = async () => {
     try {
-      // Load projects
-      const projectsResponse = await fetch(`${config.API_BASE_URL}/filters/projects`);
+      // Load projects from the actual projects API
+      const projectsResponse = await fetch(`${config.API_BASE_URL}/projects?limit=100`);
       if (projectsResponse.ok) {
         const projectsData = await projectsResponse.json();
-        setProjects(projectsData.map((p: any) => p.name || p.projectName || p));
+        if (projectsData.success && projectsData.data) {
+          setProjects(projectsData.data.map((p: any) => p.projectName));
+        }
       }
 
       // Load districts
