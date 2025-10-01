@@ -1361,7 +1361,7 @@ const NoticeGenerator: React.FC = () => {
           </div>
 
           {/* Joint Measurement & Award (optional, does not block notices) */}
-            {selectedProject && (
+            {false && selectedProject && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* JMR */}
                 <Card>
