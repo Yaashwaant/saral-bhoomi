@@ -245,7 +245,7 @@ const GlobalDashboard: React.FC = () => {
       const kpiSheet = [
         ['Metric', 'Value'],
         ['Total Land Loaded (Ha)', kpis.totalLand],
-        ['Notices Issued', kpis.totalNotices],
+        ['Notices Generated', kpis.totalNotices],
         ['Budget Spent To-Date', kpis.totalPayments],
         ['Payments Completed', kpis.paymentsCompletedCount],
         ['Total Acquired Area (Ha)', kpis.totalAcquiredArea]
@@ -357,7 +357,7 @@ const GlobalDashboard: React.FC = () => {
             </Card>
             <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Notices Issued</CardTitle>
+                <CardTitle className="text-sm font-medium">Notices Generated</CardTitle>
                 <FileText className="h-4 w-4 text-amber-600" />
               </CardHeader>
               <CardContent>

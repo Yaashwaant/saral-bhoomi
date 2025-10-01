@@ -203,7 +203,7 @@ const HtmlLoginPage = () => {
 
             <div className="p-5 rounded-lg shadow-sm border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Notices Issued</div>
+                <div className="text-sm font-semibold text-text-dark-blue">Notices Generated</div>
                 <span className="material-icons text-indigo-600">receipt_long</span>
               </div>
               <div className="mt-2 text-3xl font-extrabold text-indigo-600">2,560</div>

@@ -281,7 +281,7 @@ const EnhancedDashboard: React.FC = () => {
       const analyticsSheet = [
         ['Metric', 'Value'],
         ['Total Land Loaded (Ha)', stats.totalLand],
-        ['Notices Issued', stats.totalNotices],
+        ['Notices Generated', stats.totalNotices],
         ['Budget Spent To-Date (₹)', stats.totalPayments],
         ['Payments Completed (count)', stats.paymentsCompletedCount || 0],
         ['Total Acquired Area (Ha)', stats.totalAcquiredArea || 0]
@@ -541,7 +541,7 @@ const EnhancedDashboard: React.FC = () => {
 
                 <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Notices Issued</CardTitle>
+                    <CardTitle className="text-sm font-medium">Notices Generated</CardTitle>
                     <FileText className="h-4 w-4 text-amber-600" />
                   </CardHeader>
                   <CardContent>
