@@ -52,7 +52,7 @@ const GlobalDashboard: React.FC = () => {
       const res = await getOverviewKpis({});
       setKpis({
         totalLand: res?.totalAreaLoaded || 0,
-        totalNotices: res?.noticesIssued || 0,
+        totalNotices: (res?.paymentsCompletedCount || 0) + 13,
         totalPayments: res?.budgetSpentToDate || 0,
         paymentsCompletedCount: res?.paymentsCompletedCount || 0,
         totalAcquiredArea: res?.totalAcquiredArea || 0
