@@ -262,6 +262,14 @@ const OfficerDashboard = () => {
                 <Building2 className="h-4 w-4 mr-1" />
                 Project Management
               </TabsTrigger>
+               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 JMR Management
+               </TabsTrigger>
                <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
