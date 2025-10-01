@@ -278,14 +278,14 @@ const OfficerDashboard = () => {
                  <Award className="h-4 w-4 mr-1" />
                  Award Declaration
                </TabsTrigger> */}
-               {/* <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
                  letterSpacing: '0.2px'
                }}>
                  <FileText className="h-4 w-4 mr-1" />
-                 {t.jmr}
-               </TabsTrigger> */}
+                 JMR Management
+               </TabsTrigger>
                {/* <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
@@ -340,9 +340,9 @@ const OfficerDashboard = () => {
                <EnhancedAwardManager />
              </TabsContent> */}
 
-             {/* <TabsContent value="jmr" className="mt-6">
+             <TabsContent value="jmr" className="mt-6">
                <JMRManager />
-             </TabsContent> */}
+             </TabsContent>
 
              {/* <TabsContent value="award" className="mt-6">
                <EnhancedAwardManager />
