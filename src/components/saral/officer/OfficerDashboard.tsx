@@ -268,7 +268,7 @@ const OfficerDashboard = () => {
                  letterSpacing: '0.2px'
                }}>
                  <FileText className="h-4 w-4 mr-1" />
-                 JMR
+                 JMR Management
                </TabsTrigger>
                <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
