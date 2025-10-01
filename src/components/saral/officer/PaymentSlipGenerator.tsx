@@ -117,6 +117,9 @@ const PaymentSlipGenerator: React.FC = () => {
   const [pendingReason, setPendingReason] = useState('');
   const [reasonRecordId, setReasonRecordId] = useState<string | null>(null);
   
+  // NEW: Hard-coded demo payment slips per project
+  const [paymentSlips, setPaymentSlips] = useState<PaymentSlip[]>([]);
+  
   const API_BASE_URL = config.API_BASE_URL;
 
   useEffect(() => {
@@ -125,6 +128,68 @@ const PaymentSlipGenerator: React.FC = () => {
     }
   }, [selectedProject]);
 
+  // NEW: Populate 5-6 demo payment slips whenever project changes
+  useEffect(() => {
+    const generateDemoSlipsForProject = (projectId: string): PaymentSlip[] => {
+      const projName = projects.find(p => p.id === projectId)?.projectName || 'Unknown Project';
+      const baseVillages = ['Kaholi', 'Umbarpada', 'Bapane', 'Kasu', 'Khanivde', 'Saphale'];
+      const names = ['Ram Patil', 'Mira Bai Patil', 'Shankar Jadhav', 'Anita Deshmukh', 'Kamalakar Mandal', 'Suresh Pawar'];
+      const now = Date.now();
+      return Array.from({ length: 6 }).map((_, idx) => ({
+        slip_number: `SLIP-${projectId}-${String(idx + 1).padStart(3, '0')}`,
+        generated_date: new Date(now - idx * 86400000).toISOString(),
+        landowner_details: {
+          name: names[idx % names.length],
+          survey_number: String(40 + idx),
+          village: baseVillages[idx % baseVillages.length],
+          taluka: 'Palghar',
+          district: 'Palghar',
+        },
+        land_details: {
+          area: Number((0.75 + idx * 0.1).toFixed(2)),
+          rate_per_hectare: 1200000 + idx * 100000,
+          structure_trees_wells_amount: 100000 * idx,
+        },
+        compensation_details: {
+          land_compensation: 800000 + idx * 100000,
+          structure_compensation: 200000 + idx * 50000,
+          solatium: 100000 + idx * 25000,
+          total_compensation: 1100000 + idx * 175000,
+          final_amount: 1100000 + idx * 175000,
+        },
+        project_details: {
+          name: projName,
+          village: baseVillages[idx % baseVillages.length],
+          taluka: 'Palghar',
+          district: 'Palghar',
+        },
+        kyc_details: {
+          status: 'approved',
+          completed_at: new Date(now - (idx + 2) * 86400000).toISOString(),
+        },
+        bank_details: {
+          account_number: `XXXXXX${(123456 + idx).toString().slice(-6)}`,
+          ifsc_code: 'HDFC0001234',
+          bank_name: 'HDFC Bank',
+          branch_name: 'Palghar',
+          account_holder: names[idx % names.length],
+        },
+        tribal_details: {
+          is_tribal: false,
+        },
+        documents: [],
+        notes: 'Demo hard-coded slip',
+        generated_by: user?.name || 'Field Officer',
+        generated_at: new Date(now - idx * 3600000).toISOString(),
+      }));
+    };
+
+    if (selectedProject) {
+      setPaymentSlips(generateDemoSlipsForProject(selectedProject));
+    } else {
+      setPaymentSlips([]);
+    }
+  }, [selectedProject, projects, user]);
   useEffect(() => {
     if (projects.length > 0 && !selectedProject) {
       setSelectedProject(projects[0].id);
@@ -570,7 +635,7 @@ const PaymentSlipGenerator: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {kycCompletedRecords.filter(r => r.payment_status === 'generated').length}
+                  {paymentSlips.length}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Payment slips created
@@ -718,9 +783,50 @@ const PaymentSlipGenerator: React.FC = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-8 text-gray-500">
-                    Payment slips will appear here after generation
-                  </div>
+                  {paymentSlips.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      Payment slips will appear here after generation
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Slip No</TableHead>
+                          <TableHead>Generated Date</TableHead>
+                          <TableHead>Owner</TableHead>
+                          <TableHead>Survey</TableHead>
+                          <TableHead>Village</TableHead>
+                          <TableHead>Final Amount</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paymentSlips.map((slip) => (
+                          <TableRow key={slip.slip_number}>
+                            <TableCell className="font-medium">{slip.slip_number}</TableCell>
+                            <TableCell>{new Date(slip.generated_date).toLocaleDateString('en-IN')}</TableCell>
+                            <TableCell>{slip.landowner_details.name}</TableCell>
+                            <TableCell>{slip.landowner_details.survey_number}</TableCell>
+                            <TableCell>{slip.landowner_details.village}</TableCell>
+                            <TableCell>
+                              ₹{Math.round(slip.compensation_details.final_amount).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="space-x-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => { setPaymentSlip(slip); setIsSlipOpen(true); }}
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View Slip
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
