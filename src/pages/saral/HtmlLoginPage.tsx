@@ -195,7 +195,7 @@ const HtmlLoginPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Land Loaded (Ha)</div>
+                <div className="text-sm font-semibold text-text-dark-blue">Total Land to be Acquired (Ha)</div>
                 <span className="material-icons text-primary">map</span>
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">1,245</div>
