@@ -559,7 +559,7 @@ const EnhancedDashboard: React.FC = () => {
                     <Banknote className="h-4 w-4 text-emerald-600" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">₹{stats.totalPayments.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">₹{Math.round(stats.totalPayments).toLocaleString()}</div>
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-xs text-emerald-700">Sum of completed payments</p>
                       <Delta current={stats.totalPayments} prev={(window as any).__SB_PREV_OVERVIEW__?.budgetSpentToDate} />

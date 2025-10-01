@@ -292,7 +292,7 @@ const ResponsiveSlider: React.FC = () => {
                     <div className="text-sm font-semibold text-text-dark-blue">Payments Done To-Date</div>
                     <span className="material-icons text-teal-600">account_balance_wallet</span>
                   </div>
-                  <div className="mt-2 text-2xl font-extrabold text-teal-600">₹{(overview.budgetSpentToDate || 0).toLocaleString('en-IN')}</div>
+                  <div className="mt-2 text-2xl font-extrabold text-teal-600">₹{Math.round(overview.budgetSpentToDate || 0).toLocaleString('en-IN')}</div>
                 </div>
               </div>
             )}
