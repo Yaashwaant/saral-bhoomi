@@ -17,7 +17,14 @@ import {
   Search,
   Filter,
   Eye,
-  Calendar
+  Calendar,
+  X,
+  RotateCcw,
+  ChevronDown,
+  Building2,
+  Home,
+  TreePine,
+  FolderOpen
 } from 'lucide-react';
 import {
   BarChart,
@@ -143,9 +150,30 @@ const Dashboard2: React.FC = () => {
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
   const [selectedTaluka, setSelectedTaluka] = useState<string>('all');
   const [selectedVillage, setSelectedVillage] = useState<string>('all');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
   const [filteredRecords, setFilteredRecords] = useState<EnglishCompleteRecord[]>([]);
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize] = useState(10);
+
+  // Helper function to clear all filters
+  const clearAllFilters = () => {
+    setSelectedDistrict('all');
+    setSelectedTaluka('all');
+    setSelectedVillage('all');
+    setSelectedProject('all');
+    setSearchTerm('');
+  };
+
+  // Helper function to get active filter count
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (selectedDistrict !== 'all') count++;
+    if (selectedTaluka !== 'all') count++;
+    if (selectedVillage !== 'all') count++;
+    if (selectedProject !== 'all') count++;
+    if (searchTerm.trim()) count++;
+    return count;
+  };10;
 
   // Fetch project names and create mapping
   const fetchProjectMapping = async () => {
@@ -456,10 +484,341 @@ const Dashboard2: React.FC = () => {
     }));
   };
 
+  // Get filtered records based on current filters
+  const getFilteredRecords = (): EnglishCompleteRecord[] => {
+    return filteredRecords; // Use the already filtered records from useEffect
+  };
+
+  // Get filtered compensation data by location
+  const getFilteredCompensationData = (): ChartData[] => {
+    const filtered = getFilteredRecords();
+    
+    if (selectedVillage !== 'all') {
+      // Village level - group by owner or survey number
+      const villageData = filtered.reduce((acc, record) => {
+        const key = `${record.owner_name || 'Unknown'} (${record.old_survey_number || record.new_survey_number || 'N/A'})`;
+        if (!acc[key]) {
+          acc[key] = 0;
+        }
+        acc[key] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(villageData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10); // Top 10 records
+    } else if (selectedTaluka !== 'all') {
+      // Taluka level - group by village
+      const talukaData = filtered.reduce((acc, record) => {
+        const village = record.village || 'Unknown';
+        if (!acc[village]) {
+          acc[village] = 0;
+        }
+        acc[village] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(talukaData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    } else if (selectedDistrict !== 'all') {
+      // District level - group by taluka
+      const districtData = filtered.reduce((acc, record) => {
+        const taluka = record.taluka || 'Unknown';
+        if (!acc[taluka]) {
+          acc[taluka] = 0;
+        }
+        acc[taluka] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(districtData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    } else {
+      // All districts - group by district
+      const allData = filtered.reduce((acc, record) => {
+        const district = record.district || 'Unknown';
+        if (!acc[district]) {
+          acc[district] = 0;
+        }
+        acc[district] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(allData)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+  };
+
+  // Get filtered land area data by location
+  const getFilteredLandAreaData = (): ChartData[] => {
+    const filtered = getFilteredRecords();
+    
+    if (selectedVillage !== 'all') {
+      // Village level - group by owner or survey number
+      const villageData = filtered.reduce((acc, record) => {
+        const key = `${record.owner_name || 'Unknown'} (${record.old_survey_number || record.new_survey_number || 'N/A'})`;
+        if (!acc[key]) {
+          acc[key] = { totalArea: 0, acquiredArea: 0 };
+        }
+        acc[key].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
+        acc[key].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
+      
+      return Object.entries(villageData)
+        .map(([name, data]) => ({ 
+          name, 
+          totalArea: data.totalArea, 
+          acquiredArea: data.acquiredArea,
+          value: data.totalArea 
+        }))
+        .sort((a, b) => b.totalArea - a.totalArea)
+        .slice(0, 10); // Top 10 records
+    } else if (selectedTaluka !== 'all') {
+      // Taluka level - group by village
+      const talukaData = filtered.reduce((acc, record) => {
+        const village = record.village || 'Unknown';
+        if (!acc[village]) {
+          acc[village] = { totalArea: 0, acquiredArea: 0 };
+        }
+        acc[village].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
+        acc[village].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
+      
+      return Object.entries(talukaData)
+        .map(([name, data]) => ({ 
+          name, 
+          totalArea: data.totalArea, 
+          acquiredArea: data.acquiredArea,
+          value: data.totalArea 
+        }))
+        .sort((a, b) => b.totalArea - a.totalArea);
+    } else if (selectedDistrict !== 'all') {
+      // District level - group by taluka
+      const districtData = filtered.reduce((acc, record) => {
+        const taluka = record.taluka || 'Unknown';
+        if (!acc[taluka]) {
+          acc[taluka] = { totalArea: 0, acquiredArea: 0 };
+        }
+        acc[taluka].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
+        acc[taluka].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
+      
+      return Object.entries(districtData)
+        .map(([name, data]) => ({ 
+          name, 
+          totalArea: data.totalArea, 
+          acquiredArea: data.acquiredArea,
+          value: data.totalArea 
+        }))
+        .sort((a, b) => b.totalArea - a.totalArea);
+    } else {
+      // All districts - group by district
+      const allData = filtered.reduce((acc, record) => {
+        const district = record.district || 'Unknown';
+        if (!acc[district]) {
+          acc[district] = { totalArea: 0, acquiredArea: 0 };
+        }
+        acc[district].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
+        acc[district].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+        return acc;
+      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
+      
+      return Object.entries(allData)
+        .map(([name, data]) => ({ 
+          name, 
+          totalArea: data.totalArea, 
+          acquiredArea: data.acquiredArea,
+          value: data.totalArea 
+        }))
+        .sort((a, b) => b.totalArea - a.totalArea);
+    }
+  };
+
+  // Filtered versions of project-wise data functions
+  const getFilteredProjectBudgetData = (): ChartData[] => {
+    const projectMap = new Map<string, { allocated: number; spent: number; name: string }>();
+    
+    getFilteredRecords().forEach(record => {
+      // Handle project_id which might be an object with an id field
+      let projectId: string;
+      if (typeof record.project_id === 'object' && record.project_id && 'id' in record.project_id) {
+        projectId = (record.project_id as any).id;
+      } else {
+        projectId = String(record.project_id || 'Unknown');
+      }
+      
+      const compensation = parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
+      // Handle both uppercase and lowercase status values
+      const status = (record.compensation_distribution_status || '').toLowerCase();
+      const isPaid = status === 'paid';
+      
+      if (!projectMap.has(projectId)) {
+        // Use actual project name from mapping or fallback to descriptive name
+        const projectName = projectMapping[projectId] || 
+                           (projectId === 'Unknown' ? 'Unknown Project' : 
+                           projectId.length > 10 ? `Project ${projectId.slice(-8)}` : 
+                           `Project ${projectId}`);
+        projectMap.set(projectId, { 
+          allocated: 0, 
+          spent: 0, 
+          name: projectName
+        });
+      }
+      
+      const project = projectMap.get(projectId)!;
+      project.allocated += compensation;
+      if (isPaid) {
+        project.spent += compensation;
+      }
+    });
+    
+    return Array.from(projectMap.entries()).map(([id, data]) => ({
+      name: data.name,
+      allocated: data.allocated,
+      spent: data.spent,
+      value: data.allocated
+    }));
+  };
+
+  const getFilteredProjectLandData = (): ChartData[] => {
+    const projectMap = new Map<string, { required: number; acquired: number; name: string }>();
+    
+    getFilteredRecords().forEach(record => {
+      // Handle project_id which might be an object with an id field
+      let projectId: string;
+      if (typeof record.project_id === 'object' && record.project_id && 'id' in record.project_id) {
+        projectId = (record.project_id as any).id;
+      } else {
+        projectId = String(record.project_id || 'Unknown');
+      }
+      
+      const requiredArea = parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
+      const acquiredArea = parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+      
+      if (!projectMap.has(projectId)) {
+        // Use actual project name from mapping or fallback to descriptive name
+        const projectName = projectMapping[projectId] || 
+                           (projectId === 'Unknown' ? 'Unknown Project' : 
+                           projectId.length > 10 ? `Project ${projectId.slice(-8)}` : 
+                           `Project ${projectId}`);
+        projectMap.set(projectId, { 
+          required: 0, 
+          acquired: 0, 
+          name: projectName
+        });
+      }
+      
+      const project = projectMap.get(projectId)!;
+      project.required += requiredArea;
+      project.acquired += acquiredArea;
+    });
+    
+    return Array.from(projectMap.entries()).map(([id, data]) => ({
+      name: data.name,
+      required: data.required,
+      acquired: data.acquired,
+      toAcquire: Math.max(0, data.required - data.acquired),
+      value: data.required
+    }));
+  };
+
+  const getFilteredPaymentStatusData = (): ChartData[] => {
+    const statusMap = new Map<string, number>();
+    
+    getFilteredRecords().forEach(record => {
+      const status = (record.compensation_distribution_status || 'unpaid').toLowerCase();
+      // Map the actual database values to display values
+      const normalizedStatus = status === 'paid' ? 'paid' : 'unpaid';
+      statusMap.set(normalizedStatus, (statusMap.get(normalizedStatus) || 0) + 1);
+    });
+    
+    return Array.from(statusMap.entries()).map(([status, count]) => ({
+      name: status.charAt(0).toUpperCase() + status.slice(1),
+      value: count
+    }));
+  };
+
+  const getFilteredOverallLandAcquisitionData = (): ChartData[] => {
+    const filtered = getFilteredRecords();
+    const totalAcquiredArea = filtered.reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
+    const totalRequiredArea = filtered.reduce((sum, r) => sum + (parseFloat(r.land_area_as_per_7_12?.toString() || '0') || 0), 0);
+    const totalAreaToBeAcquired = Math.max(0, totalRequiredArea - totalAcquiredArea);
+    
+    return [
+      {
+        name: 'Acquired',
+        value: totalAcquiredArea
+      },
+      {
+        name: 'To Acquire',
+        value: totalAreaToBeAcquired
+      }
+    ];
+  };
+
+  const getFilteredLandTypeData = (): ChartData[] => {
+    const landTypeData = getFilteredRecords().reduce((acc, record) => {
+      if (!record.land_type) return acc;
+      
+      acc[record.land_type] = (acc[record.land_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(landTypeData).map(([type, count]) => ({
+      name: type,
+      value: count
+    }));
+  };
+
   useEffect(() => {
     fetchProjectMapping();
     fetchRecords();
   }, []);
+
+  // Update filtered records when filters change
+  useEffect(() => {
+    let filtered = records.filter(record => {
+      if (!record.is_active) return false;
+      
+      // Apply search term filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          record.owner_name?.toLowerCase().includes(searchLower) ||
+          record.serial_number?.toLowerCase().includes(searchLower) ||
+          record.old_survey_number?.toLowerCase().includes(searchLower) ||
+          record.new_survey_number?.toLowerCase().includes(searchLower) ||
+          record.village?.toLowerCase().includes(searchLower) ||
+          record.taluka?.toLowerCase().includes(searchLower) ||
+          record.district?.toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
+      }
+      
+      // Apply location filters
+      if (selectedDistrict !== 'all' && record.district !== selectedDistrict) return false;
+      if (selectedTaluka !== 'all' && record.taluka !== selectedTaluka) return false;
+      if (selectedVillage !== 'all' && record.village !== selectedVillage) return false;
+      
+      // Apply project filter
+      if (selectedProject !== 'all') {
+        const recordProjectId = String(record.project_id || '');
+        if (recordProjectId !== selectedProject) return false;
+      }
+      
+      return true;
+    });
+    
+    setFilteredRecords(filtered);
+    setPage(1); // Reset to first page when filters change
+  }, [records, searchTerm, selectedDistrict, selectedTaluka, selectedVillage, selectedProject]);
 
   if (loading) {
     return (
@@ -724,6 +1083,551 @@ const Dashboard2: React.FC = () => {
                     <Bar dataKey="value" fill="#82ca9d" />
                   </BarChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Enhanced Filtered Analytics Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-5 w-5 text-blue-600" />
+                    Location-based Analytics
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getActiveFilterCount() > 0 && (
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                        {getActiveFilterCount()} filter{getActiveFilterCount() > 1 ? 's' : ''} active
+                      </Badge>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAllFilters}
+                      className="flex items-center gap-1 text-gray-600 hover:text-gray-800"
+                      disabled={getActiveFilterCount() === 0}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset All
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Enhanced Location Filters */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    {/* District Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <Building2 className="h-4 w-4 text-blue-600" />
+                        District
+                        {selectedDistrict !== 'all' && (
+                          <Badge variant="outline" className="ml-auto bg-blue-100 text-blue-800 border-blue-300">
+                            Selected
+                          </Badge>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
+                          <SelectTrigger className="bg-white border-2 border-blue-200 hover:border-blue-300 focus:border-blue-500 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Select District" />
+                            </div>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all" className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                All Districts
+                              </div>
+                            </SelectItem>
+                            {Array.from(new Set(records.map(r => r.district).filter(Boolean))).sort().map(district => (
+                              <SelectItem key={district} value={district}>
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-4 w-4 text-blue-600" />
+                                  {district}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedDistrict !== 'all' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-8 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-red-100"
+                            onClick={() => setSelectedDistrict('all')}
+                          >
+                            <X className="h-3 w-3 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Taluka Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <Home className="h-4 w-4 text-green-600" />
+                        Taluka
+                        {selectedTaluka !== 'all' && (
+                          <Badge variant="outline" className="ml-auto bg-green-100 text-green-800 border-green-300">
+                            Selected
+                          </Badge>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <Select value={selectedTaluka} onValueChange={setSelectedTaluka}>
+                          <SelectTrigger className="bg-white border-2 border-green-200 hover:border-green-300 focus:border-green-500 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <Home className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Select Taluka" />
+                            </div>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all" className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Home className="h-4 w-4" />
+                                All Talukas
+                              </div>
+                            </SelectItem>
+                            {Array.from(new Set(
+                              records
+                                .filter(r => selectedDistrict === 'all' || r.district === selectedDistrict)
+                                .map(r => r.taluka)
+                                .filter(Boolean)
+                            )).sort().map(taluka => (
+                              <SelectItem key={taluka} value={taluka}>
+                                <div className="flex items-center gap-2">
+                                  <Home className="h-4 w-4 text-green-600" />
+                                  {taluka}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedTaluka !== 'all' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-8 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-red-100"
+                            onClick={() => setSelectedTaluka('all')}
+                          >
+                            <X className="h-3 w-3 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Village Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <TreePine className="h-4 w-4 text-emerald-600" />
+                        Village
+                        {selectedVillage !== 'all' && (
+                          <Badge variant="outline" className="ml-auto bg-emerald-100 text-emerald-800 border-emerald-300">
+                            Selected
+                          </Badge>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <Select value={selectedVillage} onValueChange={setSelectedVillage}>
+                          <SelectTrigger className="bg-white border-2 border-emerald-200 hover:border-emerald-300 focus:border-emerald-500 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <TreePine className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Select Village" />
+                            </div>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all" className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <TreePine className="h-4 w-4" />
+                                All Villages
+                              </div>
+                            </SelectItem>
+                            {Array.from(new Set(
+                              records
+                                .filter(r => 
+                                  (selectedDistrict === 'all' || r.district === selectedDistrict) &&
+                                  (selectedTaluka === 'all' || r.taluka === selectedTaluka)
+                                )
+                                .map(r => r.village)
+                                .filter(Boolean)
+                            )).sort().map(village => (
+                              <SelectItem key={village} value={village}>
+                                <div className="flex items-center gap-2">
+                                  <TreePine className="h-4 w-4 text-emerald-600" />
+                                  {village}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedVillage !== 'all' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-8 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-red-100"
+                            onClick={() => setSelectedVillage('all')}
+                          >
+                            <X className="h-3 w-3 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Project Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <FolderOpen className="h-4 w-4 text-purple-600" />
+                        Project
+                        {selectedProject !== 'all' && (
+                          <Badge variant="outline" className="ml-auto bg-purple-100 text-purple-800 border-purple-300">
+                            Selected
+                          </Badge>
+                        )}
+                      </label>
+                      <div className="relative">
+                        <Select value={selectedProject} onValueChange={setSelectedProject}>
+                          <SelectTrigger className="bg-white border-2 border-purple-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="h-4 w-4 text-gray-500" />
+                              <SelectValue placeholder="Select Project" />
+                            </div>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all" className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <FolderOpen className="h-4 w-4" />
+                                All Projects
+                              </div>
+                            </SelectItem>
+                            {Array.from(new Set(records.map(r => String(r.project_id || '')).filter(Boolean))).sort().map(projectId => (
+                              <SelectItem key={projectId} value={projectId}>
+                                <div className="flex items-center gap-2">
+                                  <FolderOpen className="h-4 w-4 text-purple-600" />
+                                  {projectMapping[projectId] || `Project ${projectId.slice(-8)}`}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedProject !== 'all' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-8 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-red-100"
+                            onClick={() => setSelectedProject('all')}
+                          >
+                            <X className="h-3 w-3 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Active Filters Display */}
+                  {getActiveFilterCount() > 0 && (
+                    <div className="mt-4 pt-4 border-t border-blue-200">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-600">Active Filters:</span>
+                        {selectedDistrict !== 'all' && (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 flex items-center gap-1">
+                            <Building2 className="h-3 w-3" />
+                            {selectedDistrict}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0 ml-1 hover:bg-blue-200"
+                              onClick={() => setSelectedDistrict('all')}
+                            >
+                              <X className="h-2 w-2" />
+                            </Button>
+                          </Badge>
+                        )}
+                        {selectedTaluka !== 'all' && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800 flex items-center gap-1">
+                            <Home className="h-3 w-3" />
+                            {selectedTaluka}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0 ml-1 hover:bg-green-200"
+                              onClick={() => setSelectedTaluka('all')}
+                            >
+                              <X className="h-2 w-2" />
+                            </Button>
+                          </Badge>
+                        )}
+                        {selectedVillage !== 'all' && (
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                            <TreePine className="h-3 w-3" />
+                            {selectedVillage}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0 ml-1 hover:bg-emerald-200"
+                              onClick={() => setSelectedVillage('all')}
+                            >
+                              <X className="h-2 w-2" />
+                            </Button>
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Filtered Quick Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Area to be Acquired</CardTitle>
+                      <MapPin className="h-4 w-4 text-blue-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.land_area_as_per_7_12?.toString() || '0') || 0), 0).toFixed(2)} Ha
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total hectares needed for projects
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Acquired Area</CardTitle>
+                      <MapPin className="h-4 w-4 text-green-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0).toFixed(2)} Ha
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Hectares acquired for projects
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Compensation Paid</CardTitle>
+                      <DollarSign className="h-4 w-4 text-yellow-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        ₹{(getFilteredRecords()
+                          .filter(r => r.compensation_distribution_status === 'Paid')
+                          .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0) / 10000000).toFixed(1)}Cr
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Compensation paid till now
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total Compensation</CardTitle>
+                      <DollarSign className="h-4 w-4 text-purple-600" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        ₹{(getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0) / 10000000).toFixed(1)}Cr
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Total allocated compensation
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Filtered Project-wise Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Filtered Project-wise Budget: Allocated vs Spent */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Project-wise Budget: Allocated vs Spent (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={getFilteredProjectBudgetData()}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis tickFormatter={(value) => `₹${(value / 10000000).toFixed(1)}Cr`} />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              `₹${(value / 10000000).toFixed(2)}Cr`, 
+                              name === 'allocated' ? 'Allocated' : 'Spent'
+                            ]}
+                            labelFormatter={(label) => `Project: ${label}`}
+                          />
+                          <Bar dataKey="allocated" fill="#8884d8" name="allocated" />
+                          <Bar dataKey="spent" fill="#82ca9d" name="spent" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Filtered Project-wise Land: Required vs Acquired vs To Acquire */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Project-wise Land: Required vs Acquired vs To Acquire (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={getFilteredProjectLandData()}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis tickFormatter={(value) => `${value.toFixed(1)} Ha`} />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              `${value.toFixed(2)} Ha`, 
+                              name === 'required' ? 'Required' : name === 'acquired' ? 'Acquired' : 'To Acquire'
+                            ]}
+                            labelFormatter={(label) => `Project: ${label}`}
+                          />
+                          <Bar dataKey="required" fill="#ff7300" name="required" />
+                          <Bar dataKey="acquired" fill="#00C49F" name="acquired" />
+                          <Bar dataKey="toAcquire" fill="#FFBB28" name="toAcquire" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Filtered Payment Status and Land Acquisition Pie Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Filtered Payment Status Distribution */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Payment Status Distribution (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={getFilteredPaymentStatusData()}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {getFilteredPaymentStatusData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Filtered Overall Land Acquisition */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Overall Land Acquisition (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={getFilteredOverallLandAcquisitionData()}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent, value }) => `${name} ${value.toFixed(1)} Ha (${(percent * 100).toFixed(0)}%)`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {getFilteredOverallLandAcquisitionData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} Ha`, 'Area']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Filtered Land Type Distribution */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Land Type Distribution (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={getFilteredLandTypeData()}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                          >
+                            {getFilteredLandTypeData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Additional Filtered Analytics Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Filtered Compensation by Location */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Compensation Distribution by Location (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={getFilteredCompensationData()}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                          <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(1)}L`} />
+                          <Tooltip formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Compensation']} />
+                          <Bar dataKey="value" fill="#8884d8" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Filtered Land Area Analysis */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Land Area Analysis by Location (Filtered)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={getFilteredLandAreaData()}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                          <YAxis tickFormatter={(value) => `${value.toFixed(1)} Ha`} />
+                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} Hectares`, '']} />
+                          <Bar dataKey="totalArea" fill="#82ca9d" name="Total Area" />
+                          <Bar dataKey="acquiredArea" fill="#ffc658" name="Acquired Area" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                </div>
               </CardContent>
             </Card>
           </div>
