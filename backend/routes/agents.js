@@ -8,8 +8,10 @@ import fs from 'fs';
 import path from 'path';
 import { getCloudinary } from '../services/cloudinaryService.js';
 import { authorize } from '../middleware/auth.js';
+import LedgerV2Service from '../services/ledgerV2Service.js';
 
 const router = express.Router();
+const ledgerV2 = new LedgerV2Service();
 
 // Cloudinary is configured centrally via service. Nothing needed here.
 
@@ -173,10 +175,10 @@ router.get('/assigned-with-notices', async (req, res) => {
 // @access  Public
 router.put('/kyc-status', async (req, res) => {
   try {
-    const { landownerId, kycStatus, notes } = req.body;
-    
-    console.log('Updating KYC status:', { landownerId, kycStatus });
-    
+    const { landownerId, kycStatus, notes, officer_id, project_id } = req.body;
+
+    console.log('Updating KYC status:', { landownerId, kycStatus, officer_id, project_id });
+
     // Find and update the landowner record
     const record = await MongoLandownerRecord.findById(landownerId);
     if (!record) {
@@ -185,13 +187,36 @@ router.put('/kyc-status', async (req, res) => {
         message: 'Landowner record not found'
       });
     }
-    
+
     await MongoLandownerRecord.findByIdAndUpdate(landownerId, {
       kyc_status: kycStatus,
       kyc_notes: notes || record.kyc_notes,
       kyc_updated_at: new Date()
     });
-    
+
+    // Append timeline event and roll-forward ledger v2 for KYC status update
+    try {
+      const surveyNumber = record.survey_number || record.new_survey_number || record.old_survey_number;
+      const officerId = officer_id || req.user?.id || null;
+      const projectId = project_id || record.project_id || null;
+      const metadata = {
+        previous_status: record.kyc_status || null,
+        new_status: kycStatus,
+        notes: notes || '',
+        landowner_id: String(record._id),
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district
+      };
+
+      if (surveyNumber) {
+        await ledgerV2.appendTimelineEvent(surveyNumber, officerId, 'KYC_STATUS_UPDATED', metadata, 'KYC status updated');
+        await ledgerV2.createOrUpdateFromLive(surveyNumber, officerId, projectId, 'kyc_status_updated');
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to append KYC timeline or roll-forward ledger:', e.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'KYC status updated successfully',
@@ -201,7 +226,7 @@ router.put('/kyc-status', async (req, res) => {
         updatedAt: new Date()
       }
     });
-    
+
   } catch (error) {
     console.error('Error updating KYC status:', error);
     res.status(500).json({
@@ -343,7 +368,7 @@ export default router;
 router.put('/kyc-status/:recordId', async (req, res) => {
   try {
     const { recordId } = req.params;
-    const { kycStatus, notes } = req.body || {};
+    const { kycStatus, notes, officer_id, project_id } = req.body || {};
 
     const record = await MongoLandownerRecord.findById(recordId);
     if (!record) {
@@ -356,10 +381,33 @@ router.put('/kyc-status/:recordId', async (req, res) => {
       kyc_updated_at: new Date()
     });
 
+    // Append timeline event and roll-forward ledger v2 for KYC status update
+    try {
+      const surveyNumber = record.survey_number || record.new_survey_number || record.old_survey_number;
+      const officerId = officer_id || req.user?.id || null;
+      const projectId = project_id || record.project_id || null;
+      const metadata = {
+        previous_status: record.kyc_status || null,
+        new_status: kycStatus || record.kyc_status,
+        notes: notes || '',
+        landowner_id: String(record._id),
+        village: record.village,
+        taluka: record.taluka,
+        district: record.district
+      };
+
+      if (surveyNumber) {
+        await ledgerV2.appendTimelineEvent(surveyNumber, officerId, 'KYC_STATUS_UPDATED', metadata, 'KYC status updated');
+        await ledgerV2.createOrUpdateFromLive(surveyNumber, officerId, projectId, 'kyc_status_updated');
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to append KYC timeline or roll-forward ledger (param):', e.message);
+    }
+
     return res.status(200).json({
       success: true,
       message: 'KYC status updated successfully',
-      data: { landownerId: record.id, kycStatus: record.kycStatus, updatedAt: record.kycUpdatedAt }
+      data: { landownerId: record.id, kycStatus: kycStatus || record.kyc_status, updatedAt: new Date() }
     });
   } catch (error) {
     console.error('Error updating KYC status (param):', error);

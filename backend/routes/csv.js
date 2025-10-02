@@ -1,9 +1,14 @@
 import express from 'express';
-import multer from 'multer';
-import csv from 'csv-parser';
 import fs from 'fs';
+import csv from 'csv-parser';
+import multer from 'multer';
 import path from 'path';
-import { LandownerRecord as MongoLandownerRecord, Project as MongoProject, User as MongoUser, JMRRecord as MongoJMRRecord } from '../models/index.js';
+import { readFileData } from '../utils/readFileData.js';
+
+import MongoProject from '../models/mongo/Project.js';
+import MongoUser from '../models/mongo/User.js';
+import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
 import MongoAward from '../models/mongo/Award.js';
 import { authorize } from '../middleware/auth.js';
 
@@ -21,6 +26,21 @@ function normalizeRow(row) {
   ].forEach((k) => { if (row[k] !== undefined && row[k] !== null) row[k] = String(row[k]).trim(); });
   return row;
 };
+
+// Enhanced normalization: map Marathi headers to canonical fields used in validation
+function normalizeRowEnhanced(raw) {
+  const row = { ...raw };
+  row.landowner_name = raw['खातेदाराचे नांव'] || raw.landowner_name || '';
+  row.survey_number = raw['नविन स.नं.'] || raw.new_survey_number || raw.survey_number || '';
+  row.area = raw['गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)'] || raw.total_area_village_record || raw.area || '';
+  row.acquired_area = raw['संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)'] || raw.acquired_area_sqm_hectare || raw.acquired_area || '';
+  row.rate = raw['मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये'] || raw.approved_rate_per_hectare || raw.rate || '';
+  row.total_compensation = raw['एकुण रक्कम (14+23)'] || raw.total_compensation_amount || raw.total_compensation || '';
+  row.solatium = raw['100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5'] || raw.solatium_100_percent || raw.solatium || '';
+  row.final_amount = raw['हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)'] || raw.final_payable_amount || raw.final_amount || '';
+  // Keep existing village/taluka/district if present; req.body defaults are applied later during record creation
+  return normalizeRow(row);
+}
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -1213,17 +1233,18 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
           continue;
         }
         
-        // Check for duplicate survey number if not overwriting
+        // Check for duplicate survey number within village if not overwriting
         if (!overwrite) {
           const existingRecord = await MongoLandownerRecord.findOne({ 
             survey_number: row.survey_number.toString().trim(),
-            project_id: projectId 
+            project_id: projectId,
+            village: row.village || req.body.village
           });
           
           if (existingRecord) {
             errors.push({
               row: rowNumber,
-              error: `Survey number ${row.survey_number} already exists`
+              error: `Survey number ${row.survey_number} already exists in village ${row.village}`
             });
             continue;
           }
@@ -1258,7 +1279,7 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
           
           // RATE AND MARKET VALUE FIELDS
           rate: parseFloat(row['मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये'] || row.approved_rate_per_hectare || row.rate || 0),
-          approved_rate_per_hectare: parseFloat(row['मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये'] || row.approved_rate_per_hectare || 0),
+          approved_rate_per_hectare: parseFloat(row['मंजुर केबेला दर (प्रति हेक्टर) रक्कम रुपये'] || row.approved_rate_per_hectare || 0),
           market_value_acquired_area: parseFloat(row['संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू'] || row.market_value_acquired_area || 0),
           
           // SECTION 26 CALCULATION FIELDS
@@ -1290,9 +1311,9 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
           final_payable_amount: parseFloat(row['हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये (अ.क्र. 28 वजा 29)'] || row.final_payable_amount || 0),
           
           // LOCATION FIELDS
-          village: row.village || 'NA',
-          taluka: row.taluka || 'NA',
-          district: row.district || 'NA',
+          village: row.village || req.body.village || 'NA',
+          taluka: row.taluka || req.body.taluka || 'NA',
+          district: row.district || req.body.district || 'NA',
           
           // CONTACT FIELDS
           contact_phone: row.contact_phone || '',
@@ -1313,7 +1334,7 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
           
           // STATUS FIELDS
           kyc_status: 'pending',
-          payment_status: 'pending',
+          payment_status: row.payment_status || 'pending',
           notice_generated: false,
           assigned_agent: row.assigned_agent || '',
           
@@ -1337,7 +1358,7 @@ router.post('/upload-enhanced/:projectId', enhancedUpload.single('file'), async 
           if (overwrite) {
             // Update existing record or create new one
             await MongoLandownerRecord.findOneAndUpdate(
-              { survey_number: record.survey_number, project_id: projectId },
+              { survey_number: record.survey_number, project_id: projectId, village: record.village },
               record,
               { upsert: true, new: true }
             );

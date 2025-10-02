@@ -95,10 +95,10 @@ const HtmlLoginPage = () => {
         <div className="absolute inset-0 bg-black bg-opacity-40"></div>
         <div className="container mx-auto px-6 relative z-10 text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
-            Saral Bhoomi – Blockchain-based Land Acquisition Records Portal
+            eSULABH – Blockchain-based Land Acquisition Records Portal
           </h1>
           <p className="text-lg text-white font-medium mb-4">
-            SARAL: System for Automated Resourceful Acquisition of Land
+            eSULABH: SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN
           </p>
           <p className="text-base text-white opacity-90 mb-8">
             Transparent. Secure. Citizen-Centric.
@@ -119,7 +119,7 @@ const HtmlLoginPage = () => {
       {/* Why Saral Bhoomi Section */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl font-extrabold text-text-dark-blue mb-12">Why Saral Bhoomi?</h2>
+          <h2 className="text-3xl font-extrabold text-text-dark-blue mb-12">Why eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-100">
               <div className="flex items-center mb-3">
@@ -195,7 +195,7 @@ const HtmlLoginPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Land Loaded (Ha)</div>
+                <div className="text-sm font-semibold text-text-dark-blue">Total Land to be Acquired (Ha)</div>
                 <span className="material-icons text-primary">map</span>
               </div>
               <div className="mt-2 text-3xl font-extrabold text-primary">1,245</div>
@@ -203,7 +203,7 @@ const HtmlLoginPage = () => {
 
             <div className="p-5 rounded-lg shadow-sm border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Notices Issued</div>
+                <div className="text-sm font-semibold text-text-dark-blue">Notices Generated</div>
                 <span className="material-icons text-indigo-600">receipt_long</span>
               </div>
               <div className="mt-2 text-3xl font-extrabold text-indigo-600">2,560</div>
@@ -274,7 +274,7 @@ const HtmlLoginPage = () => {
               />
               <div>
                 <p className="font-bold text-lg">Palghar Collector Office</p>
-                <p className="text-sm text-subtext-light">Saral Bhoomi – Official Portal</p>
+                <p className="text-sm text-subtext-light">eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN – Official Portal</p>
               </div>
             </div>
             <p className="text-xs text-subtext-light mt-4">Palghar, Maharashtra 401404</p>
@@ -304,7 +304,7 @@ const HtmlLoginPage = () => {
         >
           <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-text-dark-blue">Login to Saral Bhoomi</h2>
+              <h2 className="text-2xl font-bold text-text-dark-blue">Login to eSULABH-SYSTEM FOR UNIFIED LAND ACQUISITION through BLOCKCHAIN</h2>
               <button 
                 onClick={() => setShowModal(false)}
                 className="text-gray-500 hover:text-gray-700"

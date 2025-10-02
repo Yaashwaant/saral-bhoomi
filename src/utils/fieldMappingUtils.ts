@@ -74,7 +74,7 @@ export const formatCurrency = (value: any): string => {
   if (value === null || value === undefined || value === '') return '₹0';
   const num = parseFloat(value);
   if (isNaN(num)) return '₹0';
-  return '₹' + num.toLocaleString('en-IN');
+  return '₹' + Math.round(num).toLocaleString('en-IN');
 };
 
 /**

@@ -40,6 +40,7 @@ import SimpleFieldOfficerAssignment from './SimpleFieldOfficerAssignment';
 // Import new enhanced components
 import EnhancedAwardManager from './EnhancedAwardManager';
 import LandRecordsManager from './LandRecordsManager';
+import LandRecordsManager2 from './LandRecordsManager2';
 import EnhancedPaymentManager from './EnhancedPaymentManager';
 import EnhancedDashboard from './EnhancedDashboard';
 import GlobalDashboard from './GlobalDashboard';
@@ -47,6 +48,7 @@ import DocumentUploadPortal from './DocumentUploadPortal';
 import PaymentSlipGenerator from './PaymentSlipGenerator';
 import BlockchainDashboard from './BlockchainDashboard';
 import JMRManager from './JMRManager';
+import Dashboard2 from '../../dashboard/Dashboard2';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -70,6 +72,7 @@ const OfficerDashboard = () => {
       paymentSlips: 'पेमेंट स्लिप्स',
       landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
       award: 'Award',
+      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -90,7 +93,7 @@ const OfficerDashboard = () => {
     },
     english: {
       welcome: 'Welcome',
-      dashboard: 'Land Officer Dashboard',
+      dashboard: 'Land Acquisition Officer Dashboard / भूसंपादन अधिकारी डैशबोर्ड',
       overview: 'Overview',
       projects: 'Project Management',
       notices: 'Notice Generator',
@@ -102,6 +105,7 @@ const OfficerDashboard = () => {
       paymentSlips: 'Payment Slips',
       landRecordsManagement: 'Land Records Management',
       award: 'Award',
+      englishAnalytics: 'English Analytics',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -122,7 +126,7 @@ const OfficerDashboard = () => {
     },
     hindi: {
       welcome: 'स्वागत',
-      dashboard: 'भूमि अधिकारी डैशबोर्ड',
+      dashboard: 'भूसंपादन अधिकारी डैशबोर्ड',
       overview: 'सारांश',
       projects: 'परियोजना प्रबंधन',
       notices: 'नोटिस जनरेटर',
@@ -135,6 +139,7 @@ const OfficerDashboard = () => {
       landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
       jmr: 'JMR',
       award: 'Award',
+      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -207,7 +212,7 @@ const OfficerDashboard = () => {
     <GovernmentLayout>
       {/* Main Content */}
       <div className="relative z-10 container mx-auto px-4 py-6 space-y-6">
-        {/* Welcome Section */}
+        {/* Dashboard Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -216,19 +221,14 @@ const OfficerDashboard = () => {
                 fontWeight: 700,
                 letterSpacing: '0.5px',
                 textShadow: '0 1px 2px rgba(0,0,0,0.3)'
-              }}>{t.welcome}, {user?.name}!</h1>
-              <p className="text-blue-100 mt-1" style={{ 
-                fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                fontWeight: 500,
-                letterSpacing: '0.2px'
-              }}>{t.dashboard}</p>
+              }}>Dashboard</h1>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium" style={{ 
                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
                 fontWeight: 600,
                 letterSpacing: '0.2px'
-              }}>Land Officer</span>
+              }}>Land Acquisition Officer / भूसंपादन अधिकारी</span>
             </div>
           </div>
         </div>
@@ -267,6 +267,14 @@ const OfficerDashboard = () => {
                 <Building2 className="h-4 w-4 mr-1" />
                 Project Management
               </TabsTrigger>
+               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <FileText className="h-4 w-4 mr-1" />
+                 JMR Management
+               </TabsTrigger>
                <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
@@ -275,30 +283,30 @@ const OfficerDashboard = () => {
                  <FileText className="h-4 w-4 mr-1" />
                  Land Records Management
                </TabsTrigger>
-               <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+               <TabsTrigger value="landRecords2" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Database className="h-4 w-4 mr-1" />
+                 Land Records Management 2
+               </TabsTrigger>
+               {/* <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
                  letterSpacing: '0.2px'
                }}>
                  <Award className="h-4 w-4 mr-1" />
                  Award Declaration
-               </TabsTrigger>
-               <TabsTrigger value="jmr" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                 fontWeight: 500,
-                 letterSpacing: '0.2px'
-               }}>
-                 <FileText className="h-4 w-4 mr-1" />
-                 {t.jmr}
-               </TabsTrigger>
-               <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+               </TabsTrigger> */}
+               {/* <TabsTrigger value="award" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
                  letterSpacing: '0.2px'
                }}>
                  <Award className="h-4 w-4 mr-1" />
                  Award
-               </TabsTrigger>
+               </TabsTrigger> */}
                <TabsTrigger value="notices" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
@@ -323,6 +331,14 @@ const OfficerDashboard = () => {
                   <Hash className="h-4 w-4 mr-1" />
                   Blockchain
                 </TabsTrigger>
+                <TabsTrigger value="englishAnalytics" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                  fontWeight: 500,
+                  letterSpacing: '0.2px'
+                }}>
+                  <Database className="h-4 w-4 mr-1" />
+                  {t.englishAnalytics}
+                </TabsTrigger>
              </TabsList>
             
                         <TabsContent value="dashboard" className="space-y-6 mt-6">
@@ -341,17 +357,21 @@ const OfficerDashboard = () => {
                <LandRecordsManager />
              </TabsContent>
 
-             <TabsContent value="awardDeclaration" className="mt-6">
-               <EnhancedAwardManager />
+             <TabsContent value="landRecords2" className="mt-6">
+               <LandRecordsManager2 />
              </TabsContent>
+
+             {/* <TabsContent value="awardDeclaration" className="mt-6">
+               <EnhancedAwardManager />
+             </TabsContent> */}
 
              <TabsContent value="jmr" className="mt-6">
                <JMRManager />
              </TabsContent>
 
-             <TabsContent value="award" className="mt-6">
+             {/* <TabsContent value="award" className="mt-6">
                <EnhancedAwardManager />
-             </TabsContent>
+             </TabsContent> */}
 
              <TabsContent value="notices" className="mt-6">
                <NoticeGenerator />
@@ -362,6 +382,9 @@ const OfficerDashboard = () => {
              </TabsContent>
                          <TabsContent value="blockchain" className="mt-6">
                <BlockchainDashboard />
+             </TabsContent>
+             <TabsContent value="englishAnalytics" className="mt-6">
+               <Dashboard2 />
              </TabsContent>
           </Tabs>
         </CardContent>

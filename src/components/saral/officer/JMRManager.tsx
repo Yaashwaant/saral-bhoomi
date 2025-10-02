@@ -27,6 +27,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { config } from '@/config';
 import ExactDocumentTable from './ExactDocumentTable';
+import PDFUploadManager from './PDFUploadManager';
 
 interface JMRRecord {
   _id?: string;
@@ -514,7 +515,7 @@ const JMRManager = () => {
               </TabsTrigger>
               <TabsTrigger value="upload" className="flex items-center gap-2">
                 <Upload className="h-4 w-4" />
-                CSV Upload
+                PDF Upload
               </TabsTrigger>
               <TabsTrigger value="view" className="flex items-center gap-2" onClick={() => console.log('View Records tab clicked!')}>
                 <Search className="h-4 w-4" />
@@ -770,26 +771,17 @@ const JMRManager = () => {
             </TabsContent>
 
             <TabsContent value="upload" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>CSV Upload</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="csvFile">Upload CSV File</Label>
-                    <Input
-                      id="csvFile"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCSVUpload}
-                    />
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    <p><strong>CSV Format:</strong></p>
-                    <p>Survey Number, Owner ID, Project ID, Officer ID, Measured Area, Land Type, Tribal Classification, District, Taluka, Village, Category, Measurement Date, Status, Remarks</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <PDFUploadManager 
+                onUploadSuccess={(data) => {
+                  console.log('PDF uploaded successfully:', data);
+                  toast({
+                    title: "PDF Upload Successful",
+                    description: `PDF uploaded for project: ${data.project}`
+                  });
+                  // Optionally refresh records or update state
+                  loadJMRRecords();
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="view" className="space-y-6">

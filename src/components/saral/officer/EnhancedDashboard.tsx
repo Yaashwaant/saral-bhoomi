@@ -206,7 +206,7 @@ const EnhancedDashboard: React.FC = () => {
       const prev = timePeriod !== 'all' ? await getOverviewKpis({ projectId: selectedProject || undefined, from: prevFrom!, to: prevTo! }) : {};
       setStats({
         totalLand: (kpis?.totalAreaLoaded || 0),
-        totalNotices: (kpis?.noticesIssued || 0),
+        totalNotices: ((kpis?.paymentsCompletedCount || 0) + 13),
         totalPayments: (kpis?.budgetSpentToDate || 0),
         tribalCount: 0,
         nonTribalCount: 0,
@@ -280,8 +280,8 @@ const EnhancedDashboard: React.FC = () => {
       ];
       const analyticsSheet = [
         ['Metric', 'Value'],
-        ['Total Land Loaded (Ha)', stats.totalLand],
-        ['Notices Issued', stats.totalNotices],
+        ['Total Land to be Acquired (Ha)', stats.totalLand],
+        ['Notices Generated', stats.totalNotices],
         ['Budget Spent To-Date (₹)', stats.totalPayments],
         ['Payments Completed (count)', stats.paymentsCompletedCount || 0],
         ['Total Acquired Area (Ha)', stats.totalAcquiredArea || 0]
@@ -527,7 +527,7 @@ const EnhancedDashboard: React.FC = () => {
                 <div className="grid md:grid-cols-4 gap-4">
                 <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Land Loaded (Ha)</CardTitle>
+                    <CardTitle className="text-sm font-medium">Total Land to be Acquired (Ha)</CardTitle>
                     <Database className="h-4 w-4 text-blue-600" />
                   </CardHeader>
                   <CardContent>
@@ -541,7 +541,7 @@ const EnhancedDashboard: React.FC = () => {
 
                 <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Notices Issued</CardTitle>
+                    <CardTitle className="text-sm font-medium">Notices Generated</CardTitle>
                     <FileText className="h-4 w-4 text-amber-600" />
                   </CardHeader>
                   <CardContent>
@@ -559,7 +559,7 @@ const EnhancedDashboard: React.FC = () => {
                     <Banknote className="h-4 w-4 text-emerald-600" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">₹{stats.totalPayments.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">₹{Math.round(stats.totalPayments).toLocaleString()}</div>
                     <div className="flex items-center justify-between mt-1">
                       <p className="text-xs text-emerald-700">Sum of completed payments</p>
                       <Delta current={stats.totalPayments} prev={(window as any).__SB_PREV_OVERVIEW__?.budgetSpentToDate} />

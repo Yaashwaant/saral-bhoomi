@@ -6,6 +6,9 @@ import { authorize } from '../middleware/auth.js';
 import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
+import LedgerV2Service from '../services/ledgerV2Service.js';
+
+const ledgerV2 = new LedgerV2Service();
 
 const router = express.Router();
 
@@ -27,9 +30,21 @@ router.get('/list', async (req, res) => {
       records: records.map(record => {
         const plain = record.toObject({ getters: true });
         const createdBy = plain.created_by;
+        
+        // Map payment_status from database to paymentStatus expected by frontend
+        let paymentStatus = 'pending'; // default
+        if (plain.payment_status === 'completed') {
+          paymentStatus = 'success';
+        } else if (plain.payment_status === 'pending') {
+          paymentStatus = 'pending';
+        } else if (plain.payment_status === 'rejected') {
+          paymentStatus = 'rejected';
+        }
+        
         return {
           id: record._id,
           ...plain,
+          paymentStatus, // Add mapped paymentStatus field
           created_by: createdBy ? {
             id: createdBy._id,
             name: createdBy.name,
@@ -76,9 +91,21 @@ router.get('/:projectId', async (req, res) => {
       data: records.map(record => {
         const plain = record.toObject({ getters: true });
         const createdBy = plain.created_by;
+        
+        // Map payment_status from database to paymentStatus expected by frontend
+        let paymentStatus = 'pending'; // default
+        if (plain.payment_status === 'completed') {
+          paymentStatus = 'success';
+        } else if (plain.payment_status === 'pending') {
+          paymentStatus = 'pending';
+        } else if (plain.payment_status === 'rejected') {
+          paymentStatus = 'rejected';
+        }
+        
         return {
           id: record._id,
           ...plain,
+          paymentStatus, // Add mapped paymentStatus field
           created_by: createdBy ? {
             id: createdBy._id,
             name: createdBy.name,
@@ -198,6 +225,34 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
 
     const savedRecord = await newRecord.save();
 
+    // Append timeline and roll-forward ledger v2 for record creation
+    try {
+      const officerId = String((created_by ?? req.user?.id) || 'system');
+      await ledgerV2.appendTimelineEvent(
+        String(survey_number),
+        officerId,
+        'LANDOWNER_RECORD_CREATED',
+        {
+          landowner_name,
+          area: parseFloat(area) || 0,
+          village,
+          taluka,
+          district
+        },
+        'Official portal record creation',
+        String(project_id)
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        String(survey_number),
+        officerId,
+        String(project_id),
+        'landowner_record_created'
+      );
+    } catch (e) {
+      console.warn('⚠️ Could not update timeline/ledger after record creation:', e.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Landowner record created successfully',
@@ -271,14 +326,15 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
                 continue;
               }
 
-              // Check if survey number already exists
+              // Check if survey number already exists within the same village
               const existingRecord = await MongoLandownerRecord.findOne({ 
                 survey_number: record.survey_number,
-                project_id 
+                project_id,
+                village: record.village
               });
               
               if (existingRecord) {
-                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.survey_number} already exists`);
+                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.survey_number} already exists in village ${record.village}`);
                 continue;
               }
 
@@ -362,9 +418,9 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
 const normalizeUpdate = (body = {}) => {
   const b = { ...body };
   // Tribal and Contact/bank fields accept Marathi aliases
-  // Correct mapping: is_tribal <- 'आदिवासी'; tribal_certificate_no <- 'आदिवासी_प्रमाणपत्र_क्रमांक'; tribal_lag <- 'आदिवासी_लाग' | 'लागू'
-  b.is_tribal = b.is_tribal ?? b['आदिवासी'] ?? b['tribal'];
-  b.tribal_certificate_no = b.tribal_certificate_no || b['आदिवासी_प्रमाणपत्र_क्रमांक'] || b['tribalCertNo'];
+  // Correct mapping: is_tribal <- 'आदिवासी'; tribal_certificate_no <- 'आदिवासी_प्रमाणपत्र_क्रमांक' | 'tribal_certificate_number'; tribal_lag <- 'आदिवासी_लाग' | 'लागू'
+  b.is_tribal = b.is_tribal ?? b['आदिवासी'] ?? b['tribal'] ?? b['isTribal'];
+  b.tribal_certificate_no = b.tribal_certificate_no || b['tribal_certificate_number'] || b['आदिवासी_प्रमाणपत्र_क्रमांक'] || b['tribalCertNo'];
   b.tribal_lag = b.tribal_lag || b['आदिवासी_लाग'] || b['लागू'] || b['tribalLag'];
   b.contact_phone = b.contact_phone || b['मोबाईल'] || b['फोन'];
   b.contact_email = b.contact_email || b['ईमेल'];
@@ -374,6 +430,7 @@ const normalizeUpdate = (body = {}) => {
   b.bank_name = b.bank_name || b['बँक_नाव'];
   b.bank_branch_name = b.bank_branch_name || b['शाखा'];
   b.bank_account_holder_name = b.bank_account_holder_name || b['खातेधारक_नाव'] || b['खातेदाराचे_नांव'];
+  b.remarks = b.remarks || b['शेरा'];
   return b;
 };
 
@@ -387,15 +444,16 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
 
-    const updatable = [
-      'kyc_status', 'payment_status', 'assigned_agent', 'assigned_at', 'contact_phone', 'contact_email',
-      'contact_address', 'bank_account_number', 'bank_ifsc_code', 'bank_name', 'bank_branch_name',
-      'bank_account_holder_name', 'documents', 'notes', 'is_active',
-      'is_tribal', 'tribal_certificate_no', 'tribal_lag'
-    ];
+    // Make all fields updatable: build updates dynamically from request body after normalization
     const body = normalizeUpdate(req.body);
     const updates = {};
-    updatable.forEach(k => { if (body[k] !== undefined) updates[k] = body[k]; });
+    Object.keys(body).forEach(k => {
+      if (body[k] !== undefined) {
+        updates[k] = body[k];
+      }
+    });
+    // Prevent accidental overwrite of Mongo _id
+    delete updates._id;
 
     // Use Mongoose updateOne instead of Sequelize-style record.update
     const updateResult = await MongoLandownerRecord.updateOne(
@@ -406,6 +464,34 @@ router.put('/:id', async (req, res) => {
     if (updateResult.modifiedCount > 0) {
       // Fetch the updated record
       const updatedRecord = await MongoLandownerRecord.findById(req.params.id);
+
+      // Append timeline and roll-forward ledger v2 for official edits
+      try {
+        const surveyNumber = String(updatedRecord.new_survey_number || updatedRecord.survey_number || '');
+        const officerId = String((req.user && req.user.id) || 'system');
+        const projectId = String(updatedRecord.project_id || '');
+
+        // Record an official update event with the normalized fields changed
+        await ledgerV2.appendTimelineEvent(
+          surveyNumber,
+          officerId,
+          'LANDOWNER_RECORD_UPDATED',
+          updates,
+          'Official portal update',
+          projectId || null
+        );
+
+        // Rebuild or update the v2 ledger block from LIVE DB to keep integrity valid
+        await ledgerV2.createOrUpdateFromLive(
+          surveyNumber,
+          officerId,
+          projectId || null,
+          'landowner_record_update'
+        );
+      } catch (e) {
+        console.warn('⚠️ Ledger v2 update after official edit failed:', e.message);
+      }
+
       res.status(200).json({ success: true, record: updatedRecord });
     } else {
       res.status(200).json({ success: true, message: 'No changes made', record });
@@ -480,6 +566,28 @@ router.post('/generate-notice', async (req, res) => {
     // Fetch the updated record
     const updatedRecord = await MongoLandownerRecord.findById(landownerRecord._id);
 
+    // Append timeline and roll-forward ledger v2 for notice generation
+    try {
+      const officerId = String(req.user?.id || 'system');
+      await ledgerV2.appendTimelineEvent(
+        String(survey_number),
+        officerId,
+        'NOTICE_GENERATED',
+        { notice_number: noticeNumber, notice_date: noticeDate },
+        'Official notice generated',
+        String(project_id)
+      );
+
+      await ledgerV2.createOrUpdateFromLive(
+        String(survey_number),
+        officerId,
+        String(project_id),
+        'notice_generated'
+      );
+    } catch (e) {
+      console.warn('⚠️ Could not update timeline/ledger after notice generation:', e.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Notice generated successfully',
@@ -500,4 +608,4 @@ router.post('/generate-notice', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

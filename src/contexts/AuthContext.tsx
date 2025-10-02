@@ -45,7 +45,7 @@ const demoUsers: User[] = [
   },
   {
     id: '2', 
-    name: 'Officer User',
+    name: 'Land Acquisition Officer / भूसंपादन अधिकारी',
     email: 'officer@saral.gov.in',
     role: 'officer',
     department: 'Revenue Department',

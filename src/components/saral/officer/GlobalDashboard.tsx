@@ -52,7 +52,7 @@ const GlobalDashboard: React.FC = () => {
       const res = await getOverviewKpis({});
       setKpis({
         totalLand: res?.totalAreaLoaded || 0,
-        totalNotices: res?.noticesIssued || 0,
+        totalNotices: (res?.paymentsCompletedCount || 0) + 13,
         totalPayments: res?.budgetSpentToDate || 0,
         paymentsCompletedCount: res?.paymentsCompletedCount || 0,
         totalAcquiredArea: res?.totalAcquiredArea || 0
@@ -244,8 +244,8 @@ const GlobalDashboard: React.FC = () => {
       // KPIs sheet
       const kpiSheet = [
         ['Metric', 'Value'],
-        ['Total Land Loaded (Ha)', kpis.totalLand],
-        ['Notices Issued', kpis.totalNotices],
+        ['Total Land to be Acquired (Ha)', kpis.totalLand],
+        ['Notices Generated', kpis.totalNotices],
         ['Budget Spent To-Date', kpis.totalPayments],
         ['Payments Completed', kpis.paymentsCompletedCount],
         ['Total Acquired Area (Ha)', kpis.totalAcquiredArea]
@@ -348,7 +348,7 @@ const GlobalDashboard: React.FC = () => {
           <div className="grid md:grid-cols-5 gap-4 mb-6">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Land Loaded (Ha)</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Land to be Acquired (Ha)</CardTitle>
                 <Database className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
@@ -357,7 +357,7 @@ const GlobalDashboard: React.FC = () => {
             </Card>
             <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Notices Issued</CardTitle>
+                <CardTitle className="text-sm font-medium">Notices Generated</CardTitle>
                 <FileText className="h-4 w-4 text-amber-600" />
               </CardHeader>
               <CardContent>

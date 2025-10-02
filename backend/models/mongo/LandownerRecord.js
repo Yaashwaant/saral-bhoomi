@@ -173,9 +173,10 @@ const landownerRecordSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
-// New unique constraint: old_survey_number + new_survey_number + landowner_name must be unique within a project
+// New unique constraint: serial_number must be unique within a project-village scope
 landownerRecordSchema.index({ 
   project_id: 1, 
+  village: 1,
   serial_number: 1
 }, { unique: true });
 

@@ -97,9 +97,31 @@ router.post('/bulk-landowner-row-sync', [
     const { officer_id, project_id } = req.body;
     const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
+    const Project = (await import('../models/mongo/Project.js')).default;
+    const mongoose = (await import('mongoose')).default;
     const surveyService = new SurveyDataAggregationService();
+
+    // Resolve project_id if a human-readable project name OR ObjectId was provided
+    let resolvedProjectId = null;
+    if (project_id) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(project_id)) {
+          resolvedProjectId = project_id;
+        } else {
+          const proj = await Project.findOne({ projectName: String(project_id) });
+          resolvedProjectId = proj?._id || null;
+        }
+      } catch (e) {
+        // ignore resolution error
+      }
+    }
+
     const filter = {};
-    if (project_id) filter.project_id = project_id;
+    if (project_id && !resolvedProjectId) {
+      return res.status(404).json({ success: false, message: 'Project not found for provided project_id/name' });
+    }
+    if (resolvedProjectId) filter.project_id = resolvedProjectId;
+
     const rows = await MongoLandownerRecord.find(filter).lean();
 
     let processed = 0;
@@ -117,7 +139,7 @@ router.post('/bulk-landowner-row-sync', [
           survey_number: String(r.new_survey_number || r.survey_number || ''),
           event_type: 'LANDOWNER_RECORD_CREATED',
           officer_id,
-          project_id: String(r.project_id || ''),
+          project_id: r.project_id, // preserve ObjectId
           hash_version: HASH_VERSION,
           data_root: landHash,
           survey_data: { landowner: { data: canonicalRow, hash: landHash, last_updated: new Date(), status: 'created' } },
@@ -277,12 +299,9 @@ router.get('/search/*', [
     const timelineCount = await enhancedBlockchainService.getTimelineCount(surveyNumber);
 
     // Check local blockchain ledger for this survey
+    // Treat ANY block for this survey as on-chain (remove restrictive event filters)
     const localBlockchainEntry = await MongoBlockchainLedger.findOne({
-      survey_number: surveyNumber,
-      $or: [
-        { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] } },
-        { transaction_type: { $exists: true } } // Old schema
-      ]
+      survey_number: surveyNumber
     }).sort({ timestamp: -1 });
 
     // Determine overall status using aggregated DB presence
@@ -426,8 +445,10 @@ router.get('/sync-status', [
     });
 
     // Get all blockchain entries
+    // Find any blocks corresponding to the JMR surveys (without event-type restriction)
+    const jmrSurveyNumbers = jmrRecords.map(r => r.survey_number);
     const blockchainEntries = await MongoBlockchainLedger.find({
-      event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN'] }
+      survey_number: { $in: jmrSurveyNumbers }
     });
 
     // Create a map of blockchain entries by survey number
@@ -702,25 +723,41 @@ router.get('/landowners-with-status', [ authMiddleware ], async (req, res) => {
  */
 router.get('/verify-landowner-row', [ authMiddleware ], async (req, res) => {
   try {
-    let { projectId, newSurveyNumber, ctsNumber, serialNumber, rowKey } = req.query;
-    // Fallback: allow rowKey="projectId:newSurvey:cts:serial"
-    if ((!projectId || !newSurveyNumber || !ctsNumber) && rowKey) {
+    let { projectId, newSurveyNumber, oldSurveyNumber, ctsNumber, serialNumber, rowKey } = req.query;
+    // Fallback: allow rowKey="projectId:old+new:cts:serial"
+    if ((!projectId || (!newSurveyNumber && !oldSurveyNumber && !serialNumber)) && rowKey) {
       try {
         const parts = String(rowKey).split(':');
         if (parts.length >= 4) {
           projectId = projectId || parts[0];
-          newSurveyNumber = newSurveyNumber || parts[1];
+          const composite = parts[1];
+          if (composite && composite.includes('+')) {
+            const [oldS, newS] = composite.split('+');
+            oldSurveyNumber = oldSurveyNumber || (oldS && oldS !== 'NA' ? oldS : undefined);
+            newSurveyNumber = newSurveyNumber || (newS && newS !== 'NA' ? newS : undefined);
+          } else {
+            newSurveyNumber = newSurveyNumber || composite;
+          }
           ctsNumber = ctsNumber || parts[2];
           serialNumber = serialNumber || parts[3];
         }
       } catch {}
     }
-    if (!projectId || !newSurveyNumber || !ctsNumber) {
-      return res.status(400).json({ success: false, message: 'projectId, newSurveyNumber, ctsNumber are required' });
+
+    // Normalize 'NA' placeholders to nulls
+    const normNew = newSurveyNumber && String(newSurveyNumber).trim().toUpperCase() !== 'NA' ? String(newSurveyNumber) : null;
+    const normOld = oldSurveyNumber && String(oldSurveyNumber).trim().toUpperCase() !== 'NA' ? String(oldSurveyNumber) : null;
+    const normCts = ctsNumber && String(ctsNumber).trim().toUpperCase() !== 'NA' && String(ctsNumber).trim() !== '' ? String(ctsNumber) : null;
+
+    if (!projectId || (!normNew && !normOld && !serialNumber)) {
+      return res.status(400).json({ success: false, message: 'projectId and at least one of (newSurveyNumber, oldSurveyNumber, serialNumber) are required' });
     }
     const surveyService = new SurveyDataAggregationService();
-    const result = await surveyService.verifyLandownerRow(projectId, newSurveyNumber, ctsNumber, serialNumber || null);
-    res.json({ success: true, data: result });
+    const result = await surveyService.verifyLandownerRow(projectId, normNew || null, normCts, serialNumber || null, normOld || null);
+    res.json({ success: true, data: result, diagnostics: {
+      identifiers: { projectId, newSurveyNumber: normNew, oldSurveyNumber: normOld, ctsNumber: normCts, serialNumber },
+      note: 'Verification compares live landowner section hash and legacy hash against section hash, data_root, and block current_hash'
+    }});
   } catch (error) {
     console.error('❌ Failed to verify landowner row:', error);
     res.status(500).json({ success: false, message: 'Failed to verify landowner row', error: error.message });
@@ -742,6 +779,22 @@ router.post('/rebuild-ledger', [
   try {
     const { officer_id, project_id, survey_numbers } = req.body;
 
+    // Resolve project_id if a human-readable project name OR ObjectId was provided
+    const Project = (await import('../models/mongo/Project.js')).default;
+    let resolvedProjectId = null;
+    if (project_id) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(project_id)) {
+          resolvedProjectId = project_id;
+        } else {
+          const proj = await Project.findOne({ projectName: String(project_id) });
+          resolvedProjectId = proj?._id || null;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     // Build survey list
     let surveyList = [];
     if (Array.isArray(survey_numbers) && survey_numbers.length > 0) {
@@ -751,7 +804,8 @@ router.post('/rebuild-ledger', [
       const numbers = new Set();
       for (const [, collection] of Object.entries(surveyService.collections)) {
         try {
-          const records = await collection.find({}, { survey_number: 1 });
+          const filter = resolvedProjectId ? { project_id: resolvedProjectId } : {};
+          const records = await collection.find(filter, { survey_number: 1 });
           records.forEach(r => r?.survey_number && numbers.add(String(r.survey_number)));
         } catch (e) {
           // continue
@@ -760,14 +814,31 @@ router.post('/rebuild-ledger', [
       surveyList = Array.from(numbers);
     }
 
-    // Delete existing blocks for these surveys
-    const delResult = await MongoBlockchainLedger.deleteMany({ survey_number: { $in: surveyList } });
+    if (surveyList.length === 0) {
+      // Fallback: pull survey_numbers from existing blockchain entries scoped to project
+      const existingBlocks = await MongoBlockchainLedger.find(
+        project_id ? { $or: [{ project_id }, { project_id: String(project_id) }, { project_id: resolvedProjectId }] } : {},
+        { survey_number: 1 }
+      );
+      existingBlocks.forEach(b => b?.survey_number && surveyList.push(String(b.survey_number)));
+    }
+
+    if (surveyList.length === 0) {
+      return res.status(404).json({ success: false, message: 'No surveys found to rebuild for given project_id/scope' });
+    }
+
+    // Delete existing blocks for these surveys (scoped by project_id when provided)
+    const deleteFilter = {
+      survey_number: { $in: surveyList },
+      ...(project_id ? { $or: [{ project_id }, { project_id: String(project_id) }, { project_id: resolvedProjectId }] } : {})
+    };
+    const delResult = await MongoBlockchainLedger.deleteMany(deleteFilter);
 
     // Rebuild with v2
     const results = [];
     for (const sn of surveyList) {
       try {
-        const out = await ledgerV2.createOrUpdateFromLive(sn, officer_id, project_id, 'ledger_v2_rebuild');
+        const out = await ledgerV2.createOrUpdateFromLive(sn, officer_id, resolvedProjectId || project_id, 'ledger_v2_rebuild');
         results.push({ survey_number: sn, success: true, block_id: out.block_id });
       } catch (err) {
         results.push({ survey_number: sn, success: false, error: err.message });
@@ -797,39 +868,67 @@ router.post('/rebuild-ledger', [
 router.post('/create-landowner-row-block', [
   authMiddleware,
   body('project_id').notEmpty().withMessage('project_id is required'),
-  body('new_survey_number').notEmpty().withMessage('new_survey_number is required'),
-  body('cts_number').notEmpty().withMessage('cts_number is required'),
+  body('new_survey_number').optional(),
+  body('old_survey_number').optional(),
+  body('cts_number').optional(),
   body('officer_id').notEmpty().withMessage('officer_id is required'),
   body('serial_number').optional(),
   body('remarks').optional(),
   handleValidationErrors
 ], async (req, res) => {
   try {
-    const { project_id, new_survey_number, cts_number, serial_number, officer_id, remarks } = req.body;
+    const { project_id, new_survey_number, old_survey_number, cts_number, serial_number, officer_id, remarks } = req.body;
 
     const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
 
-    const filter = { project_id, new_survey_number, cts_number };
-    if (serial_number) filter.serial_number = serial_number;
-    const record = await MongoLandownerRecord.findOne(filter);
+    // Normalize identifiers
+    const normalizedNew = new_survey_number && String(new_survey_number).trim().toUpperCase() !== 'NA' ? String(new_survey_number) : null;
+    const normalizedOld = old_survey_number && String(old_survey_number).trim().toUpperCase() !== 'NA' ? String(old_survey_number) : null;
+    const ctsNorm = cts_number && String(cts_number).trim().toUpperCase() !== 'NA' && String(cts_number).trim() !== '' ? String(cts_number) : null;
+    const ctsMatch = ctsNorm ? { cts_number: ctsNorm } : { $or: [ { cts_number: null }, { cts_number: { $exists: false } }, { cts_number: '' } ] };
+
+    if (!normalizedNew && !normalizedOld) {
+      return res.status(400).json({ success: false, message: 'Either new_survey_number or old_survey_number is required' });
+    }
+
+    // Try lookup by new_survey_number first, then old/survey_number fallback
+    let record = null;
+    if (normalizedNew) {
+      const filterNewAnd = [ { project_id }, { new_survey_number: normalizedNew }, ctsMatch ];
+      if (serial_number) filterNewAnd.push({ serial_number });
+      record = await MongoLandownerRecord.findOne({ $and: filterNewAnd });
+    }
+    if (!record && normalizedOld) {
+      const filterOldAndBase = [ { project_id }, ctsMatch ];
+      if (serial_number) filterOldAndBase.push({ serial_number });
+      record = await MongoLandownerRecord.findOne({
+        $and: [
+          ...filterOldAndBase,
+          { $or: [ { old_survey_number: normalizedOld }, { survey_number: normalizedOld } ] }
+        ]
+      });
+    }
+
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner row not found for given identifiers' });
     }
 
-    // Prepare deterministic landowner data and hash
+    // Prepare data and choose effective survey number for chain
     const row = record.toObject({ depopulate: true, getters: false, virtuals: false });
     const aggregator = new SurveyDataAggregationService();
     const canonicalRow = aggregator.cleanDataForSerialization(row);
     const landHash = hashJsonStable(canonicalRow);
 
+    const effectiveSurvey = normalizedNew || normalizedOld;
+
     // Link into same survey chain using previous hash from latest block for this survey
-    const latest = await MongoBlockchainLedger.findOne({ survey_number: String(new_survey_number) }).sort({ timestamp: -1 });
+    const latest = await MongoBlockchainLedger.findOne({ survey_number: String(effectiveSurvey) }).sort({ timestamp: -1 });
     const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
 
     const block = new MongoBlockchainLedger({
-      block_id: `BLOCK_${String(new_survey_number)}_${Date.now()}`,
-      survey_number: String(new_survey_number),
+      block_id: `BLOCK_${String(effectiveSurvey)}_${Date.now()}`,
+      survey_number: String(effectiveSurvey),
       event_type: 'LANDOWNER_RECORD_CREATED',
       officer_id,
       project_id: String(project_id),
@@ -851,7 +950,7 @@ router.post('/create-landowner-row-block', [
           data_hash: landHash,
           previous_hash: previousHash,
           metadata: { source: 'landowner_row_sync', project_id: String(project_id) },
-          remarks: remarks || `Landowner row synced: ${String(project_id)}:${String(new_survey_number)}:${String(cts_number)}:${String(serial_number || '')}`
+          remarks: remarks || `Landowner row synced: ${String(project_id)}:${String(normalizedOld || 'NA')}+${String(normalizedNew || 'NA')}:${String(ctsNorm ?? 'NA')}:${String(serial_number || '')}`
         }
       ],
       metadata: { source: 'landowner_row_sync' },
@@ -939,20 +1038,69 @@ router.post('/bulk-sync-all-surveys', [
     const { officer_id, project_id } = req.body;
     
     const surveyService = new SurveyDataAggregationService();
-    const result = await surveyService.bulkSyncAllSurveys(officer_id, project_id);
 
-    res.json({
-      success: true,
-      message: 'Bulk sync completed successfully',
-      data: result
-    });
+    // Resolve project_id if a human-readable project name OR ObjectId was provided
+    let resolvedProjectId = null;
+    if (project_id) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(project_id)) {
+          resolvedProjectId = project_id;
+        } else {
+          const proj = await Project.findOne({ projectName: String(project_id) });
+          resolvedProjectId = proj?._id || null;
+        }
+      } catch (e) {
+        // ignore resolution error
+      }
+    }
+
+    const filter = {};
+    if (project_id && !resolvedProjectId) {
+      return res.status(404).json({ success: false, message: 'Project not found for provided project_id/name' });
+    }
+    if (resolvedProjectId) filter.project_id = resolvedProjectId;
+
+    const rows = await MongoLandownerRecord.find(filter).lean();
+
+    let processed = 0;
+    const results = [];
+
+    for (const r of rows) {
+      try {
+        const canonicalRow = surveyService.cleanDataForSerialization(r);
+        const landHash = hashJsonStable(canonicalRow);
+        const latest = await MongoBlockchainLedger.findOne({ survey_number: String(r.new_survey_number || r.survey_number || '') }).sort({ timestamp: -1 });
+        const previousHash = latest?.current_hash || '0x' + '0'.repeat(64);
+
+        const block = new MongoBlockchainLedger({
+          block_id: `BLOCK_${String(r.new_survey_number || r.survey_number || 'NA')}_${Date.now()}`,
+          survey_number: String(r.new_survey_number || r.survey_number || ''),
+          event_type: 'LANDOWNER_RECORD_CREATED',
+          officer_id,
+          project_id: r.project_id, // preserve ObjectId
+          hash_version: HASH_VERSION,
+          data_root: landHash,
+          survey_data: { landowner: { data: canonicalRow, hash: landHash, last_updated: new Date(), status: 'created' } },
+          timeline_history: [ { action: 'LANDOWNER_RECORD_CREATED', timestamp: new Date(), officer_id, data_hash: landHash, previous_hash: previousHash, metadata: { source: 'bulk_landowner_row_sync' }, remarks: `Bulk row sync ${String(r.project_id)}:${String(r.new_survey_number)}:${String(r.cts_number)}:${String(r.serial_number || '')}` } ],
+          metadata: { source: 'bulk_landowner_row_sync' },
+          remarks: 'Bulk landowner row sync',
+          timestamp: new Date(),
+          previous_hash: previousHash,
+          nonce: Math.floor(Math.random() * 1_000_000)
+        });
+
+        await block.save();
+        processed++;
+        results.push({ ok: true, row_key: `${r.project_id}:${r.new_survey_number}:${r.cts_number}:${r.serial_number || ''}`, block_id: block.block_id });
+      } catch (e) {
+        results.push({ ok: false, error: e.message, row: { project_id: r.project_id, new_survey_number: r.new_survey_number, cts_number: r.cts_number, serial_number: r.serial_number } });
+      }
+    }
+
+    return res.json({ success: true, processed, total: rows.length, results });
   } catch (error) {
-    console.error('❌ Failed to bulk sync surveys:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to bulk sync surveys',
-      error: error.message
-    });
+    console.error('❌ bulk-landowner-row-sync error:', error);
+    return res.status(500).json({ success: false, message: 'Failed bulk landowner row sync', error: error.message });
   }
 });
 
@@ -1043,12 +1191,9 @@ router.get('/search-by-identifier', [
     
     // Check blockchain status
     const blockchainStatus = await enhancedBlockchainService.surveyExistsOnBlockchain(surveyNumber);
+    // Treat ANY block for this survey as on-chain (remove restrictive event filters)
     const localBlockchainEntry = await MongoBlockchainLedger.findOne({
-      survey_number: surveyNumber,
-      $or: [
-        { event_type: { $in: ['JMR_MEASUREMENT_UPLOADED', 'SURVEY_CREATED_ON_BLOCKCHAIN', 'LANDOWNER_RECORD_CREATED'] } },
-        { transaction_type: { $exists: true } }
-      ]
+      survey_number: surveyNumber
     }).sort({ timestamp: -1 });
 
     // Get integrity status if requested
@@ -1107,13 +1252,13 @@ router.get('/search-by-identifier', [
     let overallStatus = 'unknown';
     let statusMessage = '';
     
-    if (existsInDatabase && existsOnBlockchain) {
+    if (existsInDatabase && existsOnChain) {
       overallStatus = 'synced';
       statusMessage = 'Record exists in database and on blockchain';
-    } else if (existsInDatabase && !existsOnBlockchain) {
+    } else if (existsInDatabase && !existsOnChain) {
       overallStatus = 'database_only';
       statusMessage = 'Record exists in database but not on blockchain';
-    } else if (!existsInDatabase && existsOnBlockchain) {
+    } else if (!existsInDatabase && existsOnChain) {
       overallStatus = 'blockchain_only';
       statusMessage = 'Record exists on blockchain but not in database';
     } else {

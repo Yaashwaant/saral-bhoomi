@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import MongoProject from '../models/mongo/Project.js';
 import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoPayment from '../models/mongo/Payment.js';
 import MongoNotice from '../models/mongo/Notice.js';
 
@@ -52,56 +53,74 @@ export async function getOverviewKPIs(filters = {}) {
     }
   ]);
 
-  // Payments (status filterable)
+  // Payments (status filterable) - combine data from both collections
   const requestedStatus = filters.paymentStatus;
   const paymentStatus = requestedStatus && requestedStatus !== 'all' ? requestedStatus : 'completed';
-  const paymentDateMatch = { payment_status: paymentStatus };
-  if (fromDate || toDate) {
-    paymentDateMatch.payment_date = {};
-    if (fromDate) paymentDateMatch.payment_date.$gte = fromDate;
-    if (toDate) paymentDateMatch.payment_date.$lte = toDate;
-  }
-  // If location/tribal filters provided, join with landowner records on survey_number
-  const needsLocationFilter = !!(match.district || match.taluka || match.village || typeof match.is_tribal === 'boolean' || match.project_id);
-  const paymentsPipeline = [];
-  paymentsPipeline.push({ $match: paymentDateMatch });
-  if (needsLocationFilter) {
-    paymentsPipeline.push({
-      $lookup: {
-        from: 'landownerrecords',
-        localField: 'survey_number',
-        foreignField: 'survey_number',
-        as: 'lor'
-      }
-    });
-    paymentsPipeline.push({ $unwind: '$lor' });
-    const locMatch = {};
-    if (match.project_id) locMatch['lor.project_id'] = match.project_id;
-    if (match.district) locMatch['lor.district'] = match.district;
-    if (match.taluka) locMatch['lor.taluka'] = match.taluka;
-    if (match.village) locMatch['lor.village'] = match.village;
-    if (typeof match.is_tribal === 'boolean') locMatch['lor.is_tribal'] = match.is_tribal;
-    paymentsPipeline.push({ $match: locMatch });
-  } else if (match.project_id) {
-    paymentsPipeline.push({ $match: { project_id: match.project_id } });
-  }
-  paymentsPipeline.push({
-    $group: {
-      _id: null,
-      paymentsCount: { $sum: 1 },
-      budgetSum: { $sum: { $ifNull: ['$amount', 0] } }
-    }
-  });
-  const [paymentsAgg] = await MongoPayment.aggregate(paymentsPipeline);
 
-  // Notices issued
+  // Build match for English complete records
+  const englishMatch = { ...match };
+  if (englishMatch.project_id) {
+    englishMatch.project_id = typeof englishMatch.project_id === 'string' ? parseObjectId(englishMatch.project_id) || englishMatch.project_id : englishMatch.project_id;
+  }
+  
+  // For English complete records, we'll use compensation_distribution_status as payment status
+  const englishPaymentMatch = { ...englishMatch };
+  if (paymentStatus === 'completed') {
+    englishPaymentMatch.compensation_distribution_status = { $in: ['completed', 'distributed', 'paid'] };
+  } else if (paymentStatus === 'pending') {
+    englishPaymentMatch.compensation_distribution_status = { $in: ['pending', 'initiated'] };
+  }
+
+  // Add date filtering if provided (assuming updated_at field for payment completion date)
+  if (fromDate || toDate) {
+    englishPaymentMatch.updated_at = {};
+    if (fromDate) englishPaymentMatch.updated_at.$gte = fromDate;
+    if (toDate) englishPaymentMatch.updated_at.$lte = toDate;
+  }
+
+  // Payments completed from regular landowner records
+  const paymentMatch = { ...match, payment_status: paymentStatus };
+  if (fromDate || toDate) {
+    paymentMatch.updatedAt = {};
+    if (fromDate) paymentMatch.updatedAt.$gte = fromDate;
+    if (toDate) paymentMatch.updatedAt.$lte = toDate;
+  }
+
+  // Query both collections for payment data
+  const [regularPaymentsAgg] = await MongoLandownerRecord.aggregate([
+    { $match: paymentMatch },
+    {
+      $group: {
+        _id: null,
+        paymentsCount: { $sum: 1 },
+        budgetSum: { $sum: { $ifNull: ['$final_amount', 0] } }
+      }
+    }
+  ]);
+
+  const [englishPaymentsAgg] = await CompleteEnglishLandownerRecord.aggregate([
+    { $match: englishPaymentMatch },
+    {
+      $group: {
+        _id: null,
+        paymentsCount: { $sum: 1 },
+        budgetSum: { $sum: { $ifNull: ['$final_payable_compensation', 0] } }
+      }
+    }
+  ]);
+
+  // Combine payment data from both sources
+  const totalPaymentsCount = (regularPaymentsAgg?.paymentsCount || 0) + (englishPaymentsAgg?.paymentsCount || 0);
+  const totalBudgetSum = (regularPaymentsAgg?.budgetSum || 0) + (englishPaymentsAgg?.budgetSum || 0);
+
+  // Notices issued - keep existing logic for now (mainly from regular records)
   const noticeMatch = {};
   if (fromDate || toDate) {
     noticeMatch.notice_date = {};
     if (fromDate) noticeMatch.notice_date.$gte = fromDate;
     if (toDate) noticeMatch.notice_date.$lte = toDate;
   }
-  // Apply location filters to notices via join with landowner records
+  
   let noticesIssued = 0;
   if (match.district || match.taluka || match.village || typeof match.is_tribal === 'boolean') {
     const pipeline = [
@@ -127,43 +146,70 @@ export async function getOverviewKPIs(filters = {}) {
     const res = await MongoNotice.aggregate(pipeline);
     noticesIssued = res?.[0]?.count || 0;
   } else {
-    // Fallback by project if provided
     if (match.project_id) noticeMatch.project_id = match.project_id;
     noticesIssued = await MongoNotice.countDocuments(noticeMatch);
   }
 
-  // KYC completed (approved)
+  // KYC completed and pending - combine from both collections
   const kycMatch = { ...match, kyc_status: 'approved' };
-  const kycCompleted = await MongoLandownerRecord.countDocuments(kycMatch);
-  // KYC pending (pending or in_progress)
-  const kycPending = await MongoLandownerRecord.countDocuments({
+  const regularKycCompleted = await MongoLandownerRecord.countDocuments(kycMatch);
+  
+  // For English complete records, assume KYC is completed if compensation_distribution_status is not null
+  const englishKycCompleted = await CompleteEnglishLandownerRecord.countDocuments({
+    ...englishMatch,
+    compensation_distribution_status: { $ne: null }
+  });
+
+  const regularKycPending = await MongoLandownerRecord.countDocuments({
     ...match,
     kyc_status: { $in: ['pending', 'in_progress'] }
   });
 
-  // Total acquired area (Ha) – sum acquired_area, fallback 0 if null
-  const [areaAgg] = await MongoLandownerRecord.aggregate([
+  const englishKycPending = await CompleteEnglishLandownerRecord.countDocuments({
+    ...englishMatch,
+    compensation_distribution_status: null
+  });
+
+  const totalKycCompleted = regularKycCompleted + englishKycCompleted;
+  const totalKycPending = regularKycPending + englishKycPending;
+
+  // Total acquired area - combine from both collections
+  const [regularAreaAgg] = await MongoLandownerRecord.aggregate([
     { $match: { ...match } },
     {
       $group: {
         _id: null,
-        totalAcquiredArea: { $sum: { $ifNull: ['$acquired_area', 0] } },
+        totalAcquiredArea: { $sum: { $ifNull: ['$area_acquired', 0] } },
         totalArea: { $sum: { $ifNull: ['$area', 0] } }
       }
     }
   ]);
 
+  const [englishAreaAgg] = await CompleteEnglishLandownerRecord.aggregate([
+    { $match: { ...englishMatch } },
+    {
+      $group: {
+        _id: null,
+        totalAcquiredArea: { $sum: { $ifNull: ['$acquired_land_area', 0] } },
+        totalArea: { $sum: { $ifNull: ['$land_area_as_per_7_12', 0] } }
+      }
+    }
+  ]);
+
+  const totalAcquiredArea = (regularAreaAgg?.totalAcquiredArea || 0) + (englishAreaAgg?.totalAcquiredArea || 0);
+  const totalAreaLoaded = (regularAreaAgg?.totalArea || 0) + (englishAreaAgg?.totalArea || 0);
+
   return {
     totalProjects: projectsAgg?.totalProjects || 0,
     activeProjects: projectsAgg?.activeProjects || 0,
     totalBudgetAllocated: projectsAgg?.totalBudgetAllocated || 0,
-    budgetSpentToDate: paymentsAgg?.budgetSum || 0,
-    paymentsCompletedCount: paymentsAgg?.paymentsCount || 0,
+    budgetSpentToDate: totalBudgetSum,
+    paymentsCompletedCount: totalPaymentsCount,
     noticesIssued: noticesIssued || 0,
-    kycCompleted: kycCompleted || 0,
-    kycPending: kycPending || 0,
-    totalAcquiredArea: areaAgg?.totalAcquiredArea || 0,
-    totalAreaLoaded: areaAgg?.totalArea || 0
+    kycCompleted: totalKycCompleted,
+    kycPending: totalKycPending,
+    totalAcquiredArea: totalAcquiredArea,
+    totalAreaLoaded: totalAreaLoaded
   };
 }
 

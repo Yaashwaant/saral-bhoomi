@@ -23,26 +23,31 @@ async function updateUniqueIndex() {
       if (index.unique) console.log(`    (unique: true)`);
     });
     
-    // Drop old unique index if it exists
-    const oldIndexName = 'project_id_1_old_survey_number_1_new_survey_number_1_landowner_name_1';
-    try {
-      await collection.dropIndex(oldIndexName);
-      console.log(`✅ Dropped old unique index: ${oldIndexName}`);
-    } catch (error) {
-      if (error.code === 27) {
-        console.log(`ℹ️  Old unique index not found (already dropped)`);
-      } else {
-        console.log(`⚠️  Error dropping old index: ${error.message}`);
+    // Drop old unique indexes if they exist
+    const oldIndexNames = [
+      'project_id_1_old_survey_number_1_new_survey_number_1_landowner_name_1',
+      'project_id_1_serial_number_1'
+    ];
+    for (const oldIndexName of oldIndexNames) {
+      try {
+        await collection.dropIndex(oldIndexName);
+        console.log(`✅ Dropped old unique index: ${oldIndexName}`);
+      } catch (error) {
+        if (error.code === 27) {
+          console.log(`ℹ️  Old unique index not found: ${oldIndexName} (already dropped)`);
+        } else {
+          console.log(`⚠️  Error dropping old index ${oldIndexName}: ${error.message}`);
+        }
       }
     }
     
-    // Create new unique index
+    // Create new unique index scoped by village
     try {
       await collection.createIndex(
-        { project_id: 1, serial_number: 1 },
-        { unique: true, name: 'project_id_1_serial_number_1' }
+        { project_id: 1, village: 1, serial_number: 1 },
+        { unique: true, name: 'project_id_1_village_1_serial_number_1' }
       );
-      console.log(`✅ Created new unique index: project_id + serial_number`);
+      console.log(`✅ Created new unique index: project_id + village + serial_number`);
     } catch (error) {
       console.log(`⚠️  Error creating new index: ${error.message}`);
     }

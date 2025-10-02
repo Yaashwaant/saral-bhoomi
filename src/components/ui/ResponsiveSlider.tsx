@@ -5,6 +5,7 @@ type CardItem = {
   description: string;
   image: string;
   link?: string;
+  projectHints?: string[]; // names/keywords to resolve matching project
 };
 
 type Category = {
@@ -16,6 +17,112 @@ type Category = {
 // Lightweight, accessible, and responsive slider using CSS scroll-snap
 // No external dependencies to keep bundle small and performance high.
 const ResponsiveSlider: React.FC = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [overview, setOverview] = useState<{
+    totalLandToBeAcquired?: number;
+    totalBudget?: number;
+    totalLandAvailable?: number;
+    totalLandRequired?: number;
+    budgetSpentToDate?: number;
+  } | null>(null);
+
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+  const resolveProjectId = async (hints?: string[]): Promise<string | null> => {
+    try {
+      const resp = await fetch('/api/projects?limit=100');
+      if (!resp.ok) return null;
+      const json = await resp.json();
+      const projects = Array.isArray(json?.data) ? json.data : [];
+      if (!hints || hints.length === 0) return null;
+      const hintSet = hints.map(normalize);
+      // Try exact and contains matches against projectName
+      for (const p of projects) {
+        const name = normalize(String(p?.projectName || ''));
+        if (!name) continue;
+        if (hintSet.some(h => name.includes(h))) return String(p.id);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchOverview = async (projectId?: string | null) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      let base = {
+        totalLandToBeAcquired: 0,
+        totalBudget: 0,
+        totalLandAvailable: 0,
+        totalLandRequired: 0,
+      } as any;
+
+      if (projectId) {
+        // Fetch specific project and use its fields
+        const pResp = await fetch(`/api/projects/${projectId}`);
+        if (pResp.ok) {
+          const pj = await pResp.json();
+          const pd = pj?.data || pj;
+          base = {
+            totalLandToBeAcquired: Number(pd?.landToBeAcquired || 0),
+            totalBudget: Number(pd?.allocatedBudget || 0),
+            totalLandAvailable: Number(pd?.landAvailable || 0),
+            totalLandRequired: Number(pd?.landRequired || 0),
+          };
+        }
+      }
+
+      if (!projectId || !base.totalLandRequired) {
+        // Fallback to public overview stats endpoint to avoid auth on login page
+        const resp = await fetch('/api/projects/stats/overview');
+        if (resp.ok) {
+          const json = await resp.json();
+          const data = json?.data?.overview || json?.data || json;
+          base = {
+            totalLandToBeAcquired: Number(data?.totalLandToBeAcquired || 0),
+            totalBudget: Number(data?.totalBudget || 0),
+            totalLandAvailable: Number(data?.totalLandAvailable || 0),
+            totalLandRequired: Number(data?.totalLandRequired || 0),
+          };
+        }
+      }
+
+      // Attempt to fetch richer KPIs including payments using demo headers (non-auth)
+      try {
+        const url = projectId ? `/api/insights/overview-kpis?projectId=${encodeURIComponent(projectId)}` : '/api/insights/overview-kpis';
+        const kpiResp = await fetch(url, {
+          headers: {
+            'demo-jwt-token': 'demo',
+            'x-demo-role': 'admin',
+          },
+        });
+        if (kpiResp.ok) {
+          const kpiJson = await kpiResp.json();
+          const kpi = kpiJson?.data || kpiJson;
+          setOverview({
+            ...base,
+            budgetSpentToDate: Number(kpi?.budgetSpentToDate || 0),
+            totalLandAvailable: Number(kpi?.totalAcquiredArea ?? base.totalLandAvailable ?? 0),
+          });
+          return;
+        }
+      } catch (err) {
+        // Ignore and fallback to base overview
+      }
+
+      setOverview(base);
+    } catch (e: any) {
+      setError('Failed to load overview data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const categories: Category[] = useMemo(
     () => [
       {
@@ -26,21 +133,25 @@ const ResponsiveSlider: React.FC = () => {
             title: 'Bullet Train Project',
             description: 'High-speed bullet train corridor enhancing regional connectivity.',
             image: '/projects/bullet-train.jpg',
+            projectHints: ['bullet train', 'bullet'],
           },
           {
             title: 'Dedicated Freight Corridor',
             description: 'Modern freight corridor to boost logistics efficiency.',
             image: '/projects/dfcc.jpg',
+            projectHints: ['dfc', 'dfcc', 'dedicated freight corridor'],
           },
           {
             title: 'Vadodara Mumbai Expressway',
             description: 'Access-controlled expressway reducing travel time.',
             image: '/projects/mumbai-vadodara-highway.jpg',
+            projectHints: ['vadodara mumbai', 'khapoli', 'expressway'],
           },
           {
             title: 'Vadhavan Port Project',
             description: 'Deep-water port initiative to expand trade capacity.',
             image: '/projects/vadhvan-port-project.jpg',
+            projectHints: ['vadhavan', 'port'],
           },
         ],
       },
@@ -93,7 +204,16 @@ const ResponsiveSlider: React.FC = () => {
           style={{ scrollbarWidth: 'none' } as React.CSSProperties}
         >
           {activeItems.map((item, idx) => (
-            <SliderCard key={`${item.title}-${idx}`} item={item} />
+            <SliderCard
+              key={`${item.title}-${idx}`}
+              item={item}
+              onFindMore={async (e) => {
+                e.preventDefault();
+                setShowModal(true);
+                const projectId = await resolveProjectId(item.projectHints);
+                await fetchOverview(projectId);
+              }}
+            />
           ))}
         </div>
 
@@ -115,11 +235,75 @@ const ResponsiveSlider: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Overview Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowModal(false)}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 w-[95%] max-w-3xl rounded-xl bg-white shadow-xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-text-dark-blue">Overview</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            {loading && (
+              <div className="py-6 text-center text-sm text-gray-600">Loading...</div>
+            )}
+            {!loading && error && (
+              <div className="py-6 text-center text-sm text-red-600">{error}</div>
+            )}
+            {!loading && !error && overview && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-5 rounded-lg shadow-sm border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-text-dark-blue">Total Land To Be Acquired (Ha)</div>
+                    <span className="material-icons text-orange-600">terrain</span>
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold text-orange-600">{(overview.totalLandToBeAcquired || 0).toLocaleString()}</div>
+                </div>
+
+                <div className="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-text-dark-blue">Total Budget Allocated</div>
+                    <span className="material-icons text-blue-600">account_balance</span>
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold text-blue-600">₹{((overview.totalBudget || 0)).toLocaleString('en-IN')}</div>
+                </div>
+
+                <div className="p-5 rounded-lg shadow-sm border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-text-dark-blue">Total Acquired Area (Ha)</div>
+                    <span className="material-icons text-emerald-600">task_alt</span>
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold text-emerald-600">{(overview.totalLandAvailable || 0).toLocaleString()}</div>
+                </div>
+
+                <div className="p-5 rounded-lg shadow-sm border border-teal-200 bg-gradient-to-br from-teal-50 to-teal-100">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-text-dark-blue">Payments Done To-Date</div>
+                    <span className="material-icons text-teal-600">account_balance_wallet</span>
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold text-teal-600">₹{Math.round(overview.budgetSpentToDate || 0).toLocaleString('en-IN')}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 };
 
-const SliderCard = React.memo(({ item }: { item: CardItem }) => {
+const SliderCard = React.memo(({ item, onFindMore }: { item: CardItem; onFindMore?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) => {
   const fallbacks: Record<string, string> = {
     'Bullet Train Project':
       'https://images.unsplash.com/photo-1517154421773-0529e4e38bb4?auto=format&fit=crop&w=1600&q=60',
@@ -154,6 +338,7 @@ const SliderCard = React.memo(({ item }: { item: CardItem }) => {
         <p className="text-sm text-subtext-light mb-3 line-clamp-3">{item.description}</p>
         <a
           href={item.link || '#'}
+          onClick={onFindMore}
           className="inline-flex items-center text-sm font-semibold text-primary hover:underline"
         >
           Find out more
