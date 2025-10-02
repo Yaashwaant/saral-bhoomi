@@ -3,16 +3,24 @@
 
 // Get API base URL from environment or use default
 const getApiBaseUrl = () => {
-  // Always check for explicit environment variable first
+  // Always check for explicit environment variable first (support both Vite and React naming)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
+  }
+  if (import.meta.env.REACT_APP_API_URL) {
+    return import.meta.env.REACT_APP_API_URL;
   }
   
   // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Production domains should use relative paths to leverage rewrite rules
+    // Special handling for saral-bhoomi-2.onrender.com (frontend) -> saral-bhoomi-1.onrender.com (backend)
+    if (hostname === 'saral-bhoomi-2.onrender.com') {
+      return 'https://saral-bhoomi-1.onrender.com/api';
+    }
+    
+    // Other production domains should use relative paths to leverage rewrite rules
     const isProductionDomain = hostname.includes('onrender.com') || 
                               hostname.includes('netlify.app') ||
                               hostname.includes('vercel.app') ||
@@ -31,6 +39,10 @@ const getApiBaseUrl = () => {
   
   // Fallback for production builds or server-side rendering
   if (import.meta.env.PROD) {
+    // Check if this is the saral-bhoomi-2 deployment
+    if (typeof window !== 'undefined' && window.location.hostname === 'saral-bhoomi-2.onrender.com') {
+      return 'https://saral-bhoomi-1.onrender.com/api';
+    }
     return '/api';
   }
   
