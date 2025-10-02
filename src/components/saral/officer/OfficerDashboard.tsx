@@ -70,9 +70,8 @@ const OfficerDashboard = () => {
       enhancedPayment: 'एन्हान्स्ड Payment',
       documentUpload: 'Document Upload',
       paymentSlips: 'पेमेंट स्लिप्स',
-      landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
+      landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
       award: 'Award',
-      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -103,9 +102,8 @@ const OfficerDashboard = () => {
       enhancedPayment: 'Enhanced Payment',
       documentUpload: 'Document Upload',
       paymentSlips: 'Payment Slips',
-      landRecordsManagement: 'Land Records Management',
+      landRecordsManagement: 'Land Record Management',
       award: 'Award',
-      englishAnalytics: 'English Analytics',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -139,7 +137,6 @@ const OfficerDashboard = () => {
       landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
       jmr: 'JMR',
       award: 'Award',
-      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -275,21 +272,13 @@ const OfficerDashboard = () => {
                  <FileText className="h-4 w-4 mr-1" />
                  JMR Management
                </TabsTrigger>
-               <TabsTrigger value="landRecords" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                 fontWeight: 500,
-                 letterSpacing: '0.2px'
-               }}>
-                 <FileText className="h-4 w-4 mr-1" />
-                 Land Records Management
-               </TabsTrigger>
                <TabsTrigger value="landRecords2" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
                  letterSpacing: '0.2px'
                }}>
                  <Database className="h-4 w-4 mr-1" />
-                 Land Records Management 2
+                 Land Record Management
                </TabsTrigger>
                {/* <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
@@ -331,18 +320,10 @@ const OfficerDashboard = () => {
                   <Hash className="h-4 w-4 mr-1" />
                   Blockchain
                 </TabsTrigger>
-                <TabsTrigger value="englishAnalytics" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
-                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
-                  fontWeight: 500,
-                  letterSpacing: '0.2px'
-                }}>
-                  <Database className="h-4 w-4 mr-1" />
-                  {t.englishAnalytics}
-                </TabsTrigger>
              </TabsList>
             
                         <TabsContent value="dashboard" className="space-y-6 mt-6">
-              <GlobalDashboard />
+              <Dashboard2 />
             </TabsContent>
 
             <TabsContent value="overview" className="space-y-6 mt-6">
@@ -352,10 +333,6 @@ const OfficerDashboard = () => {
             <TabsContent value="projects" className="mt-6">
               <ProjectManagement />
             </TabsContent>
-
-             <TabsContent value="landRecords" className="mt-6">
-               <LandRecordsManager />
-             </TabsContent>
 
              <TabsContent value="landRecords2" className="mt-6">
                <LandRecordsManager2 />
@@ -382,9 +359,6 @@ const OfficerDashboard = () => {
              </TabsContent>
                          <TabsContent value="blockchain" className="mt-6">
                <BlockchainDashboard />
-             </TabsContent>
-             <TabsContent value="englishAnalytics" className="mt-6">
-               <Dashboard2 />
              </TabsContent>
           </Tabs>
         </CardContent>

@@ -15,6 +15,33 @@ import * as XLSX from 'xlsx';
 import { config } from '../../../config';
 import { LandRecord2 } from '../../models';
 
+// Utility function to safely convert string values to numeric data types
+const safeNumericConversion = (value: any): string => {
+  if (value === null || value === undefined || value === '') {
+    return '0';
+  }
+  
+  // If it's already a number, return it as string with proper formatting
+  if (typeof value === 'number') {
+    return value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  
+  // If it's a string, try to parse it as a number
+  if (typeof value === 'string') {
+    // Remove any non-numeric characters except decimal point and negative sign
+    const cleanedValue = value.replace(/[^\d.-]/g, '');
+    const numericValue = parseFloat(cleanedValue);
+    
+    // Check if the conversion resulted in a valid number
+    if (!isNaN(numericValue)) {
+      return numericValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+  }
+  
+  // If conversion fails, return the original value as string
+  return String(value);
+};
+
 const LandRecordsManager2: React.FC = () => {
   const { user } = useAuth();
   const { projects } = useSaral();
@@ -82,14 +109,19 @@ const LandRecordsManager2: React.FC = () => {
       const data = await response.json();
       setLandRecords(data.data || []);
       
-      // Extract dynamic columns
-      if (data.data && data.data.length > 0) {
-        const allKeys = new Set<string>();
-        data.data.forEach((record: any) => {
-          Object.keys(record).forEach(key => allKeys.add(key));
-        });
-        setDynamicColumns(Array.from(allKeys));
-      }
+      // Only show the 30 core fields specified for Land Records Management (serial_number removed for dynamic generation)
+      const coreFields = [
+        'id', 'owner_name', 'old_survey_number', 'new_survey_number',
+        'group_number', 'cts_number', 'village', 'taluka', 'district',
+        'land_area_as_per_7_12', 'acquired_land_area', 'land_type', 'land_classification',
+        'approved_rate_per_hectare', 'market_value_as_per_acquired_area',
+        'factor_as_per_section_26_2', 'land_compensation_as_per_section_26',
+        'structures', 'forest_trees', 'fruit_trees', 'wells_borewells',
+        'total_structures_amount', 'total_amount_14_23', 'determined_compensation_26',
+        'total_compensation_26_27', 'deduction_amount', 'final_payable_compensation',
+        'remarks', 'compensation_distribution_status', 'project_id'
+      ];
+      setDynamicColumns(coreFields);
       
       toast.success(`Loaded ${data.data?.length || 0} land records`);
     } catch (error) {
@@ -339,7 +371,7 @@ const LandRecordsManager2: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Land Records Management 2 (landownerrecords2)
+            Land Record Management
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -737,24 +769,36 @@ const LandRecordsManager2: React.FC = () => {
                         <TableHead>District</TableHead>
                         <TableHead>Land Area as per 7/12</TableHead>
                         <TableHead>Acquired Land Area</TableHead>
+                        <TableHead>Land Type</TableHead>
+                        <TableHead>Land Classification</TableHead>
                         <TableHead>Approved Rate per Hectare</TableHead>
                         <TableHead>Market Value as per Acquired Area</TableHead>
+                        <TableHead>Factor as per Section 26(2)</TableHead>
                         <TableHead>Land Compensation as per Section 26</TableHead>
+                        <TableHead>Structures</TableHead>
+                        <TableHead>Forest Trees</TableHead>
+                        <TableHead>Fruit Trees</TableHead>
+                        <TableHead>Wells/Borewells</TableHead>
+                        <TableHead>Total Structures Amount</TableHead>
                         <TableHead>Total Amount (14+23)</TableHead>
-                        <TableHead>Solatium Amount</TableHead>
                         <TableHead>Determined Compensation 26</TableHead>
-                        <TableHead>Enhanced Compensation 25%</TableHead>
                         <TableHead>Total Compensation (26+27)</TableHead>
+                        <TableHead>Deduction Amount</TableHead>
                         <TableHead>Final Payable Compensation</TableHead>
                         <TableHead>Remarks</TableHead>
+                        <TableHead>Compensation Distribution Status</TableHead>
                         <TableHead>Project ID</TableHead>
                         {dynamicColumns.filter(col => 
-                          !['serial_number', 'owner_name', 'village', 'taluka', 'district', 
-                            'land_area_as_per_7_12', 'acquired_land_area',
+                          !['serial_number', 'owner_name', 'old_survey_number', 'new_survey_number', 
+                            'group_number', 'cts_number', 'village', 'taluka', 'district', 
+                            'land_area_as_per_7_12', 'acquired_land_area', 'land_type', 'land_classification',
                             'approved_rate_per_hectare', 'market_value_as_per_acquired_area',
-                            'land_compensation_as_per_section_26', 'total_amount_14_23', 'solatium_amount',
-                            'determined_compensation_26', 'enhanced_compensation_25_percent', 'total_compensation_26_27',
-                            'final_payable_compensation', 'remarks', 'project_id', 'id', '_id', '__v'].includes(col)
+                            'factor_as_per_section_26_2', 'land_compensation_as_per_section_26',
+                            'structures', 'forest_trees', 'fruit_trees', 'wells_borewells',
+                            'total_structures_amount', 'total_amount_14_23',
+                            'determined_compensation_26', 'total_compensation_26_27',
+                            'deduction_amount', 'final_payable_compensation', 'remarks', 
+                            'compensation_distribution_status', 'project_id', 'id', '_id', '__v'].includes(col)
                         ).map(col => (
                           <TableHead key={col}>{col.replace(/_/g, ' ').toUpperCase()}</TableHead>
                         ))}
@@ -762,19 +806,9 @@ const LandRecordsManager2: React.FC = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredLandRecords.map((record) => (
+                      {filteredLandRecords.map((record, index) => (
                         <TableRow key={record.id || record._id?.toString()}>
-                          <TableCell>
-                            {editingRecord === (record.id || record._id?.toString()) ? (
-                              <Input
-                                value={editForm.serial_number || ''}
-                                onChange={(e) => handleEditInputChange('serial_number', e.target.value)}
-                                className="h-8"
-                              />
-                            ) : (
-                              record.serial_number
-                            )}
-                          </TableCell>
+                          <TableCell>{index + 1}</TableCell>
                           <TableCell>
                             {editingRecord === (record.id || record._id?.toString()) ? (
                               <Input
@@ -793,30 +827,38 @@ const LandRecordsManager2: React.FC = () => {
                           <TableCell>{record.village}</TableCell>
                           <TableCell>{record.taluka}</TableCell>
                           <TableCell>{record.district}</TableCell>
-                          <TableCell>{record.land_area_as_per_7_12}</TableCell>
-                          <TableCell>{record.acquired_land_area}</TableCell>
-                          <TableCell>{record.approved_rate_per_hectare}</TableCell>
-                          <TableCell>{record.market_value_as_per_acquired_area}</TableCell>
-                          <TableCell>{record.land_compensation_as_per_section_26}</TableCell>
-                          <TableCell>{record.total_amount_14_23}</TableCell>
-                          <TableCell>
-                            {record["original_100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5"] || record.solatium_amount || ''}
-                          </TableCell>
-                          <TableCell>{record.determined_compensation_26}</TableCell>
-                          <TableCell>
-                            {record["original_एकूण रक्कमेवर  25%  वाढीव मोबदला \n(अ.क्र. 26 नुसार येणाऱ्या रक्कमेवर)"] || record.enhanced_compensation_25_percent || ''}
-                          </TableCell>
-                          <TableCell>{record.total_compensation_26_27}</TableCell>
-                          <TableCell>{record.final_payable_compensation}</TableCell>
+                          <TableCell>{safeNumericConversion(record.land_area_as_per_7_12)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.acquired_land_area)}</TableCell>
+                          <TableCell>{record.land_type}</TableCell>
+                          <TableCell>{record.land_classification}</TableCell>
+                          <TableCell>{safeNumericConversion(record.approved_rate_per_hectare)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.market_value_as_per_acquired_area)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.factor_as_per_section_26_2)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.land_compensation_as_per_section_26)}</TableCell>
+                          <TableCell>{record.structures}</TableCell>
+                          <TableCell>{record.forest_trees}</TableCell>
+                          <TableCell>{record.fruit_trees}</TableCell>
+                          <TableCell>{record.wells_borewells}</TableCell>
+                          <TableCell>{safeNumericConversion(record.total_structures_amount)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.total_amount_14_23)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.determined_compensation_26)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.total_compensation_26_27)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.deduction_amount)}</TableCell>
+                          <TableCell>{safeNumericConversion(record.final_payable_compensation)}</TableCell>
                           <TableCell>{record.remarks || ''}</TableCell>
+                          <TableCell>{record.compensation_distribution_status}</TableCell>
                           <TableCell>{record.project_id ? record.project_id.toString() : ''}</TableCell>
                           {dynamicColumns.filter(col => 
-                            !['serial_number', 'owner_name', 'village', 'taluka', 'district', 
-                              'land_area_as_per_7_12', 'acquired_land_area',
+                            !['serial_number', 'owner_name', 'old_survey_number', 'new_survey_number', 
+                              'group_number', 'cts_number', 'village', 'taluka', 'district', 
+                              'land_area_as_per_7_12', 'acquired_land_area', 'land_type', 'land_classification',
                               'approved_rate_per_hectare', 'market_value_as_per_acquired_area',
-                              'land_compensation_as_per_section_26', 'total_amount_14_23', 'solatium_amount',
-                              'determined_compensation_26', 'enhanced_compensation_25_percent', 'total_compensation_26_27',
-                              'final_payable_compensation', 'remarks', 'project_id', 'id', '_id', '__v'].includes(col)
+                              'factor_as_per_section_26_2', 'land_compensation_as_per_section_26',
+                              'structures', 'forest_trees', 'fruit_trees', 'wells_borewells',
+                              'total_structures_amount', 'total_amount_14_23',
+                              'determined_compensation_26', 'total_compensation_26_27',
+                              'deduction_amount', 'final_payable_compensation', 'remarks', 
+                              'compensation_distribution_status', 'project_id', 'id', '_id', '__v'].includes(col)
                           ).map(col => (
                             <TableCell key={col}>
                               {editingRecord === (record.id || record._id?.toString()) ? (
