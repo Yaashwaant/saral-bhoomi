@@ -3,23 +3,39 @@
 
 // Get API base URL from environment or use default
 const getApiBaseUrl = () => {
-  // Check if we're in a browser environment and on a production domain
-  const isProductionDomain = typeof window !== 'undefined' && 
-    (window.location.hostname.includes('onrender.com') || 
-     window.location.hostname.includes('netlify.app') ||
-     window.location.hostname.includes('vercel.app'));
-  
-  // In production or on production domains, use relative API path
-  if (import.meta.env.PROD || isProductionDomain) {
-    // Prefer relative '/api' to leverage platform rewrite rules
-    return import.meta.env.VITE_API_URL || '/api';
+  // Always check for explicit environment variable first
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
   }
   
-  // In development, prefer localhost backend if running locally
-  const devHosts = new Set(['localhost', '127.0.0.1']);
-  const isLocal = typeof window !== 'undefined' && devHosts.has(window.location.hostname);
-  const localApi = 'http://localhost:5000/api';
-  return import.meta.env.VITE_API_URL || (isLocal ? localApi : '/api');
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // Production domains should use relative paths to leverage rewrite rules
+    const isProductionDomain = hostname.includes('onrender.com') || 
+                              hostname.includes('netlify.app') ||
+                              hostname.includes('vercel.app') ||
+                              hostname.includes('github.io') ||
+                              (!hostname.includes('localhost') && !hostname.includes('127.0.0.1'));
+    
+    if (isProductionDomain) {
+      return '/api';
+    }
+    
+    // Local development - use localhost backend
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000/api';
+    }
+  }
+  
+  // Fallback for production builds or server-side rendering
+  if (import.meta.env.PROD) {
+    return '/api';
+  }
+  
+  // Default fallback
+  return 'http://localhost:5000/api';
 };
 
 export const config = {
