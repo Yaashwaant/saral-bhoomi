@@ -32,6 +32,9 @@ interface ProjectFormData {
   landRequired: string;
   landAvailable: string;
   landToBeAcquired: string;
+  forestLand: string;
+  agriculturalLand: string;
+  nonAgriculturalLand: string;
   type: 'greenfield' | 'brownfield';
   videoUrl: string;
   description?: string;
@@ -53,6 +56,9 @@ const ProjectManagement = () => {
     landRequired: '',
     landAvailable: '',
     landToBeAcquired: '',
+    forestLand: '',
+    agriculturalLand: '',
+    nonAgriculturalLand: '',
     type: 'greenfield',
     videoUrl: '',
     description: '',
@@ -67,6 +73,9 @@ const ProjectManagement = () => {
     { value: 'NH_Act_1956', label: 'National Highways Act, 1956' },
     { value: 'Railways_Act_1989', label: 'Railways Act, 1989' },
     { value: 'Metro_Railways_Act', label: 'Metro Railways (Construction of Works) Act' },
+    { value: 'MH_Highway_Act_1955', label: 'Maharashtra Highway Act, 1955' },
+    { value: 'MH_PWD_Act_1951', label: 'Maharashtra Public Works Department Act, 1951' },
+    { value: 'MH_Road_Development_Act_2001', label: 'Maharashtra Road Development Corporation Act, 2001' },
     { value: 'State_Specific_R&R', label: 'State-specific R&R / Notifications' },
   ];
   const [customLaw, setCustomLaw] = useState('');
@@ -81,6 +90,9 @@ const ProjectManagement = () => {
       landRequired: 'आवश्यक जमीन (हेक्टर)',
       landAvailable: 'उपलब्ध जमीन (हेक्टर)',
       landToBeAcquired: 'संपादन करायची जमीन (हेक्टर)',
+      forestLand: 'वन जमीन (हेक्टर)',
+      agriculturalLand: 'शेतीची जमीन (हेक्टर)',
+      nonAgriculturalLand: 'गैर-शेती जमीन (हेक्टर)',
       type: 'प्रकल्प प्रकार',
       greenfield: 'ग्रीनफील्ड',
       brownfield: 'ब्राउनफील्ड',
@@ -119,6 +131,9 @@ const ProjectManagement = () => {
       landRequired: 'Land Required (Hectares)',
       landAvailable: 'Land Available (Hectares)',
       landToBeAcquired: 'Land to be Acquired (Hectares)',
+      forestLand: 'Forest Land (Hectares)',
+      agriculturalLand: 'Agricultural Land (Hectares)',
+      nonAgriculturalLand: 'Non-Agricultural Land (Hectares)',
       type: 'Project Type',
       greenfield: 'Greenfield',
       brownfield: 'Brownfield',
@@ -300,6 +315,9 @@ const ProjectManagement = () => {
         landRequired: '',
         landAvailable: '',
         landToBeAcquired: '',
+        forestLand: '',
+        agriculturalLand: '',
+        nonAgriculturalLand: '',
         type: 'greenfield',
         videoUrl: '',
         description: '',
@@ -321,6 +339,9 @@ const ProjectManagement = () => {
       landRequired: project.landRequired.toString(),
       landAvailable: project.landAvailable.toString(),
       landToBeAcquired: project.landToBeAcquired.toString(),
+      forestLand: project.forestLand?.toString() || '',
+      agriculturalLand: project.agriculturalLand?.toString() || '',
+      nonAgriculturalLand: project.nonAgriculturalLand?.toString() || '',
       type: project.type,
       videoUrl: project.videoUrl || '',
       description: project.description || '',
@@ -358,7 +379,7 @@ const ProjectManagement = () => {
               {t.createProject}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
                 <FolderPlus className="h-5 w-5 text-orange-600" />
@@ -428,6 +449,36 @@ const ProjectManagement = () => {
                     value={formData.landToBeAcquired}
                     onChange={(e) => setFormData({...formData, landToBeAcquired: e.target.value})}
                     required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="forestLand">{t.forestLand}</Label>
+                  <Input
+                    id="forestLand"
+                    type="number"
+                    step="0.01"
+                    value={formData.forestLand}
+                    onChange={(e) => setFormData({...formData, forestLand: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="agriculturalLand">{t.agriculturalLand}</Label>
+                  <Input
+                    id="agriculturalLand"
+                    type="number"
+                    step="0.01"
+                    value={formData.agriculturalLand}
+                    onChange={(e) => setFormData({...formData, agriculturalLand: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nonAgriculturalLand">{t.nonAgriculturalLand}</Label>
+                  <Input
+                    id="nonAgriculturalLand"
+                    type="number"
+                    step="0.01"
+                    value={formData.nonAgriculturalLand}
+                    onChange={(e) => setFormData({...formData, nonAgriculturalLand: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">

@@ -41,7 +41,8 @@ import {
   LineChart,
   Line,
   Area,
-  AreaChart
+  AreaChart,
+  Legend
 } from 'recharts';
 
 interface EnglishCompleteRecord {
@@ -120,7 +121,7 @@ interface ProjectData {
   toAcquireArea: number;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+const COLORS = ['#64748b', '#10b981', '#f59e0b', '#8b5cf6', '#6b7280', '#059669'];
 
 interface ProjectMapping {
   [key: string]: string;
@@ -327,8 +328,13 @@ const Dashboard2: React.FC = () => {
         projectId = String(record.project_id || 'Unknown');
       }
       
-      const requiredArea = parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-      const acquiredArea = parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+      // Required land = sum of acquired_land_area of all land records in the db
+      const requiredArea = parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+      
+      // Only count land as acquired if compensation has been paid
+      const compensationStatus = (record.compensation_distribution_status || '').toLowerCase();
+      const isCompensationPaid = compensationStatus === 'paid' || compensationStatus === 'completed' || compensationStatus === 'distributed';
+      const acquiredArea = isCompensationPaid ? parseFloat(record.acquired_land_area?.toString() || '0') || 0 : 0; // Land acquired = sum of land_acquired whose compensation status is paid
       
       if (!projectMap.has(projectId)) {
         // Use actual project name from mapping or fallback to descriptive name
@@ -502,8 +508,13 @@ const Dashboard2: React.FC = () => {
         projectId = String(record.project_id || 'Unknown');
       }
       
-      const requiredArea = parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-      const acquiredArea = parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+      // Required land = sum of acquired_land_area of all land records in the db
+      const requiredArea = parseFloat(record.acquired_land_area?.toString() || '0') || 0;
+      
+      // Only count land as acquired if compensation has been paid
+      const compensationStatus = (record.compensation_distribution_status || '').toLowerCase();
+      const isCompensationPaid = compensationStatus === 'paid' || compensationStatus === 'completed' || compensationStatus === 'distributed';
+      const acquiredArea = isCompensationPaid ? parseFloat(record.acquired_land_area?.toString() || '0') || 0 : 0; // Land acquired = sum of land_acquired whose compensation status is paid
       
       if (!projectMap.has(projectId)) {
         // Use actual project name from mapping or fallback to descriptive name
@@ -550,8 +561,16 @@ const Dashboard2: React.FC = () => {
 
   const getFilteredOverallLandAcquisitionData = (): ChartData[] => {
     const filtered = getFilteredRecords();
-    const totalAcquiredArea = filtered.reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
-    const totalRequiredArea = filtered.reduce((sum, r) => sum + (parseFloat(r.land_area_as_per_7_12?.toString() || '0') || 0), 0);
+    
+    // Only count land as acquired if compensation has been paid
+    const totalAcquiredArea = filtered.reduce((sum, r) => {
+      const compensationStatus = (r.compensation_distribution_status || '').toLowerCase();
+      const isCompensationPaid = compensationStatus === 'paid' || compensationStatus === 'completed' || compensationStatus === 'distributed';
+      return sum + (isCompensationPaid ? parseFloat(r.acquired_land_area?.toString() || '0') || 0 : 0);
+    }, 0);
+    
+    // Required land = sum of acquired_land_area of all land records in the db
+    const totalRequiredArea = filtered.reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
     const totalAreaToBeAcquired = Math.max(0, totalRequiredArea - totalAcquiredArea);
     
     return [
@@ -644,18 +663,13 @@ const Dashboard2: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard2 - English Complete Records</h1>
-          <p className="text-muted-foreground">
-            Comprehensive analytics for English complete landowner records
-          </p>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
         </div>
         <div className="flex gap-2">
           <Button onClick={fetchRecords} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
           <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
         </div>
@@ -664,53 +678,49 @@ const Dashboard2: React.FC = () => {
       {/* Quick Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Area to be Acquired</CardTitle>
-              <MapPin className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-slate-700">Total Area to be Acquired</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalAreaToBeAcquired.toFixed(2)} Ha</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold text-slate-800">{stats.totalAreaToBeAcquired.toFixed(2)} Ha</div>
+              <p className="text-xs text-slate-500">
                 Total hectares needed for projects
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Acquired Area</CardTitle>
-              <MapPin className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-emerald-700">Total Acquired Area</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalAcquiredArea.toFixed(2)} Ha</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold text-emerald-800">{stats.totalAcquiredArea.toFixed(2)} Ha</div>
+              <p className="text-xs text-emerald-600">
                 Hectares acquired for projects
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Compensation Paid</CardTitle>
-              <DollarSign className="h-4 w-4 text-yellow-600" />
+              <CardTitle className="text-sm font-medium text-amber-700">Total Compensation Paid</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{(stats.totalCompensationPaid / 10000000).toFixed(1)}Cr</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold text-amber-800">₹{(stats.totalCompensationPaid / 10000000).toFixed(1)}Cr</div>
+              <p className="text-xs text-amber-600">
                 Compensation paid till now
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Compensation</CardTitle>
-              <DollarSign className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium text-indigo-700">Total Compensation</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{(stats.totalCompensation / 10000000).toFixed(1)}Cr</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold text-indigo-800">₹{(stats.totalCompensation / 10000000).toFixed(1)}Cr</div>
+              <p className="text-xs text-indigo-600">
                 Total allocated compensation
               </p>
             </CardContent>
@@ -720,12 +730,10 @@ const Dashboard2: React.FC = () => {
 
       {/* Main Dashboard Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="angrezi-vishleshan">अंग्रेजी विश्लेषण</TabsTrigger>
           <TabsTrigger value="records">Records</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -750,8 +758,8 @@ const Dashboard2: React.FC = () => {
                       ]}
                       labelFormatter={(label) => `Project: ${label}`}
                     />
-                    <Bar dataKey="allocated" fill="#8884d8" name="allocated" />
-                    <Bar dataKey="spent" fill="#82ca9d" name="spent" />
+                    <Bar dataKey="allocated" fill="#64748b" name="allocated" />
+                    <Bar dataKey="spent" fill="#10b981" name="spent" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -775,9 +783,9 @@ const Dashboard2: React.FC = () => {
                       ]}
                       labelFormatter={(label) => `Project: ${label}`}
                     />
-                    <Bar dataKey="required" fill="#ff7300" name="required" />
-                    <Bar dataKey="acquired" fill="#00C49F" name="acquired" />
-                    <Bar dataKey="toAcquire" fill="#FFBB28" name="toAcquire" />
+                    <Bar dataKey="required" fill="#f59e0b" name="required" />
+                    <Bar dataKey="acquired" fill="#10b981" name="acquired" />
+                    <Bar dataKey="toAcquire" fill="#64748b" name="toAcquire" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -799,16 +807,30 @@ const Dashboard2: React.FC = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      outerRadius={60}
+                      fill="#64748b"
                       dataKey="value"
                     >
                       {getPaymentStatusData().map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name) => [
+                        `${value} records`,
+                        name === 'Paid' ? 'Compensation Distributed' : 'Compensation Pending'
+                      ]}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value, entry) => (
+                        <span style={{ color: entry.color }}>
+                          {value} - {value === 'Paid' ? 'Compensation Distributed' : 'Compensation Pending'}
+                        </span>
+                      )}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -827,16 +849,30 @@ const Dashboard2: React.FC = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent, value }) => `${name} ${value.toFixed(1)} Ha (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      outerRadius={60}
+                      fill="#64748b"
                       dataKey="value"
                     >
                       {getOverallLandAcquisitionData().map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => [`${value.toFixed(2)} Ha`, 'Area']} />
+                    <Tooltip 
+                      formatter={(value: number, name) => [
+                        `${value.toFixed(2)} Ha`, 
+                        name === 'Acquired' ? 'Land Already Acquired' : 'Land Remaining to Acquire'
+                      ]} 
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value, entry) => (
+                        <span style={{ color: entry.color }}>
+                          {value} - {value === 'Acquired' ? 'Land Already Acquired' : 'Land Remaining to Acquire'}
+                        </span>
+                      )}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -855,16 +891,30 @@ const Dashboard2: React.FC = () => {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      outerRadius={60}
+                      fill="#64748b"
                       dataKey="value"
                     >
                       {getLandTypeData().map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name) => [
+                        `${value} records`,
+                        `Land Type: ${name}`
+                      ]}
+                    />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value, entry) => (
+                        <span style={{ color: entry.color }}>
+                          {value}
+                        </span>
+                      )}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -882,7 +932,6 @@ const Dashboard2: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Filter className="h-5 w-5 text-blue-600" />
                     Location-based Analytics
                   </div>
                   <div className="flex items-center gap-2">
@@ -895,10 +944,9 @@ const Dashboard2: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={clearAllFilters}
-                      className="flex items-center gap-1 text-gray-600 hover:text-gray-800"
+                      className="flex items-center gap-1 text-slate-600 hover:text-slate-800 border-slate-300"
                       disabled={getActiveFilterCount() === 0}
                     >
-                      <RotateCcw className="h-4 w-4" />
                       Reset All
                     </Button>
                   </div>
@@ -906,41 +954,30 @@ const Dashboard2: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Enhanced Location Filters */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-6 rounded-xl border border-slate-200">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {/* District Filter */}
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <Building2 className="h-4 w-4 text-blue-600" />
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                         District
                         {selectedDistrict !== 'all' && (
-                          <Badge variant="outline" className="ml-auto bg-blue-100 text-blue-800 border-blue-300">
+                          <Badge variant="outline" className="ml-auto bg-slate-100 text-slate-800 border-slate-300">
                             Selected
                           </Badge>
                         )}
                       </label>
                       <div className="relative">
                         <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
-                          <SelectTrigger className="bg-white border-2 border-blue-200 hover:border-blue-300 focus:border-blue-500 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 text-gray-500" />
-                              <SelectValue placeholder="Select District" />
-                            </div>
-                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          <SelectTrigger className="bg-white border-2 border-slate-200 hover:border-slate-300 focus:border-slate-500 transition-colors">
+                            <SelectValue placeholder="Select District" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <Building2 className="h-4 w-4" />
-                                All Districts
-                              </div>
+                              All Districts
                             </SelectItem>
                             {Array.from(new Set(records.map(r => r.district).filter(Boolean))).sort().map(district => (
                               <SelectItem key={district} value={district}>
-                                <div className="flex items-center gap-2">
-                                  <Building2 className="h-4 w-4 text-blue-600" />
-                                  {district}
-                                </div>
+                                {district}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -960,30 +997,22 @@ const Dashboard2: React.FC = () => {
                     
                     {/* Taluka Filter */}
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <Home className="h-4 w-4 text-green-600" />
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                         Taluka
                         {selectedTaluka !== 'all' && (
-                          <Badge variant="outline" className="ml-auto bg-green-100 text-green-800 border-green-300">
+                          <Badge variant="outline" className="ml-auto bg-emerald-100 text-emerald-800 border-emerald-300">
                             Selected
                           </Badge>
                         )}
                       </label>
                       <div className="relative">
                         <Select value={selectedTaluka} onValueChange={setSelectedTaluka}>
-                          <SelectTrigger className="bg-white border-2 border-green-200 hover:border-green-300 focus:border-green-500 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <Home className="h-4 w-4 text-gray-500" />
-                              <SelectValue placeholder="Select Taluka" />
-                            </div>
-                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          <SelectTrigger className="bg-white border-2 border-emerald-200 hover:border-emerald-300 focus:border-emerald-500 transition-colors">
+                            <SelectValue placeholder="Select Taluka" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <Home className="h-4 w-4" />
-                                All Talukas
-                              </div>
+                              All Talukas
                             </SelectItem>
                             {Array.from(new Set(
                               records
@@ -992,10 +1021,7 @@ const Dashboard2: React.FC = () => {
                                 .filter(Boolean)
                             )).sort().map(taluka => (
                               <SelectItem key={taluka} value={taluka}>
-                                <div className="flex items-center gap-2">
-                                  <Home className="h-4 w-4 text-green-600" />
-                                  {taluka}
-                                </div>
+                                {taluka}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1015,8 +1041,7 @@ const Dashboard2: React.FC = () => {
                     
                     {/* Village Filter */}
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <TreePine className="h-4 w-4 text-emerald-600" />
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                         Village
                         {selectedVillage !== 'all' && (
                           <Badge variant="outline" className="ml-auto bg-emerald-100 text-emerald-800 border-emerald-300">
@@ -1027,18 +1052,11 @@ const Dashboard2: React.FC = () => {
                       <div className="relative">
                         <Select value={selectedVillage} onValueChange={setSelectedVillage}>
                           <SelectTrigger className="bg-white border-2 border-emerald-200 hover:border-emerald-300 focus:border-emerald-500 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <TreePine className="h-4 w-4 text-gray-500" />
-                              <SelectValue placeholder="Select Village" />
-                            </div>
-                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                            <SelectValue placeholder="Select Village" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <TreePine className="h-4 w-4" />
-                                All Villages
-                              </div>
+                              All Villages
                             </SelectItem>
                             {Array.from(new Set(
                               records
@@ -1050,10 +1068,7 @@ const Dashboard2: React.FC = () => {
                                 .filter(Boolean)
                             )).sort().map(village => (
                               <SelectItem key={village} value={village}>
-                                <div className="flex items-center gap-2">
-                                  <TreePine className="h-4 w-4 text-emerald-600" />
-                                  {village}
-                                </div>
+                                {village}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1073,35 +1088,28 @@ const Dashboard2: React.FC = () => {
 
                     {/* Project Filter */}
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                        <FolderOpen className="h-4 w-4 text-purple-600" />
+                      <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                         Project
                         {selectedProject !== 'all' && (
-                          <Badge variant="outline" className="ml-auto bg-purple-100 text-purple-800 border-purple-300">
+                          <Badge variant="outline" className="ml-auto bg-indigo-100 text-indigo-800 border-indigo-300">
                             Selected
                           </Badge>
                         )}
                       </label>
                       <div className="relative">
                         <Select value={selectedProject} onValueChange={setSelectedProject}>
-                          <SelectTrigger className="bg-white border-2 border-purple-200 hover:border-purple-300 focus:border-purple-500 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <FolderOpen className="h-4 w-4 text-gray-500" />
-                              <SelectValue placeholder="Select Project" />
-                            </div>
-                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          <SelectTrigger className="bg-white border-2 border-indigo-200 hover:border-indigo-300 focus:border-indigo-500 transition-colors">
+                            <SelectValue placeholder="Select Project" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all" className="font-medium">
                               <div className="flex items-center gap-2">
-                                <FolderOpen className="h-4 w-4" />
                                 All Projects
                               </div>
                             </SelectItem>
                             {Array.from(new Set(records.map(r => String(r.project_id || '')).filter(Boolean))).sort().map(projectId => (
                               <SelectItem key={projectId} value={projectId}>
                                 <div className="flex items-center gap-2">
-                                  <FolderOpen className="h-4 w-4 text-purple-600" />
                                   {projectMapping[projectId] || `Project ${projectId.slice(-8)}`}
                                 </div>
                               </SelectItem>
@@ -1128,13 +1136,12 @@ const Dashboard2: React.FC = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium text-gray-600">Active Filters:</span>
                         {selectedDistrict !== 'all' && (
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-800 flex items-center gap-1">
                             {selectedDistrict}
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-4 w-4 p-0 ml-1 hover:bg-blue-200"
+                              className="h-4 w-4 p-0 ml-1 hover:bg-slate-200"
                               onClick={() => setSelectedDistrict('all')}
                             >
                               <X className="h-2 w-2" />
@@ -1142,13 +1149,12 @@ const Dashboard2: React.FC = () => {
                           </Badge>
                         )}
                         {selectedTaluka !== 'all' && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 flex items-center gap-1">
-                            <Home className="h-3 w-3" />
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1">
                             {selectedTaluka}
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-4 w-4 p-0 ml-1 hover:bg-green-200"
+                              className="h-4 w-4 p-0 ml-1 hover:bg-emerald-200"
                               onClick={() => setSelectedTaluka('all')}
                             >
                               <X className="h-2 w-2" />
@@ -1157,7 +1163,6 @@ const Dashboard2: React.FC = () => {
                         )}
                         {selectedVillage !== 'all' && (
                           <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                            <TreePine className="h-3 w-3" />
                             {selectedVillage}
                             <Button
                               variant="ghost"
@@ -1176,48 +1181,46 @@ const Dashboard2: React.FC = () => {
 
                 {/* Filtered Quick Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                  <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Area to be Acquired</CardTitle>
-                      <MapPin className="h-4 w-4 text-blue-600" />
+                      <CardTitle className="text-sm font-medium text-slate-700">Total Area to be Acquired</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold text-slate-800">
                         {getFilteredRecords()
-                          .filter(r => {
-                            const status = (r.compensation_distribution_status || '').toUpperCase();
-                            return status === 'PAID';
-                          })
                           .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0).toFixed(2)} Ha
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-slate-600">
                         Total hectares needed for projects
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                  <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Acquired Area</CardTitle>
-                      <MapPin className="h-4 w-4 text-green-600" />
+                      <CardTitle className="text-sm font-medium text-emerald-700">Total Acquired Area</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
-                        {getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0).toFixed(2)} Ha
+                      <div className="text-2xl font-bold text-emerald-800">
+                        {getFilteredRecords()
+                          .filter(r => {
+                            const status = (r.compensation_distribution_status || '').toLowerCase();
+                            return status === 'paid' || status === 'completed' || status === 'distributed';
+                          })
+                          .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0).toFixed(2)} Ha
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-emerald-600">
                         Hectares acquired for projects
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
+                  <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Compensation Paid</CardTitle>
-                      <DollarSign className="h-4 w-4 text-yellow-600" />
+                      <CardTitle className="text-sm font-medium text-amber-700">Total Compensation Paid</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold text-amber-800">
                         ₹{(getFilteredRecords()
                           .filter(r => {
                             const status = (r.compensation_distribution_status || '').toUpperCase();
@@ -1225,22 +1228,21 @@ const Dashboard2: React.FC = () => {
                           })
                           .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0) / 10000000).toFixed(1)}Cr
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-amber-600">
                         Compensation paid till now
                       </p>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                  <Card className="bg-gradient-to-br from-violet-50 to-violet-100 border-violet-200">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Compensation</CardTitle>
-                      <DollarSign className="h-4 w-4 text-purple-600" />
+                      <CardTitle className="text-sm font-medium text-violet-700">Total Compensation</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">
+                      <div className="text-2xl font-bold text-violet-800">
                         ₹{(getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0) / 10000000).toFixed(1)}Cr
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-violet-600">
                         Total allocated compensation
                       </p>
                     </CardContent>
@@ -1267,8 +1269,8 @@ const Dashboard2: React.FC = () => {
                             ]}
                             labelFormatter={(label) => `Project: ${label}`}
                           />
-                          <Bar dataKey="allocated" fill="#8884d8" name="allocated" />
-                          <Bar dataKey="spent" fill="#82ca9d" name="spent" />
+                          <Bar dataKey="allocated" fill="#64748b" name="allocated" />
+                          <Bar dataKey="spent" fill="#10b981" name="spent" />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1292,9 +1294,9 @@ const Dashboard2: React.FC = () => {
                             ]}
                             labelFormatter={(label) => `Project: ${label}`}
                           />
-                          <Bar dataKey="required" fill="#ff7300" name="required" />
-                          <Bar dataKey="acquired" fill="#00C49F" name="acquired" />
-                          <Bar dataKey="toAcquire" fill="#FFBB28" name="toAcquire" />
+                          <Bar dataKey="required" fill="#f59e0b" name="required" />
+                          <Bar dataKey="acquired" fill="#10b981" name="acquired" />
+                          <Bar dataKey="toAcquire" fill="#64748b" name="toAcquire" />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1316,44 +1318,30 @@ const Dashboard2: React.FC = () => {
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
+                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                            outerRadius={60}
+                            fill="#64748b"
                             dataKey="value"
                           >
                             {getFilteredPaymentStatusData().map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  {/* Filtered Overall Land Acquisition */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Overall Land Acquisition (Filtered)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={getFilteredOverallLandAcquisitionData()}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent, value }) => `${name} ${value.toFixed(1)} Ha (${(percent * 100).toFixed(0)}%)`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {getFilteredOverallLandAcquisitionData().map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} Ha`, 'Area']} />
+                          <Tooltip 
+                            formatter={(value, name) => [
+                              `${value} records`,
+                              name === 'Paid' ? 'Compensation Distributed' : 'Compensation Pending'
+                            ]}
+                          />
+                          <Legend 
+                            verticalAlign="bottom" 
+                            height={36}
+                            formatter={(value, entry) => (
+                              <span style={{ color: entry.color }}>
+                                {value} - {value === 'Paid' ? 'Compensation Distributed' : 'Compensation Pending'}
+                              </span>
+                            )}
+                          />
                         </PieChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1372,16 +1360,30 @@ const Dashboard2: React.FC = () => {
                             cx="50%"
                             cy="50%"
                             labelLine={false}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
+                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                            outerRadius={60}
+                            fill="#64748b"
                             dataKey="value"
                           >
                             {getFilteredLandTypeData().map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip />
+                          <Tooltip 
+                            formatter={(value, name) => [
+                              `${value} records`,
+                              `Land Type: ${name}`
+                            ]}
+                          />
+                          <Legend 
+                            verticalAlign="bottom" 
+                            height={36}
+                            formatter={(value, entry) => (
+                              <span style={{ color: entry.color }}>
+                                {value}
+                              </span>
+                            )}
+                          />
                         </PieChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1405,12 +1407,11 @@ const Dashboard2: React.FC = () => {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by name, serial, survey..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
+                    className="pl-3"
                   />
                 </div>
                 
@@ -1524,75 +1525,6 @@ const Dashboard2: React.FC = () => {
           </Card>
         </TabsContent>
 
-        {/* Insights Tab */}
-        <TabsContent value="insights" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Insights</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-semibold text-blue-900">Data Coverage</h4>
-                  <p className="text-sm text-blue-700">
-                    English complete records cover {stats?.uniqueVillages} villages across {stats?.uniqueDistricts} districts, 
-                    representing comprehensive land acquisition data.
-                  </p>
-                </div>
-                
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <h4 className="font-semibold text-green-900">Compensation Analysis</h4>
-                  <p className="text-sm text-green-700">
-                    Average compensation per hectare is ₹{(stats?.averageCompensationPerHectare || 0).toFixed(0)}, 
-                    with total compensation of ₹{((stats?.totalCompensation || 0) / 10000000).toFixed(1)} crores.
-                  </p>
-                </div>
-                
-                <div className="p-4 bg-yellow-50 rounded-lg">
-                  <h4 className="font-semibold text-yellow-900">Asset Distribution</h4>
-                  <p className="text-sm text-yellow-700">
-                    {((stats?.recordsWithStructures || 0) / (stats?.totalRecords || 1) * 100).toFixed(1)}% of records have structures, 
-                    {((stats?.recordsWithTrees || 0) / (stats?.totalRecords || 1) * 100).toFixed(1)}% have trees, and 
-                    {((stats?.recordsWithWells || 0) / (stats?.totalRecords || 1) * 100).toFixed(1)}% have wells.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Data Quality Metrics</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Records with Complete Data</span>
-                  <Badge variant="default">
-                    {records.filter(r => r.owner_name && r.village && r.final_payable_compensation).length}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Records with Remarks</span>
-                  <Badge variant="secondary">
-                    {records.filter(r => r.remarks && r.remarks.trim()).length}
-                  </Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Active Records</span>
-                  <Badge variant="default">
-                    {records.filter(r => r.is_active).length}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Angrezi Vishleshan Tab */}
-        <TabsContent value="angrezi-vishleshan" className="space-y-6">
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">English Analytics content will be added here.</p>
-          </div>
-        </TabsContent>
       </Tabs>
     </div>
   );
