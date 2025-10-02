@@ -386,7 +386,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       // Load English complete records
       let englishCompleteRows: any[] = [];
       try {
-        const englishResponse = await apiCall('/landowners/english-complete');
+        const englishResponse = await apiCall('/landowners2-english/list');
         englishCompleteRows = Array.isArray(englishResponse.records) ? englishResponse.records : [];
       } catch (englishErr) {
         console.warn('English complete records API failed, continuing with regular records only');
