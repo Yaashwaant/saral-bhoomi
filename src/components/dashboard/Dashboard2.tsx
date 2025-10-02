@@ -187,7 +187,6 @@ const Dashboard2: React.FC = () => {
           // Use the correct field name 'id' from the API response
           mapping[project.id] = project.projectName;
         });
-        console.log('Project mapping created:', mapping);
         setProjectMapping(mapping);
       }
     } catch (error) {
@@ -204,7 +203,7 @@ const Dashboard2: React.FC = () => {
       
       if (data.success) {
         setRecords(data.records);
-        calculateStats(data.records);
+        // Stats will be calculated in the useEffect when filteredRecords is updated
       }
     } catch (error) {
       console.error('Error fetching English complete records:', error);
@@ -224,8 +223,8 @@ const Dashboard2: React.FC = () => {
     // Handle the actual database values: PAID, UNPAID (case-insensitive)
     const totalAcquiredArea = activeRecords
       .filter(r => {
-        const status = (r.compensation_distribution_status || '').toLowerCase();
-        return status === 'paid';
+        const status = (r.compensation_distribution_status || '').toUpperCase();
+        return status === 'PAID';
       })
       .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
     
@@ -236,8 +235,8 @@ const Dashboard2: React.FC = () => {
     // Handle the actual database values: PAID, UNPAID (case-insensitive)
     const totalCompensationPaid = activeRecords
       .filter(r => {
-        const status = (r.compensation_distribution_status || '').toLowerCase();
-        return status === 'paid';
+        const status = (r.compensation_distribution_status || '').toUpperCase();
+        return status === 'PAID';
       })
       .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0);
     
@@ -272,7 +271,7 @@ const Dashboard2: React.FC = () => {
   const getProjectBudgetData = (): ChartData[] => {
     const projectMap = new Map<string, { allocated: number; spent: number; name: string }>();
     
-    records.filter(r => r.is_active).forEach(record => {
+    filteredRecords.forEach(record => {
       // Handle project_id which might be an object with an id field
       let projectId: string;
       if (typeof record.project_id === 'object' && record.project_id && 'id' in record.project_id) {
@@ -318,7 +317,7 @@ const Dashboard2: React.FC = () => {
   const getProjectLandData = (): ChartData[] => {
     const projectMap = new Map<string, { required: number; acquired: number; name: string }>();
     
-    records.filter(r => r.is_active).forEach(record => {
+    filteredRecords.forEach(record => {
       // Handle project_id which might be an object with an id field
       let projectId: string;
       if (typeof record.project_id === 'object' && record.project_id && 'id' in record.project_id) {
@@ -361,7 +360,7 @@ const Dashboard2: React.FC = () => {
   const getPaymentStatusData = (): ChartData[] => {
     const statusMap = new Map<string, number>();
     
-    records.filter(r => r.is_active).forEach(record => {
+    filteredRecords.forEach(record => {
       const status = (record.compensation_distribution_status || 'unpaid').toLowerCase();
       // Map the actual database values to display values
       const normalizedStatus = status === 'paid' ? 'paid' : 'unpaid';
@@ -390,35 +389,6 @@ const Dashboard2: React.FC = () => {
     ];
   };
 
-  // Filter records based on search and location filters
-  useEffect(() => {
-    let filtered = records.filter(r => r.is_active);
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(r =>
-        r.owner_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.serial_number?.toString().includes(searchTerm) ||
-        r.new_survey_number?.toString().includes(searchTerm) ||
-        r.old_survey_number?.toString().includes(searchTerm)
-      );
-    }
-
-    // Apply location filters
-    if (selectedDistrict !== 'all') {
-      filtered = filtered.filter(r => r.district === selectedDistrict);
-    }
-    if (selectedTaluka !== 'all') {
-      filtered = filtered.filter(r => r.taluka === selectedTaluka);
-    }
-    if (selectedVillage !== 'all') {
-      filtered = filtered.filter(r => r.village === selectedVillage);
-    }
-
-    setFilteredRecords(filtered);
-    setPage(1); // Reset to first page when filters change
-  }, [records, searchTerm, selectedDistrict, selectedTaluka, selectedVillage]);
-
   // Get unique values for filter dropdowns
   const getUniqueValues = (field: keyof EnglishCompleteRecord) => {
     return Array.from(new Set(records.map(r => r[field]).filter(Boolean))).sort();
@@ -426,8 +396,8 @@ const Dashboard2: React.FC = () => {
 
   // Prepare chart data
   const getDistrictWiseData = (): ChartData[] => {
-    const districtData = records.reduce((acc, record) => {
-      if (!record.district || !record.is_active) return acc;
+    const districtData = filteredRecords.reduce((acc, record) => {
+      if (!record.district) return acc;
       
       if (!acc[record.district]) {
         acc[record.district] = {
@@ -452,8 +422,8 @@ const Dashboard2: React.FC = () => {
   };
 
   const getLandTypeData = (): ChartData[] => {
-    const landTypeData = records.reduce((acc, record) => {
-      if (!record.land_type || !record.is_active) return acc;
+    const landTypeData = filteredRecords.reduce((acc, record) => {
+      if (!record.land_type) return acc;
       
       acc[record.land_type] = (acc[record.land_type] || 0) + 1;
       return acc;
@@ -465,24 +435,7 @@ const Dashboard2: React.FC = () => {
     }));
   };
 
-  const getCompensationDistribution = (): ChartData[] => {
-    const ranges = [
-      { label: '0-1L', min: 0, max: 100000 },
-      { label: '1L-5L', min: 100000, max: 500000 },
-      { label: '5L-10L', min: 500000, max: 1000000 },
-      { label: '10L-25L', min: 1000000, max: 2500000 },
-      { label: '25L+', min: 2500000, max: Infinity }
-    ];
 
-    return ranges.map(range => ({
-      name: range.label,
-      value: records.filter(r => {
-        if (!r.is_active) return false;
-        const compensation = parseFloat(r.final_payable_compensation?.toString() || '0') || 0;
-        return compensation >= range.min && compensation < range.max;
-      }).length
-    }));
-  };
 
   // Get filtered records based on current filters
   const getFilteredRecords = (): EnglishCompleteRecord[] => {
@@ -490,157 +443,6 @@ const Dashboard2: React.FC = () => {
   };
 
   // Get filtered compensation data by location
-  const getFilteredCompensationData = (): ChartData[] => {
-    const filtered = getFilteredRecords();
-    
-    if (selectedVillage !== 'all') {
-      // Village level - group by owner or survey number
-      const villageData = filtered.reduce((acc, record) => {
-        const key = `${record.owner_name || 'Unknown'} (${record.old_survey_number || record.new_survey_number || 'N/A'})`;
-        if (!acc[key]) {
-          acc[key] = 0;
-        }
-        acc[key] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      return Object.entries(villageData)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 10); // Top 10 records
-    } else if (selectedTaluka !== 'all') {
-      // Taluka level - group by village
-      const talukaData = filtered.reduce((acc, record) => {
-        const village = record.village || 'Unknown';
-        if (!acc[village]) {
-          acc[village] = 0;
-        }
-        acc[village] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      return Object.entries(talukaData)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-    } else if (selectedDistrict !== 'all') {
-      // District level - group by taluka
-      const districtData = filtered.reduce((acc, record) => {
-        const taluka = record.taluka || 'Unknown';
-        if (!acc[taluka]) {
-          acc[taluka] = 0;
-        }
-        acc[taluka] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      return Object.entries(districtData)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-    } else {
-      // All districts - group by district
-      const allData = filtered.reduce((acc, record) => {
-        const district = record.district || 'Unknown';
-        if (!acc[district]) {
-          acc[district] = 0;
-        }
-        acc[district] += parseFloat(record.final_payable_compensation?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      return Object.entries(allData)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-    }
-  };
-
-  // Get filtered land area data by location
-  const getFilteredLandAreaData = (): ChartData[] => {
-    const filtered = getFilteredRecords();
-    
-    if (selectedVillage !== 'all') {
-      // Village level - group by owner or survey number
-      const villageData = filtered.reduce((acc, record) => {
-        const key = `${record.owner_name || 'Unknown'} (${record.old_survey_number || record.new_survey_number || 'N/A'})`;
-        if (!acc[key]) {
-          acc[key] = { totalArea: 0, acquiredArea: 0 };
-        }
-        acc[key].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-        acc[key].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
-      
-      return Object.entries(villageData)
-        .map(([name, data]) => ({ 
-          name, 
-          totalArea: data.totalArea, 
-          acquiredArea: data.acquiredArea,
-          value: data.totalArea 
-        }))
-        .sort((a, b) => b.totalArea - a.totalArea)
-        .slice(0, 10); // Top 10 records
-    } else if (selectedTaluka !== 'all') {
-      // Taluka level - group by village
-      const talukaData = filtered.reduce((acc, record) => {
-        const village = record.village || 'Unknown';
-        if (!acc[village]) {
-          acc[village] = { totalArea: 0, acquiredArea: 0 };
-        }
-        acc[village].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-        acc[village].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
-      
-      return Object.entries(talukaData)
-        .map(([name, data]) => ({ 
-          name, 
-          totalArea: data.totalArea, 
-          acquiredArea: data.acquiredArea,
-          value: data.totalArea 
-        }))
-        .sort((a, b) => b.totalArea - a.totalArea);
-    } else if (selectedDistrict !== 'all') {
-      // District level - group by taluka
-      const districtData = filtered.reduce((acc, record) => {
-        const taluka = record.taluka || 'Unknown';
-        if (!acc[taluka]) {
-          acc[taluka] = { totalArea: 0, acquiredArea: 0 };
-        }
-        acc[taluka].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-        acc[taluka].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
-      
-      return Object.entries(districtData)
-        .map(([name, data]) => ({ 
-          name, 
-          totalArea: data.totalArea, 
-          acquiredArea: data.acquiredArea,
-          value: data.totalArea 
-        }))
-        .sort((a, b) => b.totalArea - a.totalArea);
-    } else {
-      // All districts - group by district
-      const allData = filtered.reduce((acc, record) => {
-        const district = record.district || 'Unknown';
-        if (!acc[district]) {
-          acc[district] = { totalArea: 0, acquiredArea: 0 };
-        }
-        acc[district].totalArea += parseFloat(record.land_area_as_per_7_12?.toString() || '0') || 0;
-        acc[district].acquiredArea += parseFloat(record.acquired_land_area?.toString() || '0') || 0;
-        return acc;
-      }, {} as Record<string, { totalArea: number; acquiredArea: number }>);
-      
-      return Object.entries(allData)
-        .map(([name, data]) => ({ 
-          name, 
-          totalArea: data.totalArea, 
-          acquiredArea: data.acquiredArea,
-          value: data.totalArea 
-        }))
-        .sort((a, b) => b.totalArea - a.totalArea);
-    }
-  };
-
   // Filtered versions of project-wise data functions
   const getFilteredProjectBudgetData = (): ChartData[] => {
     const projectMap = new Map<string, { allocated: number; spent: number; name: string }>();
@@ -819,6 +621,11 @@ const Dashboard2: React.FC = () => {
     setFilteredRecords(filtered);
     setPage(1); // Reset to first page when filters change
   }, [records, searchTerm, selectedDistrict, selectedTaluka, selectedVillage, selectedProject]);
+
+  // Calculate stats based on filtered records
+  useEffect(() => {
+    calculateStats(filteredRecords);
+  }, [filteredRecords]);
 
   if (loading) {
     return (
@@ -1069,23 +876,6 @@ const Dashboard2: React.FC = () => {
         {/* Analytics Tab */}
         <TabsContent value="analytics" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Compensation Distribution Analysis</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={getCompensationDistribution()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#82ca9d" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
             {/* Enhanced Filtered Analytics Section */}
             <Card>
               <CardHeader>
@@ -1392,7 +1182,12 @@ const Dashboard2: React.FC = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {getFilteredRecords().reduce((sum, r) => sum + (parseFloat(r.land_area_as_per_7_12?.toString() || '0') || 0), 0).toFixed(2)} Ha
+                        {getFilteredRecords()
+                          .filter(r => {
+                            const status = (r.compensation_distribution_status || '').toUpperCase();
+                            return status === 'PAID';
+                          })
+                          .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0).toFixed(2)} Ha
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Total hectares needed for projects
@@ -1423,7 +1218,10 @@ const Dashboard2: React.FC = () => {
                     <CardContent>
                       <div className="text-2xl font-bold">
                         ₹{(getFilteredRecords()
-                          .filter(r => r.compensation_distribution_status === 'Paid')
+                          .filter(r => {
+                            const status = (r.compensation_distribution_status || '').toUpperCase();
+                            return status === 'PAID';
+                          })
                           .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation?.toString() || '0') || 0), 0) / 10000000).toFixed(1)}Cr
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -1590,44 +1388,7 @@ const Dashboard2: React.FC = () => {
                 </div>
 
                 {/* Additional Filtered Analytics Charts */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Filtered Compensation by Location */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Compensation Distribution by Location (Filtered)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={getFilteredCompensationData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(value) => `₹${(value / 100000).toFixed(1)}L`} />
-                          <Tooltip formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Compensation']} />
-                          <Bar dataKey="value" fill="#8884d8" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  {/* Filtered Land Area Analysis */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Land Area Analysis by Location (Filtered)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={getFilteredLandAreaData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                          <YAxis tickFormatter={(value) => `${value.toFixed(1)} Ha`} />
-                          <Tooltip formatter={(value: number) => [`${value.toFixed(2)} Hectares`, '']} />
-                          <Bar dataKey="totalArea" fill="#82ca9d" name="Total Area" />
-                          <Bar dataKey="acquiredArea" fill="#ffc658" name="Acquired Area" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
+                {/* Charts removed as requested */}
               </CardContent>
             </Card>
           </div>
