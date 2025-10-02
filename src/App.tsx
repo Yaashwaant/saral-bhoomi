@@ -33,12 +33,12 @@ const App = () => {
                 <Route path="/" element={<Navigate to="/saral/login" replace />} />
                 <Route path="/saral/login" element={<HtmlLoginPage />} />
                 <Route path="/saral/dashboard" element={
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['officer', 'admin']}>
                     <DashboardPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/saral/dashboard2" element={
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['officer', 'admin']}>
                     <Dashboard2Page />
                   </ProtectedRoute>
                 } />
