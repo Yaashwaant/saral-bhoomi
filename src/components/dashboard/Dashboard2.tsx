@@ -118,6 +118,21 @@ interface ProjectMapping {
   [key: string]: string;
 }
 
+// Helper functions to calculate compensation values
+const calculateSolatiumAmount = (record: EnglishCompleteRecord): number => {
+  // Solatium = Determined Compensation - Land Compensation (Section 26)
+  const determined = parseFloat(record.determined_compensation_26?.toString() || '0') || 0;
+  const landCompensation = parseFloat(record.land_compensation_as_per_section_26?.toString() || '0') || 0;
+  return Math.max(0, determined - landCompensation);
+};
+
+const calculateEnhancedCompensation = (record: EnglishCompleteRecord): number => {
+  // Enhanced Compensation 25% = Total Compensation (26-27) - Determined Compensation (26)
+  const totalCompensation = parseFloat(record.total_compensation_26_27?.toString() || '0') || 0;
+  const determined = parseFloat(record.determined_compensation_26?.toString() || '0') || 0;
+  return Math.max(0, totalCompensation - determined);
+};
+
 const Dashboard2: React.FC = () => {
   const [records, setRecords] = useState<EnglishCompleteRecord[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -787,7 +802,9 @@ const Dashboard2: React.FC = () => {
                       <th className="text-left p-2">Survey No.</th>
                       <th className="text-left p-2">Village</th>
                       <th className="text-left p-2">Area (Ha)</th>
-                      <th className="text-left p-2">Compensation</th>
+                      <th className="text-left p-2">Solatium Amount</th>
+                      <th className="text-left p-2">Enhanced Compensation 25%</th>
+                      <th className="text-left p-2">Total Compensation</th>
                       <th className="text-left p-2">Status</th>
                     </tr>
                   </thead>
@@ -801,6 +818,8 @@ const Dashboard2: React.FC = () => {
                           <td className="p-2">{record.new_survey_number || record.old_survey_number}</td>
                           <td className="p-2">{record.village}</td>
                           <td className="p-2">{parseFloat(record.acquired_land_area?.toString() || '0').toFixed(2)}</td>
+                          <td className="p-2">₹{(calculateSolatiumAmount(record) / 100000).toFixed(1)}L</td>
+                          <td className="p-2">₹{(calculateEnhancedCompensation(record) / 100000).toFixed(1)}L</td>
                           <td className="p-2">₹{(parseFloat(record.final_payable_compensation?.toString() || '0') / 100000).toFixed(1)}L</td>
                           <td className="p-2">
                             <Badge variant={record.compensation_distribution_status ? "default" : "secondary"}>

@@ -444,7 +444,7 @@ const LandRecordsManager2: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="सी_टी_एस_नं">सी.टी.एस. नंबर</Label>
+                    <Label htmlFor="सी_टी_एस_नंबर">सी.टी.एस. नंबर</Label>
                     <Input
                       id="सी_टी_एस_नं"
                       value={landRecordForm.सी_टी_एस_नं || ''}
@@ -786,7 +786,7 @@ const LandRecordsManager2: React.FC = () => {
                               record.owner_name
                             )}
                           </TableCell>
-                          <TableCell>{record.जुना_स_नं || record.old_survey_number || ''}</TableCell>
+                          <TableCell>{record.खातेदाराचे_नांव || record.old_survey_number || ''}</TableCell>
                           <TableCell>{record.नविन_स_नं || record.new_survey_number || ''}</TableCell>
                           <TableCell>{record.गट_नंबर || record.group_number || ''}</TableCell>
                           <TableCell>{record.सी_टी_एस_नंबर || record.cts_number || ''}</TableCell>
@@ -799,9 +799,13 @@ const LandRecordsManager2: React.FC = () => {
                           <TableCell>{record.market_value_as_per_acquired_area}</TableCell>
                           <TableCell>{record.land_compensation_as_per_section_26}</TableCell>
                           <TableCell>{record.total_amount_14_23}</TableCell>
-                          <TableCell>{record.solatium_amount}</TableCell>
+                          <TableCell>
+                            {record["original_100 %  सोलेशियम (दिलासा रक्कम) सेक्शन 30 (1)  RFCT-LARR 2013 अनुसूचि 1 अ.नं. 5"] || record.solatium_amount || ''}
+                          </TableCell>
                           <TableCell>{record.determined_compensation_26}</TableCell>
-                          <TableCell>{record.enhanced_compensation_25_percent}</TableCell>
+                          <TableCell>
+                            {record["original_एकूण रक्कमेवर  25%  वाढीव मोबदला \n(अ.क्र. 26 नुसार येणाऱ्या रक्कमेवर)"] || record.enhanced_compensation_25_percent || ''}
+                          </TableCell>
                           <TableCell>{record.total_compensation_26_27}</TableCell>
                           <TableCell>{record.final_payable_compensation}</TableCell>
                           <TableCell>{record.remarks || ''}</TableCell>
@@ -870,3 +874,17 @@ const LandRecordsManager2: React.FC = () => {
 };
 
 export default LandRecordsManager2;
+
+
+// Helper functions to calculate solatium and enhanced compensation
+const calculateSolatiumAmount = (record: any): number => {
+  const determinedCompensation = Number(record.determined_compensation_26) || 0;
+  const landCompensation = Number(record.land_compensation_as_per_section_26) || 0;
+  return determinedCompensation - landCompensation;
+};
+
+const calculateEnhancedCompensation = (record: any): number => {
+  const totalCompensation = Number(record.total_compensation_26_27) || 0;
+  const determinedCompensation = Number(record.determined_compensation_26) || 0;
+  return totalCompensation - determinedCompensation;
+};
