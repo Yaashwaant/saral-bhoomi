@@ -40,6 +40,7 @@ import SimpleFieldOfficerAssignment from './SimpleFieldOfficerAssignment';
 // Import new enhanced components
 import EnhancedAwardManager from './EnhancedAwardManager';
 import LandRecordsManager from './LandRecordsManager';
+import LandRecordsManager2 from './LandRecordsManager2';
 import EnhancedPaymentManager from './EnhancedPaymentManager';
 import EnhancedDashboard from './EnhancedDashboard';
 import GlobalDashboard from './GlobalDashboard';
@@ -47,6 +48,7 @@ import DocumentUploadPortal from './DocumentUploadPortal';
 import PaymentSlipGenerator from './PaymentSlipGenerator';
 import BlockchainDashboard from './BlockchainDashboard';
 import JMRManager from './JMRManager';
+import Dashboard2 from '../../dashboard/Dashboard2';
 
 const OfficerDashboard = () => {
   const { user } = useAuth();
@@ -70,6 +72,7 @@ const OfficerDashboard = () => {
       paymentSlips: 'पेमेंट स्लिप्स',
       landRecordsManagement: 'भूमी रेकॉर्ड व्यवस्थापन',
       award: 'Award',
+      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'एकूण प्रकल्प',
       activeProjects: 'सक्रिय प्रकल्प',
       totalCompensation: 'एकूण मोबदला',
@@ -102,6 +105,7 @@ const OfficerDashboard = () => {
       paymentSlips: 'Payment Slips',
       landRecordsManagement: 'Land Records Management',
       award: 'Award',
+      englishAnalytics: 'English Analytics',
       totalProjects: 'Total Projects',
       activeProjects: 'Active Projects',
       totalCompensation: 'Total Compensation',
@@ -135,6 +139,7 @@ const OfficerDashboard = () => {
       landRecordsManagement: 'भूमि रिकॉर्ड प्रबंधन',
       jmr: 'JMR',
       award: 'Award',
+      englishAnalytics: 'अंग्रेजी विश्लेषण',
       totalProjects: 'कुल परियोजनाएं',
       activeProjects: 'सक्रिय परियोजनाएं',
       totalCompensation: 'कुल मुआवजा',
@@ -278,6 +283,14 @@ const OfficerDashboard = () => {
                  <FileText className="h-4 w-4 mr-1" />
                  Land Records Management
                </TabsTrigger>
+               <TabsTrigger value="landRecords2" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                 fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                 fontWeight: 500,
+                 letterSpacing: '0.2px'
+               }}>
+                 <Database className="h-4 w-4 mr-1" />
+                 Land Records Management 2
+               </TabsTrigger>
                {/* <TabsTrigger value="awardDeclaration" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
                  fontWeight: 500,
@@ -318,6 +331,14 @@ const OfficerDashboard = () => {
                   <Hash className="h-4 w-4 mr-1" />
                   Blockchain
                 </TabsTrigger>
+                <TabsTrigger value="englishAnalytics" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white whitespace-nowrap" style={{ 
+                  fontFamily: "'Noto Sans', 'Arial', sans-serif",
+                  fontWeight: 500,
+                  letterSpacing: '0.2px'
+                }}>
+                  <Database className="h-4 w-4 mr-1" />
+                  {t.englishAnalytics}
+                </TabsTrigger>
              </TabsList>
             
                         <TabsContent value="dashboard" className="space-y-6 mt-6">
@@ -334,6 +355,10 @@ const OfficerDashboard = () => {
 
              <TabsContent value="landRecords" className="mt-6">
                <LandRecordsManager />
+             </TabsContent>
+
+             <TabsContent value="landRecords2" className="mt-6">
+               <LandRecordsManager2 />
              </TabsContent>
 
              {/* <TabsContent value="awardDeclaration" className="mt-6">
@@ -357,6 +382,9 @@ const OfficerDashboard = () => {
              </TabsContent>
                          <TabsContent value="blockchain" className="mt-6">
                <BlockchainDashboard />
+             </TabsContent>
+             <TabsContent value="englishAnalytics" className="mt-6">
+               <Dashboard2 />
              </TabsContent>
           </Tabs>
         </CardContent>

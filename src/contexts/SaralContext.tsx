@@ -379,9 +379,20 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
+      // Load regular landowner records
       const response = await apiCall('/landowners/list');
       const rows: any[] = Array.isArray(response.records) ? response.records : [];
-      if (config.FORCE_DEMO_ANALYTICS || (rows.length === 0 && import.meta.env.DEV)) {
+      
+      // Load English complete records
+      let englishCompleteRows: any[] = [];
+      try {
+        const englishResponse = await apiCall('/landowners/english-complete');
+        englishCompleteRows = Array.isArray(englishResponse.records) ? englishResponse.records : [];
+      } catch (englishErr) {
+        console.warn('English complete records API failed, continuing with regular records only');
+      }
+      
+      if (config.FORCE_DEMO_ANALYTICS || (rows.length === 0 && englishCompleteRows.length === 0 && import.meta.env.DEV)) {
         // Seed demo landowners when API has no data
         setLandownerRecords(demoLandownerRecords as any);
         return;
@@ -415,6 +426,8 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
         if (!clean || lower === 'na' || lower === 'n/a' || clean === 'नाही' || clean === '-') return '';
         return clean;
       };
+      
+      // Normalize regular records
       const normalized = rows.map((r: any) => {
         const isTribal = parseIsTribal(r);
         const tribalCertificateNo = pickCert(r);
@@ -425,10 +438,41 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
           projectId: r.project_id ?? r.projectId,
           isTribal,
           tribalCertificateNo,
-          tribalLag
+          tribalLag,
+          dataSource: 'regular'
         };
       });
-      setLandownerRecords(normalized);
+
+      // Normalize English complete records to match the expected format
+      const normalizedEnglish = englishCompleteRows.map((r: any) => {
+        const isTribal = parseIsTribal(r);
+        const tribalCertificateNo = pickCert(r);
+        return {
+          ...r,
+          id: r._id || r.id,
+          projectId: r.project_id ?? r.projectId,
+          // Map English complete fields to expected dashboard fields
+          खातेदाराचे_नांव: r.owner_name,
+          सर्वे_नं: r.new_survey_number || r.old_survey_number,
+          क्षेत्र: r.land_area,
+          संपादित_क्षेत्र: r.land_area,
+          अंतिम_रक्कम: r.total_compensation || r.final_amount,
+          village: r.village,
+          taluka: r.taluka,
+          district: r.district,
+          isTribal,
+          tribalCertificateNo,
+          tribalLag: '',
+          paymentStatus: r.payment_status || 'pending',
+          kycStatus: r.kyc_status || 'pending',
+          noticeGenerated: r.notice_generated || false,
+          dataSource: 'english_complete'
+        };
+      });
+
+      // Combine both datasets
+      const combinedRecords = [...normalized, ...normalizedEnglish];
+      setLandownerRecords(combinedRecords);
     } catch (err) {
       console.warn('Landowners API failed; seeding demo landowners for development');
       if (import.meta.env.DEV) {

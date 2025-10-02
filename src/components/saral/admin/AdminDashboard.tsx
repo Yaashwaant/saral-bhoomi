@@ -19,15 +19,13 @@ import {
   Building2,
   MapPin,
   Hash,
-  Workflow,
-  Database
+  Workflow
 } from 'lucide-react';
 import emblemOfIndia from '../../../assets/images/emblem-of-india.png';
 import UserManagement from './UserManagement';
 import NoticeHeaderManagement from './NoticeHeaderManagement';
 import NoticeTemplateCreator from './NoticeTemplateCreator';
 import SystemSettings from './SystemSettings';
-// Import new enhanced components
 import BlockchainDashboard from './BlockchainDashboard';
 import CompleteWorkflowManager from './CompleteWorkflowManager';
 
@@ -345,9 +343,11 @@ const AdminDashboard = () => {
             <TabsContent value="settings" className="mt-6">
               <SystemSettings />
             </TabsContent>
+            
             <TabsContent value="blockchain" className="mt-6">
               <BlockchainDashboard />
             </TabsContent>
+            
             <TabsContent value="workflow" className="mt-6">
               <CompleteWorkflowManager />
             </TabsContent>

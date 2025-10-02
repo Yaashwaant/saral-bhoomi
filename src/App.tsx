@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SaralProvider } from "@/contexts/SaralContext";
 import DashboardPage from "@/pages/saral/DashboardPage";
+import Dashboard2Page from "@/pages/saral/Dashboard2Page";
 import FieldOfficerPage from "@/pages/saral/FieldOfficerPage";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import HtmlLoginPage from "@/pages/saral/HtmlLoginPage";
@@ -34,6 +35,11 @@ const App = () => {
                 <Route path="/saral/dashboard" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <DashboardPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/saral/dashboard2" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Dashboard2Page />
                   </ProtectedRoute>
                 } />
                 <Route path="/field-officer" element={
