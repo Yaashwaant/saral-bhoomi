@@ -3,16 +3,23 @@
 
 // Get API base URL from environment or use default
 const getApiBaseUrl = () => {
-  // In production, use the environment variable or default backend URL
-  if (import.meta.env.PROD) {
+  // Check if we're in a browser environment and on a production domain
+  const isProductionDomain = typeof window !== 'undefined' && 
+    (window.location.hostname.includes('onrender.com') || 
+     window.location.hostname.includes('netlify.app') ||
+     window.location.hostname.includes('vercel.app'));
+  
+  // In production or on production domains, use relative API path
+  if (import.meta.env.PROD || isProductionDomain) {
     // Prefer relative '/api' to leverage platform rewrite rules
     return import.meta.env.VITE_API_URL || '/api';
   }
-  // In development, prefer localhost backend if running locally; fallback to env or Render
+  
+  // In development, prefer localhost backend if running locally
   const devHosts = new Set(['localhost', '127.0.0.1']);
   const isLocal = typeof window !== 'undefined' && devHosts.has(window.location.hostname);
   const localApi = 'http://localhost:5000/api';
-  return import.meta.env.VITE_API_URL || (isLocal ? localApi : 'https://saral-bhoomi-1.onrender.com/api');
+  return import.meta.env.VITE_API_URL || (isLocal ? localApi : '/api');
 };
 
 export const config = {
