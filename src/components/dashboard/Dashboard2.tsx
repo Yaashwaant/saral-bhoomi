@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { config } from '@/config';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -178,7 +179,7 @@ const Dashboard2: React.FC = () => {
   // Fetch project names and create mapping
   const fetchProjectMapping = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/projects');
+      const response = await fetch(`${config.API_BASE_URL}/projects`);
       const data = await response.json();
       
       if (data.success) {
@@ -198,7 +199,7 @@ const Dashboard2: React.FC = () => {
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/landowners2-english/list');
+      const response = await fetch(`${config.API_BASE_URL}/landowners2-english/list`);
       const data = await response.json();
       
       if (data.success) {

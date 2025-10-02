@@ -1,5 +1,7 @@
 // Debug helpers for troubleshooting agent assignments
 
+import { config } from '../config';
+
 export const debugHelpers = {
   // Log current user info
   logCurrentUser: () => {
@@ -39,7 +41,7 @@ export const debugHelpers = {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/agents/assigned', {
+      const response = await fetch(`${config.API_BASE_URL}/agents/assigned`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -74,7 +76,7 @@ export const debugHelpers = {
     console.log('📋 Input:', { landownerId, agentId });
 
     try {
-      const response = await fetch('http://localhost:5000/api/agents/assign', {
+      const response = await fetch(`${config.API_BASE_URL}/agents/assign`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
