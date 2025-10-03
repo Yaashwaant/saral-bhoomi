@@ -232,16 +232,35 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       created_by
     } = req.body;
 
-    // Validate required fields
-    if (!serial_number || !owner_name || !village || !taluka || !district) {
+    // Validate required fields - check for undefined, null, or empty strings
+    const requiredFields = { serial_number, owner_name, village, taluka, district };
+    const missingFields = [];
+    
+    for (const [fieldName, fieldValue] of Object.entries(requiredFields)) {
+      if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+        missingFields.push(fieldName);
+      }
+    }
+    
+    if (missingFields.length > 0) {
+      console.log('🔍 Backend validation failed:', {
+        receivedData: requiredFields,
+        missingFields,
+        fullRequestBody: req.body
+      });
+      
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: serial_number, owner_name, village, taluka, district'
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+        details: {
+          missingFields,
+          receivedValues: requiredFields
+        }
       });
     }
 
     // Use default project ID if not provided (ROB project)
-    const finalProjectId = project_id || '68da6edf579af093415f639e';
+    const finalProjectId = new mongoose.Types.ObjectId(project_id || '68da6edf579af093415f639e');
 
     // Check if serial number already exists for this project
     const existingRecord = await CompleteEnglishLandownerRecord.findOne({ 
@@ -299,7 +318,11 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       remarks: remarks || '',
       compensation_distribution_status: compensation_distribution_status || 'PENDING',
       project_id: finalProjectId,
-      created_by: created_by || req.user?.id,
+      created_by: created_by && mongoose.Types.ObjectId.isValid(created_by) 
+        ? new mongoose.Types.ObjectId(created_by) 
+        : (req.user?.id && mongoose.Types.ObjectId.isValid(req.user.id) 
+          ? new mongoose.Types.ObjectId(req.user.id) 
+          : null),
       is_active: true
     });
 

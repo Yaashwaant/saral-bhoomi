@@ -42,6 +42,40 @@ const safeNumericConversion = (value: any): string => {
   return String(value);
 };
 
+// Interface for English Land Record Form
+interface EnglishLandRecordForm {
+  serial_number: number;
+  owner_name: string;
+  old_survey_number: string;
+  new_survey_number: string;
+  group_number: string;
+  cts_number: string;
+  village: string;
+  taluka: string;
+  district: string;
+  land_area_as_per_7_12: number;
+  acquired_land_area: number;
+  land_type: string;
+  land_classification: string;
+  approved_rate_per_hectare: number;
+  market_value_as_per_acquired_area: number;
+  factor_as_per_section_26_2: number;
+  land_compensation_as_per_section_26: number;
+  structures: number;
+  forest_trees: number;
+  fruit_trees: number;
+  wells_borewells: number;
+  total_structures_amount: number;
+  total_amount_14_23: number;
+  determined_compensation_26: number;
+  total_compensation_26_27: number;
+  deduction_amount: number;
+  final_payable_compensation: number;
+  remarks: string;
+  compensation_distribution_status: string;
+  notice_number: string;
+}
+
 const LandRecordsManager2: React.FC = () => {
   const { user } = useAuth();
   const { projects } = useSaral();
@@ -83,6 +117,40 @@ const LandRecordsManager2: React.FC = () => {
     हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम_रुपये: 0,
     मोबदला_वाटप_तपशिल: '',
     project_id: ''
+  });
+
+  // English Land record form state
+  const [englishLandRecordForm, setEnglishLandRecordForm] = useState<EnglishLandRecordForm>({
+    serial_number: 0,
+    owner_name: '',
+    old_survey_number: '',
+    new_survey_number: '',
+    group_number: '',
+    cts_number: '',
+    village: '',
+    taluka: '',
+    district: '',
+    land_area_as_per_7_12: 0,
+    acquired_land_area: 0,
+    land_type: '',
+    land_classification: '',
+    approved_rate_per_hectare: 0,
+    market_value_as_per_acquired_area: 0,
+    factor_as_per_section_26_2: 1,
+    land_compensation_as_per_section_26: 0,
+    structures: 0,
+    forest_trees: 0,
+    fruit_trees: 0,
+    wells_borewells: 0,
+    total_structures_amount: 0,
+    total_amount_14_23: 0,
+    determined_compensation_26: 0,
+    total_compensation_26_27: 0,
+    deduction_amount: 0,
+    final_payable_compensation: 0,
+    remarks: '',
+    compensation_distribution_status: 'PENDING',
+    notice_number: ''
   });
 
   // Load land records function
@@ -294,6 +362,92 @@ const LandRecordsManager2: React.FC = () => {
     }
   };
 
+  // English form handlers
+  const handleEnglishInputChange = (field: keyof EnglishLandRecordForm, value: any) => {
+    setEnglishLandRecordForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleEnglishSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedProject) {
+      toast.error('Please select a project first');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      // Prepare the data with project_id
+      const formData = {
+        ...englishLandRecordForm,
+        project_id: selectedProject
+      };
+      
+      const response = await fetch(`${config.API_BASE_URL}/landowners2-english`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        toast.success('English land record created successfully');
+        // Reset form
+        setEnglishLandRecordForm({
+          serial_number: 0,
+          owner_name: '',
+          old_survey_number: '',
+          new_survey_number: '',
+          group_number: '',
+          cts_number: '',
+          village: '',
+          taluka: '',
+          district: '',
+          land_area_as_per_7_12: 0,
+          acquired_land_area: 0,
+          land_type: '',
+          land_classification: '',
+          approved_rate_per_hectare: 0,
+          market_value_as_per_acquired_area: 0,
+          factor_as_per_section_26_2: 1,
+          land_compensation_as_per_section_26: 0,
+          structures: 0,
+          forest_trees: 0,
+          fruit_trees: 0,
+          wells_borewells: 0,
+          total_structures_amount: 0,
+          total_amount_14_23: 0,
+          determined_compensation_26: 0,
+          total_compensation_26_27: 0,
+          deduction_amount: 0,
+          final_payable_compensation: 0,
+          remarks: '',
+          compensation_distribution_status: 'PENDING',
+          notice_number: ''
+        });
+        loadLandRecords();
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Failed to create English land record');
+      }
+    } catch (error) {
+      console.error('Error creating English land record:', error);
+      toast.error('Error creating English land record');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileUpload = async () => {
     if (!csvFile || !selectedProject) {
       toast.error('Please select a CSV file and project');
@@ -431,307 +585,304 @@ const LandRecordsManager2: React.FC = () => {
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="form">Create Record</TabsTrigger>
+              <TabsTrigger value="english-form">Create Record</TabsTrigger>
               <TabsTrigger value="upload">Upload CSV</TabsTrigger>
               <TabsTrigger value="list">View Records</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="form" className="space-y-4">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="english-form" className="space-y-4">
+              <form onSubmit={handleEnglishSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
-                    <Label htmlFor="अ_क्र">अ.क्र</Label>
+                    <Label htmlFor="serial_number">Serial Number</Label>
                     <Input
-                      id="अ_क्र"
-                      value={landRecordForm.अ_क्र}
-                      onChange={(e) => handleInputChange('अ_क्र', e.target.value)}
+                      id="serial_number"
+                      type="number"
+                      value={englishLandRecordForm.serial_number}
+                      onChange={(e) => handleEnglishInputChange('serial_number', parseInt(e.target.value) || 0)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="खातेदाराचे_नांव">खातेदाराचे नांव</Label>
+                    <Label htmlFor="owner_name">Owner Name</Label>
                     <Input
-                      id="खातेदाराचे_नांव"
-                      value={landRecordForm.खातेदाराचे_नांव}
-                      onChange={(e) => handleInputChange('खातेदाराचे_नांव', e.target.value)}
+                      id="owner_name"
+                      value={englishLandRecordForm.owner_name}
+                      onChange={(e) => handleEnglishInputChange('owner_name', e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="जुना_स_नं">जुना स.नं.</Label>
+                    <Label htmlFor="old_survey_number">Old Survey Number</Label>
                     <Input
-                      id="जुना_स_नं"
-                      value={landRecordForm.जुना_स_नं || ''}
-                      onChange={(e) => handleInputChange('जुना_स_नं', e.target.value)}
+                      id="old_survey_number"
+                      value={englishLandRecordForm.old_survey_number}
+                      onChange={(e) => handleEnglishInputChange('old_survey_number', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="नविन_स_नं">नविन स.नं.</Label>
+                    <Label htmlFor="new_survey_number">New Survey Number</Label>
                     <Input
-                      id="नविन_स_नं"
-                      value={landRecordForm.नविन_स_नं || ''}
-                      onChange={(e) => handleInputChange('नविन_स_नं', e.target.value)}
+                      id="new_survey_number"
+                      value={englishLandRecordForm.new_survey_number}
+                      onChange={(e) => handleEnglishInputChange('new_survey_number', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="गट_नंबर">गट नंबर</Label>
+                    <Label htmlFor="group_number">Group Number</Label>
                     <Input
-                      id="गट_नंबर"
-                      value={landRecordForm.गट_नंबर || ''}
-                      onChange={(e) => handleInputChange('गट_नंबर', e.target.value)}
+                      id="group_number"
+                      value={englishLandRecordForm.group_number}
+                      onChange={(e) => handleEnglishInputChange('group_number', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="सी_टी_एस_नंबर">सी.टी.एस. नंबर</Label>
+                    <Label htmlFor="cts_number">CTS Number</Label>
                     <Input
-                      id="सी_टी_एस_नं"
-                      value={landRecordForm.सी_टी_एस_नं || ''}
-                      onChange={(e) => handleInputChange('सी_टी_एस_नं', e.target.value)}
+                      id="cts_number"
+                      value={englishLandRecordForm.cts_number}
+                      onChange={(e) => handleEnglishInputChange('cts_number', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="Village">Village</Label>
+                    <Label htmlFor="village">Village</Label>
                     <Input
-                      id="Village"
-                      value={landRecordForm.Village}
-                      onChange={(e) => handleInputChange('Village', e.target.value)}
+                      id="village"
+                      value={englishLandRecordForm.village}
+                      onChange={(e) => handleEnglishInputChange('village', e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="Taluka">Taluka</Label>
+                    <Label htmlFor="taluka">Taluka</Label>
                     <Input
-                      id="Taluka"
-                      value={landRecordForm.Taluka}
-                      onChange={(e) => handleInputChange('Taluka', e.target.value)}
+                      id="taluka"
+                      value={englishLandRecordForm.taluka}
+                      onChange={(e) => handleEnglishInputChange('taluka', e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="District">District</Label>
+                    <Label htmlFor="district">District</Label>
                     <Input
-                      id="District"
-                      value={landRecordForm.District}
-                      onChange={(e) => handleInputChange('District', e.target.value)}
+                      id="district"
+                      value={englishLandRecordForm.district}
+                      onChange={(e) => handleEnglishInputChange('district', e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="गांव_नमुना_7_12_नुसार_जमिनीचे_क्षेत्र_हे_आर">गांव नमुना 7/12 नुसार जमिनीचे क्षेत्र (हे.आर)</Label>
+                    <Label htmlFor="land_area_as_per_7_12">Land Area as per 7/12 (Hectares)</Label>
                     <Input
-                      id="गांव_नमुना_7_12_नुसार_जमिनीचे_क्षेत्र_हे_आर"
+                      id="land_area_as_per_7_12"
                       type="number"
                       step="0.0001"
-                      value={landRecordForm.गांव_नमुना_7_12_नुसार_जमिनीचे_क्षेत्र_हे_आर}
-                      onChange={(e) => handleInputChange('गांव_नमुना_7_12_नुसार_जमिनीचे_क्षेत्र_हे_आर', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.land_area_as_per_7_12}
+                      onChange={(e) => handleEnglishInputChange('land_area_as_per_7_12', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="संपादित_जमिनीचे_क्षेत्र_चौ_मी_हेक्टर_आर">संपादित जमिनीचे क्षेत्र (चौ.मी/हेक्टर आर)</Label>
+                    <Label htmlFor="acquired_land_area">Acquired Land Area (Hectares)</Label>
                     <Input
-                      id="संपादित_जमिनीचे_क्षेत्र_चौ_मी_हेक्टर_आर"
+                      id="acquired_land_area"
                       type="number"
                       step="0.0001"
-                      value={landRecordForm.संपादित_जमिनीचे_क्षेत्र_चौ_मी_हेक्टर_आर}
-                      onChange={(e) => handleInputChange('संपादित_जमिनीचे_क्षेत्र_चौ_मी_हेक्टर_आर', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.acquired_land_area}
+                      onChange={(e) => handleEnglishInputChange('acquired_land_area', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="जमिनीचा_प्रकार">जमिनीचा प्रकार</Label>
+                    <Label htmlFor="land_type">Land Type</Label>
                     <Input
-                      id="जमिनीचा_प्रकार"
-                      value={landRecordForm.जमिनीचा_प्रकार || ''}
-                      onChange={(e) => handleInputChange('जमिनीचा_प्रकार', e.target.value)}
+                      id="land_type"
+                      value={englishLandRecordForm.land_type}
+                      onChange={(e) => handleEnglishInputChange('land_type', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="जमिनीचा_प्रकार_शेती_बिनशेती_धारणाधिकार">जमिनीचा प्रकार शेती/ बिनशेती/ धारणाधिकार</Label>
+                    <Label htmlFor="land_classification">Land Classification</Label>
                     <Input
-                      id="जमिनीचा_प्रकार_शेती_बिनशेती_धारणाधिकार"
-                      value={landRecordForm.जमिनीचा_प्रकार_शेती_बिनशेती_धारणाधिकार || ''}
-                      onChange={(e) => handleInputChange('जमिनीचा_प्रकार_शेती_बिनशेती_धारणाधिकार', e.target.value)}
+                      id="land_classification"
+                      value={englishLandRecordForm.land_classification}
+                      onChange={(e) => handleEnglishInputChange('land_classification', e.target.value)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="मंजुर_केलेला_दर_प्रति_हेक्टर_रक्कम_रुपये">मंजुर केलेला दर (प्रति हेक्टर) रक्कम रुपये</Label>
+                    <Label htmlFor="approved_rate_per_hectare">Approved Rate per Hectare (₹)</Label>
                     <Input
-                      id="मंजुर_केलेला_दर_प्रति_हेक्टर_रक्कम_रुपये"
+                      id="approved_rate_per_hectare"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.मंजुर_केलेला_दर_प्रति_हेक्टर_रक्कम_रुपये}
-                      onChange={(e) => handleInputChange('मंजुर_केलेला_दर_प्रति_हेक्टर_रक्कम_रुपये', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.approved_rate_per_hectare}
+                      onChange={(e) => handleEnglishInputChange('approved_rate_per_hectare', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य_र_रू">संपादीत होणाऱ्या जमिनीच्या क्षेत्रानुसार येणारे बाजारमुल्य र.रू</Label>
+                    <Label htmlFor="market_value_as_per_acquired_area">Market Value as per Acquired Area (₹)</Label>
                     <Input
-                      id="संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य_र_रू"
+                      id="market_value_as_per_acquired_area"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य_र_रू}
-                      onChange={(e) => handleInputChange('संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य_र_रू', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.market_value_as_per_acquired_area}
+                      onChange={(e) => handleEnglishInputChange('market_value_as_per_acquired_area', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="कलम_26_2_नुसार_गावास_लागु_असलेले_गणक_Factor_अ_क्र_5_X_8">कलम 26 (2) नुसार गावास लागु असलेले गणक Factor (अ.क्र. 5 X 8)</Label>
+                    <Label htmlFor="factor_as_per_section_26_2">Factor as per Section 26(2)</Label>
                     <Input
-                      id="कलम_26_2_नुसार_गावास_लागु_असलेले_गणक_Factor_अ_क्र_5_X_8"
+                      id="factor_as_per_section_26_2"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.कलम_26_2_नुसार_गावास_लागु_असलेले_गणक_Factor_अ_क्र_5_X_8}
-                      onChange={(e) => handleInputChange('कलम_26_2_नुसार_गावास_लागु_असलेले_गणक_Factor_अ_क्र_5_X_8', parseFloat(e.target.value) || 1)}
+                      value={englishLandRecordForm.factor_as_per_section_26_2}
+                      onChange={(e) => handleEnglishInputChange('factor_as_per_section_26_2', parseFloat(e.target.value) || 1)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="कलम_26_नुसार_जमिनीचा_मोबदला_9X10">कलम 26 नुसार जमिनीचा मोबदला (9X10)</Label>
+                    <Label htmlFor="land_compensation_as_per_section_26">Land Compensation as per Section 26 (₹)</Label>
                     <Input
-                      id="कलम_26_नुसार_जमिनीचा_मोबदला_9X10"
+                      id="land_compensation_as_per_section_26"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.कलम_26_नुसार_जमिनीचा_मोबदला_9X10}
-                      onChange={(e) => handleInputChange('कलम_26_नुसार_जमिनीचा_मोबदला_9X10', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.land_compensation_as_per_section_26}
+                      onChange={(e) => handleEnglishInputChange('land_compensation_as_per_section_26', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="बांधकामे">बांधकामे</Label>
+                    <Label htmlFor="structures">Structures (₹)</Label>
                     <Input
-                      id="बांधकामे"
+                      id="structures"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.बांधकामे}
-                      onChange={(e) => handleInputChange('बांधकामे', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.structures}
+                      onChange={(e) => handleEnglishInputChange('structures', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="वनझाडे">वनझाडे</Label>
+                    <Label htmlFor="forest_trees">Forest Trees (₹)</Label>
                     <Input
-                      id="वनझाडे"
+                      id="forest_trees"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.वनझाडे}
-                      onChange={(e) => handleInputChange('वनझाडे', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.forest_trees}
+                      onChange={(e) => handleEnglishInputChange('forest_trees', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="फळझाडे">फळझाडे</Label>
+                    <Label htmlFor="fruit_trees">Fruit Trees (₹)</Label>
                     <Input
-                      id="फळझाडे"
+                      id="fruit_trees"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.फळझाडे}
-                      onChange={(e) => handleInputChange('फळझाडे', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.fruit_trees}
+                      onChange={(e) => handleEnglishInputChange('fruit_trees', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="विहिरी_बोअरवेल">विहिरी/बोअरवेल</Label>
+                    <Label htmlFor="wells_borewells">Wells/Borewells (₹)</Label>
                     <Input
-                      id="विहिरी_बोअरवेल"
+                      id="wells_borewells"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.विहिरी_बोअरवेल}
-                      onChange={(e) => handleInputChange('विहिरी_बोअरवेल', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.wells_borewells}
+                      onChange={(e) => handleEnglishInputChange('wells_borewells', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="एकुण_रक्कम_रुपये_16_18_20_22">एकुण रक्कम रुपये (16+18+ 20+22)</Label>
+                    <Label htmlFor="total_structures_amount">Total Structures Amount (₹)</Label>
                     <Input
-                      id="एकुण_रक्कम_रुपये_16_18_20_22"
+                      id="total_structures_amount"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.एकुण_रक्कम_रुपये_16_18_20_22}
-                      onChange={(e) => handleInputChange('एकुण_रक्कम_रुपये_16_18_20_22', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.total_structures_amount}
+                      onChange={(e) => handleEnglishInputChange('total_structures_amount', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="एकुण_रक्कम_14_23">एकुण रक्कम (14+23)</Label>
+                    <Label htmlFor="total_amount_14_23">Total Amount (14+23) (₹)</Label>
                     <Input
-                      id="एकुण_रक्कम_14_23"
+                      id="total_amount_14_23"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.एकुण_रक्कम_14_23}
-                      onChange={(e) => handleInputChange('एकुण_रक्कम_14_23', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.total_amount_14_23}
+                      onChange={(e) => handleEnglishInputChange('total_amount_14_23', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="सोलेशियम_दिलासा_रक्कम">100 % सोलेशियम (दिलासा रक्कम)</Label>
+                    <Label htmlFor="determined_compensation_26">Determined Compensation 26 (₹)</Label>
                     <Input
-                      id="सोलेशियम_दिलासा_रक्कम"
+                      id="determined_compensation_26"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.सोलेशियम_दिलासा_रक्कम}
-                      onChange={(e) => handleInputChange('सोलेशियम_दिलासा_रक्कम', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.determined_compensation_26}
+                      onChange={(e) => handleEnglishInputChange('determined_compensation_26', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="निर्धारित_मोबदला_26">निर्धारित मोबदला 26 = (24+25)</Label>
+                    <Label htmlFor="total_compensation_26_27">Total Compensation (26+27) (₹)</Label>
                     <Input
-                      id="निर्धारित_मोबदला_26"
+                      id="total_compensation_26_27"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.निर्धारित_मोबदला_26}
-                      onChange={(e) => handleInputChange('निर्धारित_मोबदला_26', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.total_compensation_26_27}
+                      onChange={(e) => handleEnglishInputChange('total_compensation_26_27', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="एकूण_रक्कमेवर_25_वाढीव_मोबदला">एकूण रक्कमेवर 25% वाढीव मोबदला</Label>
+                    <Label htmlFor="deduction_amount">Deduction Amount (₹)</Label>
                     <Input
-                      id="एकूण_रक्कमेवर_25_वाढीव_मोबदला"
+                      id="deduction_amount"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.एकूण_रक्कमेवर_25_वाढीव_मोबदला}
-                      onChange={(e) => handleInputChange('एकूण_रक्कमेवर_25_वाढीव_मोबदला', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.deduction_amount}
+                      onChange={(e) => handleEnglishInputChange('deduction_amount', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="एकुण_मोबदला_26_27">एकुण मोबदला (26+ 27)</Label>
+                    <Label htmlFor="final_payable_compensation">Final Payable Compensation (₹)</Label>
                     <Input
-                      id="एकुण_मोबदला_26_27"
+                      id="final_payable_compensation"
                       type="number"
                       step="0.01"
-                      value={landRecordForm.एकुण_मोबदला_26_27}
-                      onChange={(e) => handleInputChange('एकुण_मोबदला_26_27', parseFloat(e.target.value) || 0)}
+                      value={englishLandRecordForm.final_payable_compensation}
+                      onChange={(e) => handleEnglishInputChange('final_payable_compensation', parseFloat(e.target.value) || 0)}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="वजावट_रक्कम_रुपये">वजावट रक्कम रुपये</Label>
+                    <Label htmlFor="compensation_distribution_status">Compensation Distribution Status</Label>
+                    <Select 
+                      value={englishLandRecordForm.compensation_distribution_status} 
+                      onValueChange={(value) => handleEnglishInputChange('compensation_distribution_status', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PENDING">PENDING</SelectItem>
+                        <SelectItem value="PAID">PAID</SelectItem>
+                        <SelectItem value="UNPAID">UNPAID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="notice_number">Notice Number</Label>
                     <Input
-                      id="वजावट_रक्कम_रुपये"
-                      type="number"
-                      step="0.01"
-                      value={landRecordForm.वजावट_रक्कम_रुपये}
-                      onChange={(e) => handleInputChange('वजावट_रक्कम_रुपये', parseFloat(e.target.value) || 0)}
+                      id="notice_number"
+                      value={englishLandRecordForm.notice_number}
+                      onChange={(e) => handleEnglishInputChange('notice_number', e.target.value)}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम_रुपये">हितसंबंधिताला अदा करावयाची एकुण मोबदला रक्कम रुपये</Label>
-                    <Input
-                      id="हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम_रुपये"
-                      type="number"
-                      step="0.01"
-                      value={landRecordForm.हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम_रुपये}
-                      onChange={(e) => handleInputChange('हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम_रुपये', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="शेरा">शेरा</Label>
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <Label htmlFor="remarks">Remarks</Label>
                     <Textarea
-                      id="शेरा"
-                      value={landRecordForm.शेरा || ''}
-                      onChange={(e) => handleInputChange('शेरा', e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="मोबदला_वाटप_तपशिल">मोबदला वाटप तपशिल</Label>
-                    <Input
-                      id="मोबदला_वाटप_तपशिल"
-                      value={landRecordForm.मोबदला_वाटप_तपशिल || ''}
-                      onChange={(e) => handleInputChange('मोबदला_वाटप_तपशिल', e.target.value)}
+                      id="remarks"
+                      value={englishLandRecordForm.remarks}
+                      onChange={(e) => handleEnglishInputChange('remarks', e.target.value)}
+                      rows={3}
                     />
                   </div>
                 </div>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Land Record'}
+                <Button type="submit" disabled={loading || !selectedProject}>
+                  {loading ? 'Creating...' : 'Create English Land Record'}
                 </Button>
               </form>
             </TabsContent>
