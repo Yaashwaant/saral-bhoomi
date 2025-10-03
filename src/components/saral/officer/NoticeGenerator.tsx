@@ -262,45 +262,155 @@ const NoticeGenerator: React.FC = () => {
     loadExistingNotices();
   }, [selectedProject]);
 
-  // Load land records from the new API
+  // Fetch just the ObjectIds of land records for the selected project
+  const fetchLandRecordIds = async (projectId: string): Promise<string[]> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/landowners2-english/${projectId}/ids`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.landRecordIds) {
+          console.log(`Fetched ${data.landRecordIds.length} land record ObjectIds for project ${projectId}`);
+          return data.landRecordIds;
+        }
+      }
+      console.warn('Failed to fetch land record IDs, returning empty array');
+      return [];
+    } catch (error) {
+      console.error('Error fetching land record IDs:', error);
+      return [];
+    }
+  };
+
+  // Load land records from the English collection API
   const loadLandRecords = async () => {
     if (!selectedProject) return;
     
+    console.log('Loading land records for project ObjectId:', selectedProject);
+    
     try {
-      const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+      // First try the new English collection with ObjectId
+      const response = await fetch(`${API_BASE_URL}/landowners2-english/${selectedProject}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.data) {
-          // Transform the land records to match the expected format
-          const transformedRecords = data.data.map((record: any) => ({
-            id: record._id || record.id,
-            'स.नं./हि.नं./ग.नं.': record.survey_number,
-            'खातेदाराचे_नांव': record.landowner_name,
-            'गांव': record.village,
-            'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
-            'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
-            isTribal: record.is_tribal,
-            tribalCertificateNo: record.tribal_certificate_no,
-            tribalLag: record.tribal_lag,
-            noticeGenerated: record.notice_generated,
-            projectId: selectedProject
-          }));
+        console.log('English collection response:', data);
+        
+        if (data.success && data.data) {
+          // Transform the English collection records to match the expected format
+          const transformedRecords = data.data.map((record: any) => {
+            const recordId = record._id || record.id;
+            console.log('Transforming English record:', {
+              originalId: record._id,
+              fallbackId: record.id,
+              finalId: recordId,
+              surveyNumber: record.new_survey_number || record.old_survey_number || record.survey_number,
+              ownerName: record.owner_name
+            });
+            return {
+              id: recordId,
+              // Map English fields to display format - prioritize new survey number
+              'स.नं./हि.नं./ग.नं.': record.new_survey_number || record.old_survey_number || record.survey_numbers || record.survey_number,
+              'खातेदाराचे_नांव': record.owner_name,
+              'गांव': record.village,
+              'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.land_area_as_per_7_12 || record.acquired_land_area,
+              'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation_26_27 || record.market_value_as_per_acquired_area || 0,
+              isTribal: record.is_tribal || false,
+              tribalCertificateNo: record.tribal_certificate_number,
+              tribalLag: record.tribal_lag,
+              noticeGenerated: record.notice_generated || false,
+              projectId: selectedProject,
+              // Store original record for notice generation
+              originalRecord: record
+            };
+          });
+          
+          console.log(`Transformed ${transformedRecords.length} land records for project ${selectedProject}`);
+          console.log('First few transformed records:', transformedRecords.slice(0, 3));
           setFilteredRecords(transformedRecords);
+          return;
+        } else {
+          console.warn('English collection returned no data:', data);
         }
       } else {
-        console.log('No land records found, falling back to landowner records');
-        // Fallback to existing landowner records
-        const projectRecords = landownerRecords.filter(r => 
-          String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
-        );
-        setFilteredRecords(projectRecords);
+        console.warn('English collection API failed:', response.status, response.statusText);
       }
+      
+      // Fallback to old landowners API
+      console.log('Falling back to old landowners API');
+      const fallbackResponse = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        console.log('Fallback API response:', fallbackData);
+        
+        if (fallbackData.data) {
+          const transformedRecords = fallbackData.data.map((record: any) => {
+            const recordId = record._id || record.id;
+            console.log('Transforming fallback record:', {
+              originalId: record._id,
+              fallbackId: record.id,
+              finalId: recordId,
+              surveyNumber: record.survey_number,
+              ownerName: record.landowner_name
+            });
+            return {
+              id: recordId,
+              'स.नं./हि.नं./ग.नं.': record.survey_number,
+              'खातेदाराचे_नांव': record.landowner_name,
+              'गांव': record.village,
+              'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र': record.area,
+              'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम': record.total_compensation || 0,
+              isTribal: record.is_tribal,
+              tribalCertificateNo: record.tribal_certificate_no,
+              tribalLag: record.tribal_lag,
+              noticeGenerated: record.notice_generated,
+              projectId: selectedProject,
+              originalRecord: record
+            };
+          });
+          
+          console.log(`Transformed ${transformedRecords.length} fallback records for project ${selectedProject}`);
+          console.log('First few fallback transformed records:', transformedRecords.slice(0, 3));
+          setFilteredRecords(transformedRecords);
+          return;
+        }
+      }
+      
+      // Final fallback to context records
+      console.log('Falling back to context records');
+      const projectRecords = landownerRecords.filter(r => {
+        const recordProjectId = String((r as any).projectId ?? (r as any).project_id);
+        const selectedProjectId = String(selectedProject);
+        console.log('Comparing project IDs:', recordProjectId, 'vs', selectedProjectId);
+        return recordProjectId === selectedProjectId;
+      });
+      
+      console.log(`Found ${projectRecords.length} context records for project ${selectedProject}`);
+      setFilteredRecords(projectRecords);
     } catch (error) {
       console.error('Error loading land records:', error);
       // Fallback to existing landowner records
-      const projectRecords = landownerRecords.filter(r => 
-        String((r as any).projectId ?? (r as any).project_id) === String(selectedProject)
-      );
+      const projectRecords = landownerRecords.filter(r => {
+        const recordProjectId = String((r as any).projectId ?? (r as any).project_id);
+        const selectedProjectId = String(selectedProject);
+        const matches = recordProjectId === selectedProjectId;
+        
+        console.log('Filtering context record:', {
+          recordId: r.id,
+          recordProjectId,
+          selectedProjectId,
+          matches,
+          recordKeys: Object.keys(r)
+        });
+        
+        return matches;
+      });
+      
+      console.log('Context project records found:', {
+        projectId: selectedProject,
+        totalRecords: projectRecords.length,
+        sampleRecord: projectRecords[0],
+        allIds: projectRecords.map(r => r.id)
+      });
+      
       setFilteredRecords(projectRecords);
     }
   };
@@ -312,9 +422,29 @@ const NoticeGenerator: React.FC = () => {
   // Fallback: derive generated notices directly from landowner records (updated by CSV ingest)
   useEffect(() => {
     if (!selectedProject) { return; }
+    
+    console.log('Deriving notices from landowner records:', {
+      selectedProject,
+      selectedProjectType: typeof selectedProject,
+      totalRecords: landownerRecords.length
+    });
+    
     const derived = landownerRecords
-      .filter(r => String((r as any).projectId ?? (r as any).project_id) === String(selectedProject))
-      .filter(r => (r as any).noticeGenerated)
+      .filter(r => {
+        const recordProjectId = String((r as any).projectId ?? (r as any).project_id);
+        const selectedProjectId = String(selectedProject);
+        const matches = recordProjectId === selectedProjectId;
+        
+        console.log('Record project comparison:', {
+          recordId: r.id,
+          recordProjectId,
+          selectedProjectId,
+          matches,
+          hasNoticeGenerated: (r as any).noticeGenerated
+        });
+        
+        return matches && (r as any).noticeGenerated;
+      })
       .map((r): GeneratedNotice => ({
         id: `GEN-${r.id}`,
         landownerId: r.id,
@@ -323,6 +453,9 @@ const NoticeGenerator: React.FC = () => {
         content: (r as any).noticeContent || 'Notice content not available',
         status: 'generated'
       }));
+    
+    console.log('Derived notices count:', derived.length);
+    
     // Only update if we actually have derived notices
     if (derived.length > 0) {
       setGeneratedNotices(derived);
@@ -338,7 +471,21 @@ const NoticeGenerator: React.FC = () => {
     });
 
     if (selectedProject) {
-      const projectRecords = landownerRecords.filter(r => String((r as any).projectId ?? (r as any).project_id) === String(selectedProject));
+      const projectRecords = landownerRecords.filter(r => {
+        const recordProjectId = String((r as any).projectId ?? (r as any).project_id);
+        const selectedProjectId = String(selectedProject);
+        const matches = recordProjectId === selectedProjectId;
+        
+        console.log('Filtering record for project:', {
+          recordId: r.id,
+          recordProjectId,
+          selectedProjectId,
+          matches
+        });
+        
+        return matches;
+      });
+      
       console.log('Project records found:', {
         projectId: selectedProject,
         totalRecords: projectRecords.length,
@@ -547,15 +694,43 @@ const NoticeGenerator: React.FC = () => {
     console.log('Generating content for record:', record);
     console.log('Available fields in record:', Object.keys(record));
     
+    // Determine record type for field mapping
+    const isEnglishCompleteRecord = record.collectionType === 'english_complete' || 
+                                  record.serial_number || 
+                                  record.owner_name ||
+                                  record.land_area_as_per_7_12;
+    
+    console.log('Record type detected:', isEnglishCompleteRecord ? 'English Complete' : 'Regular');
+    
     // Debug specific field values
     console.log('Field values check:');
-    console.log('खातेदाराचे_नांव:', record['खातेदाराचे_नांव']);
-    console.log('- स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
-    console.log('- मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
-    console.log('- सोलेशियम_100:', record['सोलेशियम_100']);
+    if (isEnglishCompleteRecord) {
+      console.log('owner_name:', record.owner_name);
+      console.log('serial_number:', record.serial_number);
+      console.log('land_area_as_per_7_12:', record.land_area_as_per_7_12);
+      console.log('compensation_amount:', record.compensation_amount);
+    } else {
+      console.log('खातेदाराचे_नांव:', record['खातेदाराचे_नांव']);
+      console.log('- स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
+      console.log('- मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
+      console.log('- सोलेशियम_100:', record['सोलेशियम_100']);
+    }
     
     const project = projects.find(p => p.id === record.projectId);
     const today = new Date();
+    
+    // Get appropriate field values based on record type
+    const landownerName = isEnglishCompleteRecord 
+      ? (record.owner_name || record.landowner_name || 'N/A')
+      : safeField(record, 'खातेदाराचे_नांव');
+    
+    const village = isEnglishCompleteRecord 
+      ? (record.village || record.gav || 'N/A')
+      : safeField(record, 'गांव');
+    
+    const surveyNumber = isEnglishCompleteRecord 
+      ? (record.new_survey_number || record.old_survey_number || record.survey_number || record.surveyNumber || record.serial_number || 'N/A')
+      : safeField(record, 'स.नं./हि.नं./ग.नं.');
     
     return `
       <div style="text-align:center; font-weight:700;">महाराष्ट्र शासन</div>
@@ -570,8 +745,8 @@ const NoticeGenerator: React.FC = () => {
       <h3 style="text-align:center; margin:8px 0;">नोटीस</h3>
 
       <div style="margin:12px 0;">
-        प्रति: <b>${safeField(record, 'खातेदाराचे_नांव')}</b><br/>
-        पत्ता: रा. ${safeField(record, 'गांव')}, ता. नांदे, जि. पालघर
+        प्रति: <b>${landownerName}</b><br/>
+        पत्ता: रा. ${village}, ता. नांदे, जि. पालघर
       </div>
 
       <div style="margin:12px 0;">
@@ -579,7 +754,7 @@ const NoticeGenerator: React.FC = () => {
       </div>
 
       <div style="margin:12px 0;">
-        मौजे ${safeField(record, 'गांव')}, ता. नांदे, जि. पालघर येथील संयुक्त मोजणी पूर्ण झाली असून आपल्या स.नं./गट नंबरचे क्षेत्र संपादित होणार आहे. सदर संपादित जमिनीचा मोबदला देय असून आवश्यक कागदपत्रांच्या मुळ प्रती व साक्षांकित (Attested) प्रती <b>७ दिवसात</b> कार्यालयात जमा कराव्यात.
+        मौजे ${village}, ता. नांदे, जि. पालघर येथील संयुक्त मोजणी पूर्ण झाली असून आपल्या स.नं./गट नंबरचे क्षेत्र संपादित होणार आहे. सदर संपादित जमिनीचा मोबदला देय असून आवश्यक कागदपत्रांच्या मुळ प्रती व साक्षांकित (Attested) प्रती <b>७ दिवसात</b> कार्यालयात जमा कराव्यात.
       </div>
 
       <h4 style="margin:12px 0 6px;">जमिनीचा तपशील</h4>
@@ -611,27 +786,27 @@ const NoticeGenerator: React.FC = () => {
   </thead>
   <tbody>
     <tr>
-      <td>${safeField(record, 'स.नं./हि.नं./ग.नं.')}</td>
-      <td>${safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र')}</td>
-      <td>${safeField(record, 'संपादित_जमिनीचे_क्षेत्र')}</td>
-      <td>${safeField(record, 'जमिनीचा_प्रकार')}</td>
-      <td>${safeField(record, 'जमिनीचा_प्रकार_शेती_बिनशेती')}</td>
-      <td>${safeNumericField(record, 'मंजुर_केलेला_दर')}</td>
-      <td>${safeNumericField(record, 'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य')}</td>
-      <td>${safeField(record, 'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक')}</td>
-      <td>${safeNumericField(record, 'कलम_26_नुसार_जमिनीचा_मोबदला')}</td>
-      <td>${safeNumericField(record, 'बांधकामे_रक्कम')}</td>
-      <td>${safeNumericField(record, 'वनझाडे_रक्कम')}</td>
-      <td>${safeNumericField(record, 'फळझाडे_रक्कम')}</td>
-      <td>${safeNumericField(record, 'विहिरी_रक्कम')}</td>
-      <td>${safeNumericField(record, 'एकुण_रक्कम_13_15_17_19')}</td>
-      <td>${safeNumericField(record, 'एकुण_रक्कम_11_20')}</td>
-      <td>${safeNumericField(record, 'सोलेशियम_100')}</td>
-      <td>${safeNumericField(record, 'निर्धारित_मोबदला')}</td>
-      <td>${safeNumericField(record, 'एकुण_रक्कमेवर_25_वाढीव_मोबदला')}</td>
-      <td>${safeNumericField(record, 'एकुण_मोबदला')}</td>
-      <td>${safeNumericField(record, 'वजावट_रक्कम')}</td>
-      <td>${safeNumericField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम')}</td>
+      <td>${surveyNumber}</td>
+      <td>${safeField(record, isEnglishCompleteRecord ? 'land_area_as_per_7_12' : 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र')}</td>
+      <td>${safeField(record, isEnglishCompleteRecord ? 'acquired_area' : 'संपादित_जमिनीचे_क्षेत्र')}</td>
+      <td>${safeField(record, isEnglishCompleteRecord ? 'land_category' : 'जमिनीचा_प्रकार')}</td>
+      <td>${safeField(record, isEnglishCompleteRecord ? 'land_type' : 'जमिनीचा_प्रकार_शेती_बिनशेती')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'rate' : 'मंजुर_केलेला_दर')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'market_value' : 'संपादीत_होणाऱ्या_जमिनीच्या_क्षेत्रानुसार_येणारे_बाजारमुल्य')}</td>
+      <td>${safeField(record, isEnglishCompleteRecord ? 'section_26_2_factor' : 'कलम_26_2_नुसार_गावास_लागु_असलेले_गणक')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'section_26_compensation' : 'कलम_26_नुसार_जमिनीचा_मोबदला')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'structures_amount' : 'बांधकामे_रक्कम')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'forest_trees_amount' : 'वनझाडे_रक्कम')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'fruit_trees_amount' : 'फळझाडे_रक्कम')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'wells_amount' : 'विहिरी_रक्कम')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'total_structures_trees_wells' : 'एकुण_रक्कम_13_15_17_19')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'total_land_structures' : 'एकुण_रक्कम_11_20')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'solatium' : 'सोलेशियम_100')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'determined_compensation' : 'निर्धारित_मोबदला')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'additional_25_percent_compensation' : 'एकुण_रक्कमेवर_25_वाढीव_मोबदला')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'total_compensation' : 'एकुण_मोबदला')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'deduction_amount' : 'वजावट_रक्कम')}</td>
+      <td>${safeNumericField(record, isEnglishCompleteRecord ? 'final_compensation' : 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम')}</td>
     </tr>
   </tbody>
 </table>
@@ -667,31 +842,55 @@ const NoticeGenerator: React.FC = () => {
       return;
     }
 
+    console.log('Starting notice generation for selected records:', selectedRecords);
+    console.log('Available landowner records:', landownerRecords.map(r => ({ id: r.id, survey: r['स.नं./हि.नं./ग.नं.'], owner: r['खातेदाराचे_नांव'] })));
+
     try {
       const newNotices: GeneratedNotice[] = [];
+      let successCount = 0;
+      let errorCount = 0;
       
       for (const recordId of selectedRecords) {
+        console.log(`Processing record ID: ${recordId}`);
         const record = landownerRecords.find(r => r.id === recordId);
+        
         if (!record) {
-          console.error('Record not found:', recordId);
+          console.error('Record not found in landownerRecords:', recordId);
+          console.error('Available record IDs:', landownerRecords.map(r => r.id));
+          errorCount++;
           continue;
         }
 
-        console.log('Generating notice for record:', record);
-        console.log('Record type:', typeof record);
-        console.log('Record keys:', Object.keys(record));
-        console.log('Sample field values:');
-        console.log('- खातेदाराचे_नांव:', record['खातेदाराचे_नांव']);
-        console.log('- स.नं./हि.नं./ग.नं.:', record['स.नं./हि.नं./ग.नं.']);
-        console.log('- मंजुर_केलेला_दर:', record['मंजुर_केलेला_दर']);
-        console.log('- सोलेशियम_100:', record['सोलेशियम_100']);
+        console.log('Generating notice for record:', {
+          id: record.id,
+          surveyNumber: record['स.नं./हि.नं./ग.नं.'],
+          ownerName: record['खातेदाराचे_नांव'],
+          recordProjectId: String((record as any).projectId || (record as any).project_id),
+          selectedProjectId: String(selectedProject),
+          projectIdsMatch: String((record as any).projectId || (record as any).project_id) === String(selectedProject)
+        });
+
+        // Validate required fields before proceeding
+        const surveyNumber = record['स.नं./हि.नं./ग.नं.'] || record.survey_number || record.new_survey_number || record.old_survey_number;
+        const ownerName = record['खातेदाराचे_नांव'] || record.owner_name || record.landowner_name;
         
+        if (!surveyNumber || !ownerName) {
+          console.error('Missing required fields for record:', recordId, {
+            surveyNumber: surveyNumber,
+            ownerName: ownerName
+          });
+          toast.error(`Missing required fields for record ${recordId}: Survey number or owner name`);
+          errorCount++;
+          continue;
+        }
+
         let noticeContent;
         try {
           noticeContent = generateNoticeContent(record);
         } catch (contentError) {
           console.error('Error generating notice content for record:', record.id, contentError);
           toast.error(`Failed to generate notice content for record ${record.id}`);
+          errorCount++;
           continue;
         }
         
@@ -707,6 +906,7 @@ const NoticeGenerator: React.FC = () => {
         };
 
         newNotices.push(notice);
+        successCount++;
         
         try {
           // Update record to mark notice as generated
@@ -719,17 +919,41 @@ const NoticeGenerator: React.FC = () => {
         }
       }
 
-      setGeneratedNotices(prev => [...prev, ...newNotices]);
-      toast.success(`Generated ${newNotices.length} notices successfully`);
+      if (newNotices.length > 0) {
+        setGeneratedNotices(prev => [...prev, ...newNotices]);
+      }
+      
+      // Provide comprehensive feedback
+      if (successCount > 0) {
+        toast.success(`Successfully generated ${successCount} notices`);
+      }
+      
+      if (errorCount > 0) {
+        toast.warning(`${errorCount} notices failed to generate. Check console for details.`);
+      }
+      
       setSelectedRecords([]);
+      
+      console.log('Notice generation completed:', {
+        totalRequested: selectedRecords.length,
+        successful: successCount,
+        failed: errorCount
+      });
+      
     } catch (error) {
       console.error('Notice generation error:', error);
-      toast.error('Failed to generate notices');
+      toast.error('Failed to generate notices: ' + (error as Error).message);
     }
   };
 
   const assignToKycFromRecord = async (record: any) => {
     try {
+      // Validate record data before proceeding
+      if (!record || !record.id) {
+        toast.error('Invalid record data for KYC assignment');
+        return;
+      }
+
       // Demo: always assign to rajesh patil (field officer)
       let fieldOfficer;
       let apiAgents = [];
@@ -767,6 +991,15 @@ const NoticeGenerator: React.FC = () => {
       const noticeContent = record.noticeContent || generateNoticeContent(record);
       const surveyNumber = record['सर्वे_नं'] || record['स.नं./हि.नं./ग.नं.'] || safeField(record, 'स.नं./हि.नं./ग.नं.');
       const projectId = String((record as any).projectId ?? (record as any).project_id ?? selectedProject);
+
+      console.log('Assigning KYC for record:', {
+        recordId: record.id,
+        surveyNumber: surveyNumber,
+        projectId: projectId,
+        agentId: agentId,
+        hasNoticeContent: !!noticeContent,
+        hasNoticeNumber: !!noticeNumber
+      });
 
       const success = await assignAgentWithNotice(String(record.id), String(agentId), {
         noticeNumber,
@@ -817,7 +1050,7 @@ const NoticeGenerator: React.FC = () => {
       }
     } catch (e) {
       console.error('KYC assignment failed', e);
-      toast.error('Failed to assign notice for KYC');
+      toast.error('Failed to assign notice for KYC: ' + (e as Error).message);
     }
   };
 
@@ -1199,25 +1432,69 @@ const NoticeGenerator: React.FC = () => {
   const generateNoticeFromRecord = async (record: any) => {
     setLoading(true);
     try {
-      const noticeContent = generateNoticeContent(record);
-      const response = await fetch(`${API_BASE_URL}/landowners/generate-notice`, {
+      // Debug: Check what record object looks like and its ID
+      console.log('Full record object in generateNoticeFromRecord:', JSON.stringify(record, null, 2));
+      console.log('Record ID being used:', record.id);
+      console.log('Record ID type:', typeof record.id);
+      
+      // Use the same endpoint that we loaded the data from (landowners2-english)
+      // Since we're loading from landowners2-english, we should generate notices from the same collection
+      const endpoint = `${API_BASE_URL}/landowners2-english/generate-notice`;
+      
+      console.log(`Generating notice using landowners2-english API endpoint:`, endpoint);
+      console.log('Record data:', {
+        id: record.id,
+        collectionType: record.collectionType,
+        hasSerialNumber: !!record.serial_number,
+        hasOwnerName: !!record.owner_name,
+        hasLandArea: !!record.land_area_as_per_7_12
+      });
+
+      // Extract required fields for notice generation
+      // Use the originalRecord if available, otherwise fall back to transformed fields
+      const originalRecord = record.originalRecord || record;
+      const surveyNumber = originalRecord.new_survey_number || originalRecord.old_survey_number || originalRecord.survey_number || originalRecord.surveyNumber || record['स.नं./हि.नं./ग.नं.'] || '';
+      const landownerName = originalRecord.owner_name || originalRecord.landowner_name || record['खातेदाराचे_नांव'] || '';
+
+      console.log('Extracted fields for validation:');
+      console.log('surveyNumber:', surveyNumber);
+      console.log('landownerName:', landownerName);
+      console.log('originalRecord available:', !!record.originalRecord);
+
+      if (!surveyNumber || !landownerName) {
+        toast.error('Missing required fields: Survey number or landowner name');
+        setLoading(false);
+        return;
+      }
+
+      // Extract additional uniqueness fields for proper record identification
+      const village = originalRecord.village_name || originalRecord.village || record['गांव'];
+      const acquiredArea = originalRecord.acquired_land_area || record['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'];
+      
+      console.log('Additional uniqueness fields:');
+      console.log('village:', village);
+      console.log('acquiredArea:', acquiredArea);
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer demo-jwt-token`
         },
         body: JSON.stringify({
-          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
-          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
-          area: parseFloat(safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र') || '0'),
-          village: safeField(record, 'गांव'),
-          taluka: 'नागपूर', // Default taluka
-          district: 'नागपूर', // Default district
-          total_compensation: parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') || '0'),
-          is_tribal: record.isTribal || false,
-          tribal_certificate_no: (record as any).tribalCertificateNo || '',
-          tribal_lag: (record as any).tribalLag || '',
-          project_id: selectedProject
+          // Backend expects these required fields to find the record
+          survey_number: surveyNumber,
+          landowner_name: landownerName,
+          project_id: selectedProject,
+          // Optional fields for notice content
+          area: originalRecord.land_area_as_per_7_12 || originalRecord.acquired_land_area || record['नमुना_7_12_नुसार_जमिनीचे_क्षेत्र'],
+          village: village,
+          taluka: originalRecord.taluka,
+          district: originalRecord.district,
+          total_compensation: originalRecord.total_compensation_26_27 || originalRecord.market_value_as_per_acquired_area || record['हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम'] || 0,
+          is_tribal: originalRecord.is_tribal || record.isTribal || false,
+          tribal_certificate_no: originalRecord.tribal_certificate_number || record.tribalCertificateNo,
+          tribal_lag: originalRecord.tribal_lag || record.tribalLag
         })
       });
 
@@ -1254,17 +1531,45 @@ const NoticeGenerator: React.FC = () => {
         );
         
         // Record blockchain event
-        await recordBlockchainEvent(safeField(record, 'स.नं./हि.नं./ग.नं.'), 'NOTICE_GENERATED', {
-          survey_number: safeField(record, 'स.नं./हि.नं./ग.नं.'),
-          landowner_name: safeField(record, 'खातेदाराचे_नांव'),
-          notice_number: data.data.notice_number
+        await recordBlockchainEvent(surveyNumber, 'NOTICE_GENERATED', {
+          survey_number: surveyNumber,
+          landowner_name: landownerName,
+          notice_number: data.data.notice_number,
+          record_type: isEnglishCompleteRecord ? 'english_complete' : 'regular'
         });
         
         // Also reload from server to ensure consistency
         setTimeout(() => loadLandRecords(), 1000);
       } else {
         const errorData = await response.json();
-        toast.error(errorData.message || 'Failed to generate notice');
+        console.error('Notice generation failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage: errorData.message,
+          errorData: errorData,
+          endpoint: endpoint,
+          requestData: {
+            survey_number: surveyNumber,
+            landowner_name: landownerName,
+            project_id: selectedProject,
+            area: isEnglishCompleteRecord ? record.land_area_as_per_7_12 : safeField(record, 'एकूण क्षेत्रफळ'),
+            village: village,
+            taluka: isEnglishCompleteRecord ? record.taluka : safeField(record, 'तालुका'),
+            district: isEnglishCompleteRecord ? record.district : safeField(record, 'जिल्हा'),
+            total_compensation: isEnglishCompleteRecord ? record.total_compensation : safeField(record, 'एकूण नुकसान भरपाई'),
+            is_tribal: isEnglishCompleteRecord ? record.is_tribal : safeField(record, 'आदिवासी'),
+            tribal_certificate_no: isEnglishCompleteRecord ? record.tribal_certificate_no : safeField(record, 'आदिवासी_प्रमाणपत्र_क्रमांक'),
+            tribal_lag: isEnglishCompleteRecord ? record.tribal_lag : safeField(record, 'आदिवासी_लाग')
+          }
+        });
+        
+        // Provide more specific error message based on the backend response
+        let errorMessage = errorData.message || 'Failed to generate notice';
+        if (errorMessage.includes('Landowner record not found')) {
+          errorMessage = `Landowner record not found for survey ${surveyNumber} and project ${selectedProject}. Please check if the record exists in the database.`;
+        }
+        
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error generating notice:', error);
@@ -1701,6 +2006,7 @@ const NoticeGenerator: React.FC = () => {
                 <TableHead>Compensation</TableHead>
                 <TableHead>Tribal</TableHead>
                 <TableHead>Notice Status</TableHead>
+                <TableHead>Record ID</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1713,13 +2019,15 @@ const NoticeGenerator: React.FC = () => {
                       onCheckedChange={(checked) => handleSelectRecord(record.id, checked as boolean)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{safeField(record, 'स.नं./हि.नं./ग.नं.')}</TableCell>
-                  <TableCell>{safeField(record, 'खातेदाराचे_नांव')}</TableCell>
-                  <TableCell>{safeField(record, 'गांव')}</TableCell>
-                  <TableCell>{safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र')}</TableCell>
+                  <TableCell className="font-medium">
+                    {record.new_survey_number || record.old_survey_number || record.survey_number || record.surveyNumber || safeField(record, 'स.नं./हि.नं./ग.नं.') || 'N/A'}
+                  </TableCell>
+                  <TableCell>{record.owner_name || record.landowner_name || safeField(record, 'खातेदाराचे_नांव') || 'N/A'}</TableCell>
+                  <TableCell>{record.village || record.village_name || safeField(record, 'गांव') || 'N/A'}</TableCell>
+                  <TableCell>{record.land_area_as_per_7_12 || record.area || safeField(record, 'नमुना_7_12_नुसार_जमिनीचे_क्षेत्र') || 'N/A'}</TableCell>
                   <TableCell>
                     <Badge>
-                      ₹{(parseFloat(safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') as any || '0') / 100000).toFixed(1)}L
+                      ₹{(parseFloat(record.total_compensation_26_27 || record.total_compensation || record.final_compensation || safeField(record, 'हितसंबंधिताला_अदा_करावयाची_एकुण_मोबदला_रक्कम') as any || '0') / 100000).toFixed(1)}L
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -1749,6 +2057,9 @@ const NoticeGenerator: React.FC = () => {
                       </Badge>
                     )}
                   </TableCell>
+                  <TableCell className="text-xs text-gray-400 font-mono">
+                    {record.id}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       {!record.noticeGenerated ? (
@@ -1764,7 +2075,17 @@ const NoticeGenerator: React.FC = () => {
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() => generateNoticeFromRecord(record)}
+                            onClick={() => {
+                              console.log('Generate Notice button clicked with record:', {
+                                recordId: record.id,
+                                recordKeys: Object.keys(record),
+                                surveyNumber: record.new_survey_number || record.old_survey_number || record.survey_number || record.surveyNumber,
+                                ownerName: record.owner_name || record.landowner_name,
+                                village: record.village || record.village_name,
+                                originalRecord: record.originalRecord
+                              });
+                              generateNoticeFromRecord(record);
+                            }}
                             disabled={loading}
                             className="bg-green-600 hover:bg-green-700"
                           >
