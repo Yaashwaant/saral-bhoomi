@@ -1,5 +1,5 @@
 import express from 'express';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
@@ -13,7 +13,7 @@ router.get('/summary/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await MongoLandownerRecord.find({ project_id: projectId });
+    const records = await CompleteEnglishLandownerRecord.find({ project_id: projectId });
 
     // Group by village
     const villageMap = {};
@@ -42,9 +42,9 @@ router.get('/summary/:projectId', async (req, res) => {
       
       const summary = villageMap[village];
       summary.totalLandowners++;
-      summary.totalCompensation += parseFloat(record.final_amount) || 0;
-      summary.totalArea += parseFloat(record.area) || 0;
-      summary.totalAcquiredArea += parseFloat(record.acquired_area) || 0;
+      summary.totalCompensation += parseFloat(record.final_payable_compensation) || 0;
+      summary.totalArea += parseFloat(record.land_area_as_per_7_12) || 0;
+      summary.totalAcquiredArea += parseFloat(record.acquired_land_area) || 0;
       if (record.notice_generated) summary.noticesGenerated++;
       
       // KYC status counts
@@ -62,7 +62,7 @@ router.get('/summary/:projectId', async (req, res) => {
         case 'initiated': summary.paymentsInitiated++; break;
         case 'success': 
           summary.paymentsSuccess++; 
-          summary.totalPaid += parseFloat(record.final_amount) || 0;
+          summary.totalPaid += parseFloat(record.final_payable_compensation) || 0;
           break;
         case 'failed': summary.paymentsFailed++; break;
       }
@@ -100,22 +100,22 @@ router.get('/details/:projectId/:villageName', async (req, res) => {
     } = req.query;
 
     const where = { 
-      projectId, 
+      project_id: projectId, 
       village: decodeURIComponent(villageName)
     };
     
-    if (kycStatus) where.kycStatus = kycStatus;
-    if (paymentStatus) where.paymentStatus = paymentStatus;
-    if (assignedAgent) where.assignedAgent = assignedAgent;
+    if (kycStatus) where.kyc_status = kycStatus;
+    if (paymentStatus) where.payment_status = paymentStatus;
+    if (assignedAgent) where.assigned_agent = assignedAgent;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await MongoLandownerRecord.find(where)
+    const records = await CompleteEnglishLandownerRecord.find(where)
       .skip(offset)
       .limit(parseInt(limit))
-      .sort({ landowner_name: 1 }); // Assuming landowner_name is the sort field
+      .sort({ owner_name: 1 }); // Using owner_name instead of landowner_name
 
-    const total = await MongoLandownerRecord.countDocuments(where);
+    const total = await CompleteEnglishLandownerRecord.countDocuments(where);
 
     res.status(200).json({
       success: true,
@@ -156,17 +156,17 @@ router.get('/progress/:projectId', async (req, res) => {
     }
 
     // Get overall project statistics
-    const records = await MongoLandownerRecord.find({ project_id: projectId });
+    const records = await CompleteEnglishLandownerRecord.find({ project_id: projectId });
 
     const overallStats = {
       totalRecords: records.length,
-      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0),
+      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation) || 0), 0),
       noticesGenerated: records.filter(r => r.notice_generated).length,
       kycApproved: records.filter(r => r.kyc_status === 'approved').length,
       paymentsCompleted: records.filter(r => r.payment_status === 'success').length,
       totalPaid: records
         .filter(r => r.payment_status === 'success')
-        .reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0)
+        .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation) || 0), 0)
     };
 
     // Get village-wise progress
@@ -237,7 +237,7 @@ router.get('/agent-workload/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await MongoLandownerRecord.find({ 
+    const records = await CompleteEnglishLandownerRecord.find({ 
       project_id: projectId,
       assigned_agent: { $ne: null }
     }).populate('assigned_agent');

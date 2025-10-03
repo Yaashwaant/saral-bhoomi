@@ -1,5 +1,5 @@
 import express from 'express';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import MongoPayment from '../models/mongo/Payment.js';
 import { authorize } from '../middleware/auth.js';
@@ -28,7 +28,7 @@ router.get('/:projectId', authorize(['officer', 'admin']), async (req, res) => {
 
     // Get all payments for the project
     const payments = await MongoPayment.find({ project_id: projectId })
-      .populate('landowner_id', 'survey_number landowner_name')
+      .populate('landowner_id', 'new_survey_number owner_name')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -70,13 +70,13 @@ router.get('/eligible', authorize(['officer', 'admin']), async (req, res) => {
     if (status) filter.payment_status = status;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const records = await MongoLandownerRecord.find(filter)
+    const records = await CompleteEnglishLandownerRecord.find(filter)
       .populate('project_id', 'projectName status')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
-    const total = await MongoLandownerRecord.countDocuments(filter);
+    const total = await CompleteEnglishLandownerRecord.countDocuments(filter);
 
     res.status(200).json({
       success: true,
@@ -84,13 +84,13 @@ router.get('/eligible', authorize(['officer', 'admin']), async (req, res) => {
       total,
       data: records.map(record => ({
         id: record._id,
-        survey_number: record.survey_number,
-        landowner_name: record.landowner_name,
-        area: record.area,
-        acquired_area: record.acquired_area,
-        total_compensation: record.total_compensation,
+        survey_number: record.new_survey_number,
+        landowner_name: record.owner_name,
+        area: record.land_area_as_per_7_12,
+        acquired_area: record.acquired_land_area,
+        total_compensation: record.final_payable_compensation,
         solatium: record.solatium,
-        final_amount: record.final_amount,
+        final_amount: record.final_payable_compensation,
         village: record.village,
         taluka: record.taluka,
         district: record.district,
@@ -136,7 +136,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
     } = req.body;
 
     // Get landowner record with project details
-    const record = await MongoLandownerRecord.findById(recordId)
+    const record = await CompleteEnglishLandownerRecord.findById(recordId)
       .populate('project_id', 'projectName');
 
     if (!record) {
@@ -149,7 +149,7 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
     // Prepare payment data
     const paymentData = {
       landownerRecordId: recordId,
-      amount: record.final_amount,
+      amount: record.final_payable_compensation,
       bankAccountNumber,
       ifscCode,
       accountHolderName,
@@ -211,8 +211,8 @@ router.post('/initiate/:recordId', authorize(['officer', 'admin']), async (req, 
           ifscCode: paymentRecord.ifscCode,
           paymentDate: new Date(),
           projectName: record.project_id?.projectName || 'Unknown Project',
-          landownerName: record.landowner_name,
-          surveyNumber: record.survey_number
+          landownerName: record.owner_name,
+          surveyNumber: record.new_survey_number
         };
 
         receiptResult = await receiptService.generateAndSendReceipt(receiptData, {
@@ -307,7 +307,7 @@ router.put('/update-status/:transactionId', authorize(['officer', 'admin']), asy
     }
 
     // Update landowner record
-    const landownerRecord = await MongoLandownerRecord.findById(paymentRecord.landownerRecordId);
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(paymentRecord.landownerRecordId);
     if (landownerRecord) {
       await landownerRecord.updateOne({
         paymentStatus: status,
@@ -324,7 +324,7 @@ router.put('/update-status/:transactionId', authorize(['officer', 'admin']), asy
         paymentId: paymentRecord._id,
         transactionId: paymentRecord.transactionId,
         status: paymentRecord.paymentStatus,
-        landownerName: landownerRecord?.landowner_name,
+        landownerName: landownerRecord?.owner_name,
         amount: paymentRecord.amount
       }
     });
@@ -344,7 +344,7 @@ router.get('/stats/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const records = await MongoLandownerRecord.find({ project_id: projectId });
+    const records = await CompleteEnglishLandownerRecord.find({ project_id: projectId });
 
     const stats = {
       totalRecords: records.length,
@@ -352,10 +352,10 @@ router.get('/stats/:projectId', async (req, res) => {
       paymentsInitiated: records.filter(r => r.payment_status === 'initiated').length,
       paymentsSuccess: records.filter(r => r.payment_status === 'success').length,
       paymentsFailed: records.filter(r => r.payment_status === 'failed').length,
-      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0),
+      totalCompensation: records.reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation) || 0), 0),
       totalPaid: records
         .filter(r => r.payment_status === 'success')
-        .reduce((sum, r) => sum + (parseFloat(r.final_amount) || 0), 0)
+        .reduce((sum, r) => sum + (parseFloat(r.final_payable_compensation) || 0), 0)
     };
 
     res.status(200).json({
@@ -386,7 +386,7 @@ router.get('/:paymentId', authorize(['officer', 'admin']), async (req, res) => {
     const { paymentId } = req.params;
 
     const paymentRecord = await MongoPayment.findById(paymentId)
-      .populate('landownerRecordId', 'landowner_name survey_number')
+      .populate('landownerRecordId', 'owner_name new_survey_number')
       .populate('createdBy', 'name email role');
 
     if (!paymentRecord) {
@@ -513,7 +513,7 @@ router.post('/:paymentId/cancel', authorize(['officer', 'admin']), async (req, r
     });
 
     // Update landowner record
-    const landownerRecord = await MongoLandownerRecord.findById(paymentRecord.landownerRecordId);
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(paymentRecord.landownerRecordId);
     if (landownerRecord) {
       await landownerRecord.updateOne({
         paymentStatus: 'cancelled',
@@ -549,7 +549,7 @@ router.get('/:paymentId/receipt', authorize(['officer', 'admin']), async (req, r
     const { paymentId } = req.params;
 
     const paymentRecord = await MongoPayment.findById(paymentId)
-      .populate('landownerRecordId', 'landowner_name survey_number');
+      .populate('landownerRecordId', 'owner_name new_survey_number');
 
     if (!paymentRecord) {
       return res.status(404).json({
@@ -704,7 +704,7 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
     const { recordId } = req.params;
     
     // Find the landowner record with KYC completed
-    const landownerRecord = await MongoLandownerRecord.findById(recordId)
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(recordId)
       .populate('project_id', 'projectName village taluka district')
       .populate('created_by', 'name email');
     
@@ -726,11 +726,11 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
     
     // Generate payment slip data
     const paymentSlip = {
-      slip_number: `PS-${landownerRecord.survey_number}-${Date.now()}`,
+      slip_number: `PS-${landownerRecord.new_survey_number}-${Date.now()}`,
       generated_date: new Date(),
       landowner_details: {
-        name: landownerRecord.landowner_name,
-        survey_number: landownerRecord.survey_number,
+        name: landownerRecord.owner_name,
+        survey_number: landownerRecord.new_survey_number,
         village: landownerRecord.village,
         taluka: landownerRecord.taluka,
         district: landownerRecord.district,
@@ -738,17 +738,17 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
         contact_email: landownerRecord.contact_email
       },
       land_details: {
-        area: landownerRecord.area,
-        acquired_area: landownerRecord.acquired_area,
+        area: landownerRecord.land_area_as_per_7_12,
+        acquired_area: landownerRecord.acquired_land_area,
         rate_per_hectare: landownerRecord.rate,
         structure_trees_wells_amount: landownerRecord.structure_trees_wells_amount
       },
       compensation_details: {
-        land_compensation: (landownerRecord.area * landownerRecord.rate) || 0,
+        land_compensation: (landownerRecord.land_area_as_per_7_12 * landownerRecord.rate) || 0,
         structure_compensation: landownerRecord.structure_trees_wells_amount || 0,
         solatium: landownerRecord.solatium || 0,
         total_compensation: landownerRecord.total_compensation || 0,
-        final_amount: landownerRecord.final_amount || 0
+        final_amount: landownerRecord.final_payable_compensation || 0
       },
       project_details: landownerRecord.project_id ? {
         name: landownerRecord.project_id.projectName,
@@ -786,7 +786,7 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
       const safeProjectId = landownerRecord.project_id && (landownerRecord.project_id._id ? landownerRecord.project_id._id : landownerRecord.project_id);
       // Create a block using explicit event type to align with enum and idempotent index
       await ledgerV2.createOrUpdateFromLive(
-        landownerRecord.survey_number,
+        landownerRecord.new_survey_number,
         req.user.id,
         safeProjectId ? safeProjectId.toString() : null,
         'ownership_transfer_slip_generated',
@@ -801,7 +801,7 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
     }
 
     // Update payment status to initiated
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: recordId },
       { 
         $set: { 
@@ -817,7 +817,7 @@ router.get('/slip/:recordId', authorize('officer', 'admin'), async (req, res) =>
       const ledgerV2 = new LedgerV2Service();
       const safeProjectId = landownerRecord.project_id && (landownerRecord.project_id._id ? landownerRecord.project_id._id : landownerRecord.project_id);
       await ledgerV2.createOrUpdateFromLive(
-        landownerRecord.survey_number,
+        landownerRecord.new_survey_number,
         req.user.id,
         safeProjectId ? safeProjectId.toString() : null,
         'payment_slip_generated'
@@ -869,20 +869,20 @@ router.get('/slips', authorize('officer', 'admin'), async (req, res) => {
     
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const records = await MongoLandownerRecord.find(filter)
+    const records = await CompleteEnglishLandownerRecord.find(filter)
       .populate('project_id', 'projectName')
       .populate('created_by', 'name email')
       .sort({ payment_initiated_at: -1, updatedAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
     
-    const total = await MongoLandownerRecord.countDocuments(filter);
+    const total = await CompleteEnglishLandownerRecord.countDocuments(filter);
     
     const paymentSlips = records.map(record => ({
       id: record._id,
       slip_number: record.payment_slip_number,
-      survey_number: record.survey_number,
-      landowner_name: record.landowner_name,
+      survey_number: record.new_survey_number,
+      landowner_name: record.owner_name,
       village: record.village,
       taluka: record.taluka,
       district: record.district,
@@ -940,7 +940,7 @@ router.put('/complete/:recordId', authorize('officer', 'admin'), async (req, res
       });
     }
     
-    const record = await MongoLandownerRecord.findById(recordId);
+    const record = await CompleteEnglishLandownerRecord.findById(recordId);
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -956,7 +956,7 @@ router.put('/complete/:recordId', authorize('officer', 'admin'), async (req, res
     }
     
     // Update payment status
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: recordId },
       { 
         $set: { 
@@ -973,8 +973,8 @@ router.put('/complete/:recordId', authorize('officer', 'admin'), async (req, res
       message: 'Payment marked as completed successfully',
       data: {
         recordId: record._id,
-        surveyNumber: record.survey_number,
-        landownerName: record.landowner_name,
+        surveyNumber: record.new_survey_number,
+        landownerName: record.owner_name,
         paymentStatus: 'completed',
         bankReference: bank_reference,
         completedAt: new Date()
@@ -990,4 +990,4 @@ router.put('/complete/:recordId', authorize('officer', 'admin'), async (req, res
   }
 });
 
-export default router; 
+export default router;

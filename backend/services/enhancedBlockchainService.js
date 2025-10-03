@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import BlockchainConfig from '../config/blockchain.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
 import MongoJMRRecord from '../models/mongo/JMRRecord.js';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import SurveyDataAggregationService from './surveyDataAggregationService.js';
 

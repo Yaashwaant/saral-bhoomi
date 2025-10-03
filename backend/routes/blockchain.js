@@ -95,7 +95,7 @@ router.post('/bulk-landowner-row-sync', [
 ], async (req, res) => {
   try {
     const { officer_id, project_id } = req.body;
-    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoLandownerRecord = (await import('../models/mongo/CompleteEnglishLandownerRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
     const Project = (await import('../models/mongo/Project.js')).default;
     const mongoose = (await import('mongoose')).default;
@@ -879,7 +879,7 @@ router.post('/create-landowner-row-block', [
   try {
     const { project_id, new_survey_number, old_survey_number, cts_number, serial_number, officer_id, remarks } = req.body;
 
-    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoLandownerRecord = (await import('../models/mongo/CompleteEnglishLandownerRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
 
     // Normalize identifiers
@@ -1168,7 +1168,7 @@ router.get('/search-by-identifier', [
     const uniqueIdentifier = `${project}+${district}+${taluka}+${village}+${surveyNumber}`;
     
     // Import required models and services
-    const MongoLandownerRecord = (await import('../models/mongo/LandownerRecord.js')).default;
+    const MongoLandownerRecord = (await import('../models/mongo/CompleteEnglishLandownerRecord.js')).default;
     const MongoBlockchainLedger = (await import('../models/mongo/BlockchainLedger.js')).default;
     const surveyService = new SurveyDataAggregationService();
     

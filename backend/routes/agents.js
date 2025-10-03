@@ -1,5 +1,5 @@
 import express from 'express';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoUser from '../models/mongo/User.js';
 import MongoProject from '../models/mongo/Project.js';
 import admin from 'firebase-admin';
@@ -106,12 +106,12 @@ router.get('/assigned', async (req, res) => {
     }
     
     // Get assigned records including notice fields for agent portal
-    const records = await MongoLandownerRecord.find({
+    const records = await CompleteEnglishLandownerRecord.find({
       assigned_agent: agentId,
       is_active: true
     }).select([
-      '_id', 'project_id', 'landowner_name', 'survey_number', 'village', 'taluka', 'district',
-      'area', 'total_compensation', 'kyc_status', 'payment_status', 'assigned_agent', 'assigned_at'
+      '_id', 'project_id', 'owner_name', 'new_survey_number', 'village', 'taluka', 'district',
+      'land_area_as_per_7_12', 'final_payable_compensation', 'kyc_status', 'payment_status', 'assigned_agent', 'assigned_at'
     ]).sort({ assigned_at: -1 });
     
     console.log(`Found ${records.length} assigned records`);
@@ -155,12 +155,12 @@ router.get('/assigned-with-notices', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Agent not found' });
     }
 
-    const records = await MongoLandownerRecord.find({
+    const records = await CompleteEnglishLandownerRecord.find({
       assigned_agent: agentId,
       is_active: true
     }).select([
-      '_id', 'project_id', 'landowner_name', 'survey_number', 'village', 'taluka', 'district',
-      'area', 'total_compensation', 'kyc_status', 'payment_status', 'assigned_agent', 'assigned_at'
+      '_id', 'project_id', 'owner_name', 'new_survey_number', 'village', 'taluka', 'district',
+      'land_area_as_per_7_12', 'final_payable_compensation', 'kyc_status', 'payment_status', 'assigned_agent', 'assigned_at'
     ]).sort({ assigned_at: -1 });
 
     return res.status(200).json({ success: true, count: records.length, data: records });
@@ -180,7 +180,7 @@ router.put('/kyc-status', async (req, res) => {
     console.log('Updating KYC status:', { landownerId, kycStatus, officer_id, project_id });
 
     // Find and update the landowner record
-    const record = await MongoLandownerRecord.findById(landownerId);
+    const record = await CompleteEnglishLandownerRecord.findById(landownerId);
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -188,7 +188,7 @@ router.put('/kyc-status', async (req, res) => {
       });
     }
 
-    await MongoLandownerRecord.findByIdAndUpdate(landownerId, {
+    await CompleteEnglishLandownerRecord.findByIdAndUpdate(landownerId, {
       kyc_status: kycStatus,
       kyc_notes: notes || record.kyc_notes,
       kyc_updated_at: new Date()
@@ -196,7 +196,7 @@ router.put('/kyc-status', async (req, res) => {
 
     // Append timeline event and roll-forward ledger v2 for KYC status update
     try {
-      const surveyNumber = record.survey_number || record.new_survey_number || record.old_survey_number;
+      const surveyNumber = record.new_survey_number || record.survey_number || record.old_survey_number;
       const officerId = officer_id || req.user?.id || null;
       const projectId = project_id || record.project_id || null;
       const metadata = {
@@ -251,7 +251,7 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
     }
 
     // Validate landowner record exists
-    const landownerRecord = await MongoLandownerRecord.findById(landowner_id);
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(landowner_id);
     if (!landownerRecord) {
       return res.status(404).json({
         success: false,
@@ -284,7 +284,7 @@ router.post('/assign', authorize(['officer', 'admin']), async (req, res) => {
     }
 
     // Update landowner record with agent assignment
-    await MongoLandownerRecord.findByIdAndUpdate(landowner_id, {
+    await CompleteEnglishLandownerRecord.findByIdAndUpdate(landowner_id, {
       assigned_agent: agent._id,
       assigned_at: new Date(),
       notes: assignment_notes || `Assigned to agent: ${agent.name}`
@@ -320,7 +320,7 @@ router.get('/assignments/:agentId', authorize(['field_officer', 'officer', 'admi
     const { project_id } = req.query;
 
     // Find assignments for this agent
-    const assignments = await MongoLandownerRecord.find({
+    const assignments = await CompleteEnglishLandownerRecord.find({
       assigned_agent: agentId,
       is_active: true,
       ...(project_id && { project_id })
@@ -333,13 +333,13 @@ router.get('/assignments/:agentId', authorize(['field_officer', 'officer', 'admi
       count: assignments.length,
       data: assignments.map(assignment => ({
         id: assignment._id,
-        survey_number: assignment.survey_number,
-        landowner_name: assignment.landowner_name,
-        area: assignment.area,
+        survey_number: assignment.new_survey_number,
+        landowner_name: assignment.owner_name,
+        area: assignment.land_area_as_per_7_12,
         village: assignment.village,
         taluka: assignment.taluka,
         district: assignment.district,
-        total_compensation: assignment.total_compensation,
+        total_compensation: assignment.final_payable_compensation,
         is_tribal: assignment.is_tribal,
         tribal_certificate_no: assignment.tribal_certificate_no,
         tribal_lag: assignment.tribal_lag,
@@ -377,7 +377,7 @@ router.put('/assign', async (req, res) => {
     }
 
     // Find the landowner record
-    const landownerRecord = await MongoLandownerRecord.findById(landowner_id);
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(landowner_id);
     if (!landownerRecord) {
       console.error(`Landowner record not found for ID: ${landowner_id}, Survey: ${survey_number}, Project: ${project_id}`);
       return res.status(404).json({ 
@@ -405,7 +405,7 @@ router.put('/assign', async (req, res) => {
     }
 
     // Update the landowner record with agent assignment
-    const updatedRecord = await MongoLandownerRecord.findByIdAndUpdate(
+    const updatedRecord = await CompleteEnglishLandownerRecord.findByIdAndUpdate(
       landowner_id,
       {
         assigned_agent: agent_id,
@@ -446,12 +446,12 @@ router.put('/kyc-status/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { kycStatus, notes, officer_id, project_id } = req.body || {};
 
-    const record = await MongoLandownerRecord.findById(recordId);
+    const record = await CompleteEnglishLandownerRecord.findById(recordId);
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
 
-    await MongoLandownerRecord.findByIdAndUpdate(recordId, {
+    await CompleteEnglishLandownerRecord.findByIdAndUpdate(recordId, {
       kyc_status: kycStatus || record.kyc_status,
       kyc_notes: notes || record.kyc_notes,
       kyc_updated_at: new Date()
@@ -459,7 +459,7 @@ router.put('/kyc-status/:recordId', async (req, res) => {
 
     // Append timeline event and roll-forward ledger v2 for KYC status update
     try {
-      const surveyNumber = record.survey_number || record.new_survey_number || record.old_survey_number;
+      const surveyNumber = record.new_survey_number || record.survey_number || record.old_survey_number;
       const officerId = officer_id || req.user?.id || null;
       const projectId = project_id || record.project_id || null;
       const metadata = {
@@ -497,7 +497,7 @@ router.post('/upload-document/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { documentType, fileName, fileUrl, fileSize, mimeType, notes, fileBase64 } = req.body || {};
 
-    const record = await MongoLandownerRecord.findById(recordId);
+    const record = await CompleteEnglishLandownerRecord.findById(recordId);
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
@@ -580,7 +580,7 @@ router.post('/upload-document/:recordId', async (req, res) => {
 
     const updatedDocuments = [...currentDocuments, newDocument];
 
-    await MongoLandownerRecord.findByIdAndUpdate(recordId, {
+    await CompleteEnglishLandownerRecord.findByIdAndUpdate(recordId, {
       documents: updatedDocuments,
       kyc_status: record.kyc_status === 'pending' ? 'in_progress' : record.kyc_status,
       updated_at: new Date()

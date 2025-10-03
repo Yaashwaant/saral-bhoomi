@@ -1,9 +1,10 @@
 import MongoJMRRecord from '../models/mongo/JMRRecord.js';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoNotice from '../models/mongo/Notice.js';
 import MongoPayment from '../models/mongo/Payment.js';
 import MongoAward from '../models/mongo/Award.js';
 import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
+import Project from '../models/mongo/Project.js';
 import crypto from 'crypto';
 import { hashJsonStable, legacyHash } from './hashing.js';
 
@@ -11,7 +12,7 @@ class SurveyDataAggregationService {
   constructor() {
     this.collections = {
       jmr: MongoJMRRecord,
-      landowner: MongoLandownerRecord,
+      landowner: CompleteEnglishLandownerRecord,
       notice: MongoNotice,
       payment: MongoPayment,
       award: MongoAward
@@ -435,13 +436,15 @@ class SurveyDataAggregationService {
     try {
       const filter = {};
       if (projectId) filter.project_id = projectId;
-      const rows = await MongoLandownerRecord.find(filter, {
+      
+      // Use CompleteEnglishLandownerRecord instead of MongoLandownerRecord
+      const rows = await CompleteEnglishLandownerRecord.find(filter, {
         project_id: 1,
         serial_number: 1,
         old_survey_number: 1,
         new_survey_number: 1,
         cts_number: 1,
-        landowner_name: 1,
+        owner_name: 1,  // Changed from landowner_name to owner_name
         village: 1,
         taluka: 1,
         district: 1,
@@ -478,7 +481,7 @@ class SurveyDataAggregationService {
           row_key,
           project_id: String(r.project_id || ''),
           serial_number: r.serial_number,
-          landowner_name: r.landowner_name,
+          landowner_name: r.owner_name,  // Map owner_name to landowner_name for compatibility
           old_survey_number: r.old_survey_number,
           new_survey_number: r.new_survey_number,
           cts_number: r.cts_number,
@@ -524,7 +527,7 @@ class SurveyDataAggregationService {
         andClauses.push({ serial_number: serialNumber });
       }
 
-      const record = await MongoLandownerRecord.findOne({ $and: andClauses });
+      const record = await CompleteEnglishLandownerRecord.findOne({ $and: andClauses });
       if (!record) {
         return { isValid: false, reason: 'row_not_found' };
       }

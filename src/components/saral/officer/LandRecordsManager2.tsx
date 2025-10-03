@@ -10,7 +10,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Database, RefreshCw, Download, Upload, Edit, CheckCircle, XCircle, Search } from 'lucide-react';
+import { 
+  Database, 
+  RefreshCw, 
+  Download, 
+  Upload, 
+  Edit, 
+  CheckCircle, 
+  XCircle, 
+  Search,
+  Hash, 
+  Shield, 
+  AlertTriangle,
+  Clock, 
+  Plus, 
+  Loader2,
+  ExternalLink,
+  FileText,
+  Award
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { config } from '../../../config';
 import { LandRecord2 } from '../../models';
@@ -57,6 +75,16 @@ const LandRecordsManager2: React.FC = () => {
   const [dynamicColumns, setDynamicColumns] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   
+  // Blockchain-related state
+  const [searchSurvey, setSearchSurvey] = useState('');
+  const [blockchainLoading, setBlockchainLoading] = useState(false);
+  const [blockchainError, setBlockchainError] = useState<string | null>(null);
+  const [blockchainStatus, setBlockchainStatus] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [surveyOverview, setSurveyOverview] = useState<any[]>([]);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+  
   // Land record form state
   const [landRecordForm, setLandRecordForm] = useState<Partial<LandRecord2>>({
     अ_क्र: '',
@@ -95,7 +123,7 @@ const LandRecordsManager2: React.FC = () => {
     setLoading(true);
     try {
       const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
-      const response = await fetch(`${config.API_BASE_URL}/landowners2-english/${selectedProject}`, {
+      const response = await fetch(`${config.API_BASE_URL}/landownerrecords-english-complete/${selectedProject}`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
@@ -188,7 +216,7 @@ const LandRecordsManager2: React.FC = () => {
         sanitizedEditForm.project_id = (sanitizedEditForm.project_id as any).id || sanitizedEditForm.project_id;
       }
       
-      const response = await fetch(`${config.API_BASE_URL}/landowners2-english/${editingRecord}`, {
+      const response = await fetch(`${config.API_BASE_URL}/landownerrecords-english-complete/${editingRecord}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(sanitizedEditForm)
@@ -220,6 +248,307 @@ const LandRecordsManager2: React.FC = () => {
     setLandRecordForm(prev => ({ ...prev, [field]: value, project_id: selectedProject }));
   };
 
+  // Blockchain handler functions
+  const handleSearchSurvey = async () => {
+    if (!searchSurvey.trim()) return;
+    
+    setBlockchainLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/search/${encodeURIComponent(searchSurvey)}`, {
+        method: 'GET',
+        headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+      } else {
+        const errorData = await response.json();
+        setBlockchainError(errorData.message || 'Failed to search survey');
+      }
+    } catch (error) {
+      console.error('Error searching survey:', error);
+      setBlockchainError('Error searching survey');
+    } finally {
+      setBlockchainLoading(false);
+    }
+  };
+
+  const loadSurveyOverview = async () => {
+    setOverviewLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      // Use landownerrecords-english-complete collection for blockchain operations
+      const response = await fetch(`${config.API_BASE_URL}/landownerrecords-english-complete/${selectedProject}`, {
+        method: 'GET',
+        headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSurveyOverview(data);
+      } else {
+        const errorData = await response.json();
+        setBlockchainError(errorData.message || 'Failed to load survey overview');
+      }
+    } catch (error) {
+      console.error('Error loading survey overview:', error);
+      setBlockchainError('Error loading survey overview');
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  const syncMissingToBlockchain = async () => {
+    if (!surveyOverview.length) return;
+    
+    const missingRecords = surveyOverview.filter(survey => !survey.exists_on_blockchain);
+    if (!missingRecords.length) {
+      toast.info('All records are already synced to blockchain');
+      return;
+    }
+    
+    setSyncProgress({ current: 0, total: missingRecords.length, message: 'Starting sync...' });
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      for (let i = 0; i < missingRecords.length; i++) {
+        const record = missingRecords[i];
+        setSyncProgress({ 
+          current: i + 1, 
+          total: missingRecords.length, 
+          message: `Syncing ${record.new_survey_number || record.survey_number}...` 
+        });
+        
+        await fetch(`${config.API_BASE_URL}/blockchain/sync`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ surveyNumber: record.new_survey_number || record.survey_number })
+        });
+        
+        // Small delay to prevent overwhelming the blockchain
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      toast.success(`Successfully synced ${missingRecords.length} records to blockchain`);
+      loadSurveyOverview(); // Refresh the overview
+    } catch (error) {
+      console.error('Error syncing to blockchain:', error);
+      setBlockchainError('Error syncing records to blockchain');
+    } finally {
+      setSyncProgress(null);
+    }
+  };
+
+  const verifySingleSurvey = async (survey: any) => {
+    setBlockchainLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const surveyNumber = survey.new_survey_number || survey.survey_number;
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/verify/${encodeURIComponent(surveyNumber)}`, {
+        method: 'GET',
+        headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Verification complete: ${data.message}`);
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Verification failed');
+      }
+    } catch (error) {
+      console.error('Error verifying survey:', error);
+      toast.error('Error verifying survey');
+    } finally {
+      setBlockchainLoading(false);
+    }
+  };
+
+  const syncSingleSurvey = async (survey: any) => {
+    setBlockchainLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const surveyNumber = survey.new_survey_number || survey.survey_number;
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/sync`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ surveyNumber })
+      });
+      
+      if (response.ok) {
+        toast.success(`Survey ${surveyNumber} synced to blockchain`);
+        loadSurveyOverview(); // Refresh the overview
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.message || 'Sync failed');
+      }
+    } catch (error) {
+      console.error('Error syncing survey:', error);
+      toast.error('Error syncing survey');
+    } finally {
+      setBlockchainLoading(false);
+    }
+  };
+
+  const handleBulkSync = async () => {
+    setBlockchainLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/bulk-sync`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ projectId: selectedProject })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Bulk sync initiated: ${data.message}`);
+        loadSurveyOverview(); // Refresh the overview
+      } else {
+        const errorData = await response.json();
+        setBlockchainError(errorData.message || 'Bulk sync failed');
+      }
+    } catch (error) {
+      console.error('Error in bulk sync:', error);
+      setBlockchainError('Error in bulk sync');
+    } finally {
+      setBlockchainLoading(false);
+    }
+  };
+
+  const handleVerifyIntegrity = async () => {
+    setBlockchainLoading(true);
+    setBlockchainError(null);
+    
+    try {
+      const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      if (authToken === 'demo-jwt-token') {
+        headers['x-demo-role'] = 'officer';
+      }
+      
+      const response = await fetch(`${config.API_BASE_URL}/blockchain/verify-integrity`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ projectId: selectedProject })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Integrity verification complete: ${data.message}`);
+      } else {
+        const errorData = await response.json();
+        setBlockchainError(errorData.message || 'Integrity verification failed');
+      }
+    } catch (error) {
+      console.error('Error verifying integrity:', error);
+      setBlockchainError('Error verifying integrity');
+    } finally {
+      setBlockchainLoading(false);
+    }
+  };
+
+  // Load blockchain status on component mount
+  useEffect(() => {
+    const loadBlockchainStatus = async () => {
+      try {
+        const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        };
+        
+        if (authToken === 'demo-jwt-token') {
+          headers['x-demo-role'] = 'officer';
+        }
+        
+        const response = await fetch(`${config.API_BASE_URL}/blockchain/status`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setBlockchainStatus(data);
+        }
+      } catch (error) {
+        console.error('Error loading blockchain status:', error);
+      }
+    };
+    
+    loadBlockchainStatus();
+  }, []);
+
   const handleEditInputChange = (field: keyof LandRecord2, value: any) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
   };
@@ -239,7 +568,7 @@ const LandRecordsManager2: React.FC = () => {
         headers['x-demo-role'] = 'officer';
       }
       
-      const response = await fetch(`${config.API_BASE_URL}/landowners2-english`, {
+      const response = await fetch(`${config.API_BASE_URL}/landownerrecords-english-complete`, {
         method: 'POST',
         headers,
         body: JSON.stringify(landRecordForm),
@@ -315,7 +644,7 @@ const LandRecordsManager2: React.FC = () => {
         headers['x-demo-role'] = 'officer';
       }
       
-      const response = await fetch(`${config.API_BASE_URL}/landowners2-english/upload-csv`, {
+      const response = await fetch(`${config.API_BASE_URL}/landownerrecords-english-complete/upload-csv`, {
         method: 'POST',
         headers,
         body: formData,
@@ -430,10 +759,11 @@ const LandRecordsManager2: React.FC = () => {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="form">Create Record</TabsTrigger>
               <TabsTrigger value="upload">Upload CSV</TabsTrigger>
               <TabsTrigger value="list">View Records</TabsTrigger>
+              <TabsTrigger value="blockchain">Blockchain</TabsTrigger>
             </TabsList>
 
             <TabsContent value="form" className="space-y-4">
@@ -1212,6 +1542,237 @@ const LandRecordsManager2: React.FC = () => {
                   </Table>
                 </div>
               )}
+            </TabsContent>
+
+            {/* Blockchain Tab */}
+            <TabsContent value="blockchain" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Blockchain Status Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      Blockchain Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {blockchainStatus ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Network:</span>
+                          <Badge variant={blockchainStatus.connected ? "default" : "destructive"}>
+                            {blockchainStatus.network || 'Unknown'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Status:</span>
+                          <Badge variant={blockchainStatus.connected ? "default" : "destructive"}>
+                            {blockchainStatus.connected ? 'Connected' : 'Disconnected'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Chain ID:</span>
+                          <span className="text-sm">{blockchainStatus.chainId || 'N/A'}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <Database className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-500">Loading blockchain status...</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Survey Search Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Search className="h-5 w-5" />
+                      Survey Search & Verification
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter survey number..."
+                        value={searchSurvey}
+                        onChange={(e) => setSearchSurvey(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleSearchSurvey}
+                        disabled={blockchainLoading || !searchSurvey.trim()}
+                      >
+                        {blockchainLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    
+                    {searchResults && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Database Status:</span>
+                          <Badge variant={searchResults.existsInDatabase ? "default" : "secondary"}>
+                            {searchResults.existsInDatabase ? 'Found' : 'Not Found'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Blockchain Status:</span>
+                          <Badge variant={searchResults.existsOnBlockchain ? "default" : "secondary"}>
+                            {searchResults.existsOnBlockchain ? 'On Chain' : 'Not on Chain'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Overall Status:</span>
+                          <Badge variant={
+                            searchResults.overallStatus === 'synced' ? "default" :
+                            searchResults.overallStatus === 'database_only' ? "secondary" :
+                            searchResults.overallStatus === 'blockchain_only' ? "outline" : "destructive"
+                          }>
+                            {searchResults.statusMessage}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Survey Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Survey Overview
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    <Button onClick={loadSurveyOverview} disabled={overviewLoading}>
+                      {overviewLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Load Overview
+                    </Button>
+                    <Button onClick={syncMissingToBlockchain} disabled={!surveyOverview.length || syncProgress !== null}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Sync Missing
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {syncProgress && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Syncing Progress</span>
+                        <span className="text-sm">{syncProgress.current}/{syncProgress.total}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{syncProgress.message}</p>
+                    </div>
+                  )}
+                  
+                  {surveyOverview.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Survey Number</TableHead>
+                            <TableHead>Owner</TableHead>
+                            <TableHead>Village</TableHead>
+                            <TableHead>Blockchain Status</TableHead>
+                            <TableHead>Last Updated</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {surveyOverview.slice(0, 50).map((survey, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium">
+                                {survey.new_survey_number || survey.survey_number || 'N/A'}
+                              </TableCell>
+                              <TableCell>{survey.landowner_name || survey.owner_name || 'N/A'}</TableCell>
+                              <TableCell>{survey.village || 'N/A'}</TableCell>
+                              <TableCell>
+                                <Badge variant={
+                                  survey.exists_on_blockchain ? "default" : "secondary"
+                                }>
+                                  {survey.exists_on_blockchain ? 'On Chain' : 'Not on Chain'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-500">
+                                {survey.blockchain_last_updated ? 
+                                  new Date(survey.blockchain_last_updated).toLocaleDateString() : 
+                                  'Never'
+                                }
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="outline" onClick={() => verifySingleSurvey(survey)}>
+                                    <Shield className="h-3 w-3" />
+                                  </Button>
+                                  {!survey.exists_on_blockchain && (
+                                    <Button size="sm" variant="outline" onClick={() => syncSingleSurvey(survey)}>
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-500">No survey data loaded. Click "Load Overview" to fetch data.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Blockchain Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Hash className="h-5 w-5" />
+                    Blockchain Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Button onClick={handleBulkSync} disabled={blockchainLoading}>
+                      {blockchainLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Bulk Sync All Records
+                    </Button>
+                    <Button onClick={handleVerifyIntegrity} disabled={blockchainLoading} variant="outline">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Verify Integrity
+                    </Button>
+                  </div>
+                  
+                  {blockchainError && (
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{blockchainError}</AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>

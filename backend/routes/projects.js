@@ -1,92 +1,149 @@
 import express from 'express';
-import mongoose from 'mongoose';
-import MongoProject from '../models/mongo/Project.js';
-import MongoUser from '../models/mongo/User.js';
-import { authorize } from '../middleware/auth.js';
+import Project from '../models/mongo/Project.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// @desc    Get all projects
-// @route   GET /api/projects
-// @access  Public (temporarily)
-router.get('/', async (req, res) => {
+// GET /api/projects - Get all projects with statistics
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      district, 
-      taluka, 
-      type, 
+    const {
+      page = 1,
+      limit = 20,
+      search,
       status,
-      isActive 
+      sort_by = 'created_at',
+      sort_order = 'desc'
     } = req.query;
-    
+
     // Build filter object
-    const filter = {};
-    if (district) filter.district = district;
-    if (taluka) filter.taluka = taluka;
-    if (type) filter.type = type;
-    if (status) filter['status.overall'] = status;
-    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    const filter = { is_active: true };
     
+    if (status) filter.status = status;
+    
+    // Add search functionality
+    if (search) {
+      filter.$or = [
+        { name: new RegExp(search, 'i') },
+        { project_number: new RegExp(search, 'i') },
+        { description: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'asc' ? 1 : -1;
+
+    // Execute query with pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const projects = await MongoProject.find(filter)
-      .populate('createdBy', 'name email')
-      .sort({ createdAt: -1 })
+    const projects = await Project.find(filter)
+      .populate('created_by', 'name email')
+      .populate('updated_by', 'name email')
+      .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
-    
-    const total = await MongoProject.countDocuments(filter);
-    
-    res.status(200).json({
+
+    // Get statistics for each project
+    const projectsWithStats = await Promise.all(
+      projects.map(async (project) => {
+        const projectObj = project.toObject();
+        
+        // Get landowner records statistics
+        const [
+          totalRecords,
+          kycApproved,
+          paymentCompleted,
+          blockchainSynced,
+          totalCompensation
+        ] = await Promise.all([
+          CompleteEnglishLandownerRecord.countDocuments({ 
+            project_id: project._id, 
+            is_active: true 
+          }),
+          CompleteEnglishLandownerRecord.countDocuments({ 
+            project_id: project._id, 
+            is_active: true, 
+            kyc_status: 'APPROVED' 
+          }),
+          CompleteEnglishLandownerRecord.countDocuments({ 
+            project_id: project._id, 
+            is_active: true, 
+            payment_status: 'COMPLETED' 
+          }),
+          CompleteEnglishLandownerRecord.countDocuments({ 
+            project_id: project._id, 
+            is_active: true, 
+            blockchain_status: 'SYNCED' 
+          }),
+          CompleteEnglishLandownerRecord.aggregate([
+            { 
+              $match: { 
+                project_id: project._id, 
+                is_active: true 
+              } 
+            },
+            { 
+              $group: { 
+                _id: null, 
+                total: { $sum: '$final_payable_compensation' } 
+              } 
+            }
+          ])
+        ]);
+
+        projectObj.statistics = {
+          total_landowners: totalRecords,
+          kyc_approved: kycApproved,
+          payments_completed: paymentCompleted,
+          blockchain_synced: blockchainSynced,
+          total_compensation: totalCompensation[0]?.total || 0,
+          completion_percentage: totalRecords > 0 ? 
+            Math.round(((kycApproved + paymentCompleted + blockchainSynced) / (totalRecords * 3)) * 100) : 0
+        };
+
+        return projectObj;
+      })
+    );
+
+    const total = await Project.countDocuments(filter);
+
+    res.json({
       success: true,
-      count: projects.length,
-      total,
+      data: projectsWithStats,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / parseInt(limit))
-      },
-      data: projects.map(project => ({
-        id: project._id,
-        projectName: project.projectName,
-        schemeName: project.schemeName,
-        landRequired: project.landRequired,
-        landAvailable: project.landAvailable,
-        landToBeAcquired: project.landToBeAcquired,
-        type: project.type,
-        district: project.district,
-        taluka: project.taluka,
-        villages: project.villages,
-        estimatedCost: project.estimatedCost,
-        allocatedBudget: project.allocatedBudget,
-        currency: project.currency,
-        startDate: project.startDate,
-        expectedCompletion: project.expectedCompletion,
-        status: project.status,
-        createdBy: project.createdBy ? {
-          id: project.createdBy._id,
-          name: project.createdBy.name,
-          email: project.createdBy.email
-        } : null,
-        description: project.description,
-        descriptionDetails: project.descriptionDetails,
-        videoUrl: project.videoUrl,
-        stakeholders: project.stakeholders,
-        progress: project.progress,
-        isActive: project.isActive,
-        assignedOfficers: project.assignedOfficers,
-        assignedAgents: project.assignedAgents,
-        created_at: project.createdAt,
-        updated_at: project.updatedAt
-      }))
+        current_page: parseInt(page),
+        total_pages: Math.ceil(total / parseInt(limit)),
+        total_records: total,
+        per_page: parseInt(limit)
+      }
     });
   } catch (error) {
-    console.error('Get projects error:', error);
+    console.error('Error fetching projects:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Error fetching projects',
+      error: error.message
+    });
+  }
+});
+// GET /api/projects/dropdown/list - Get simplified project list for dropdowns
+router.get('/dropdown/list', authenticateToken, async (req, res) => {
+  try {
+    const projects = await Project.find({ is_active: true })
+      .select('_id name project_number')
+      .sort({ name: 1 });
+
+    res.json({
+      success: true,
+      data: projects
+    });
+  } catch (error) {
+    console.error('Error fetching project dropdown list:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching project dropdown list',
+      error: error.message
     });
   }
 });

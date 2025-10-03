@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
-import MongoProject from '../models/mongo/Project.js';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import MongoJMRRecord from '../models/mongo/JMRRecord.js';
+import MongoNotice from '../models/mongo/Notice.js';
 import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoPayment from '../models/mongo/Payment.js';
-import MongoNotice from '../models/mongo/Notice.js';
+import MongoAward from '../models/mongo/Award.js';
+import MongoBlockchainLedger from '../models/mongo/BlockchainLedger.js';
+import MongoProject from '../models/mongo/Project.js';
 
 const parseDate = (value) => {
   if (!value) return undefined;
@@ -86,18 +88,7 @@ export async function getOverviewKPIs(filters = {}) {
     if (toDate) paymentMatch.updatedAt.$lte = toDate;
   }
 
-  // Query both collections for payment data
-  const [regularPaymentsAgg] = await MongoLandownerRecord.aggregate([
-    { $match: paymentMatch },
-    {
-      $group: {
-        _id: null,
-        paymentsCount: { $sum: 1 },
-        budgetSum: { $sum: { $ifNull: ['$final_amount', 0] } }
-      }
-    }
-  ]);
-
+  // Query English collection for payment data
   const [englishPaymentsAgg] = await CompleteEnglishLandownerRecord.aggregate([
     { $match: englishPaymentMatch },
     {
@@ -109,9 +100,9 @@ export async function getOverviewKPIs(filters = {}) {
     }
   ]);
 
-  // Combine payment data from both sources
-  const totalPaymentsCount = (regularPaymentsAgg?.paymentsCount || 0) + (englishPaymentsAgg?.paymentsCount || 0);
-  const totalBudgetSum = (regularPaymentsAgg?.budgetSum || 0) + (englishPaymentsAgg?.budgetSum || 0);
+  // Use only English collection data
+  const totalPaymentsCount = englishPaymentsAgg?.paymentsCount || 0;
+  const totalBudgetSum = englishPaymentsAgg?.budgetSum || 0;
 
   // Notices issued - keep existing logic for now (mainly from regular records)
   const noticeMatch = {};
@@ -150,19 +141,10 @@ export async function getOverviewKPIs(filters = {}) {
     noticesIssued = await MongoNotice.countDocuments(noticeMatch);
   }
 
-  // KYC completed and pending - combine from both collections
-  const kycMatch = { ...match, kyc_status: 'approved' };
-  const regularKycCompleted = await MongoLandownerRecord.countDocuments(kycMatch);
-  
-  // For English complete records, assume KYC is completed if compensation_distribution_status is not null
+  // KYC completed and pending - use only English collection
   const englishKycCompleted = await CompleteEnglishLandownerRecord.countDocuments({
     ...englishMatch,
     compensation_distribution_status: { $ne: null }
-  });
-
-  const regularKycPending = await MongoLandownerRecord.countDocuments({
-    ...match,
-    kyc_status: { $in: ['pending', 'in_progress'] }
   });
 
   const englishKycPending = await CompleteEnglishLandownerRecord.countDocuments({
@@ -170,21 +152,10 @@ export async function getOverviewKPIs(filters = {}) {
     compensation_distribution_status: null
   });
 
-  const totalKycCompleted = regularKycCompleted + englishKycCompleted;
-  const totalKycPending = regularKycPending + englishKycPending;
+  const totalKycCompleted = englishKycCompleted;
+  const totalKycPending = englishKycPending;
 
-  // Total acquired area - combine from both collections
-  const [regularAreaAgg] = await MongoLandownerRecord.aggregate([
-    { $match: { ...match } },
-    {
-      $group: {
-        _id: null,
-        totalAcquiredArea: { $sum: { $ifNull: ['$area_acquired', 0] } },
-        totalArea: { $sum: { $ifNull: ['$area', 0] } }
-      }
-    }
-  ]);
-
+  // Total acquired area - use only English collection
   const [englishAreaAgg] = await CompleteEnglishLandownerRecord.aggregate([
     { $match: { ...englishMatch } },
     {
@@ -196,8 +167,8 @@ export async function getOverviewKPIs(filters = {}) {
     }
   ]);
 
-  const totalAcquiredArea = (regularAreaAgg?.totalAcquiredArea || 0) + (englishAreaAgg?.totalAcquiredArea || 0);
-  const totalAreaLoaded = (regularAreaAgg?.totalArea || 0) + (englishAreaAgg?.totalArea || 0);
+  const totalAcquiredArea = englishAreaAgg?.totalAcquiredArea || 0;
+  const totalArea = englishAreaAgg?.totalArea || 0;
 
   return {
     totalProjects: projectsAgg?.totalProjects || 0,
@@ -209,7 +180,7 @@ export async function getOverviewKPIs(filters = {}) {
     kycCompleted: totalKycCompleted,
     kycPending: totalKycPending,
     totalAcquiredArea: totalAcquiredArea,
-    totalAreaLoaded: totalAreaLoaded
+    totalAreaLoaded: totalArea
   };
 }
 

@@ -3,7 +3,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoUser from '../models/mongo/User.js';
 import MongoProject from '../models/mongo/Project.js';
 import { authorize } from '../middleware/auth.js';
@@ -57,7 +57,7 @@ router.get('/pending', async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const records = await MongoLandownerRecord.find(filter)
+    const records = await CompleteEnglishLandownerRecord.find(filter)
       .populate('project_id', 'projectName')
       .populate('assigned_agent', 'name email phone')
       .populate('created_by', 'name email')
@@ -65,7 +65,7 @@ router.get('/pending', async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await MongoLandownerRecord.countDocuments(filter);
+    const total = await CompleteEnglishLandownerRecord.countDocuments(filter);
 
     res.status(200).json({
       success: true,
@@ -78,10 +78,10 @@ router.get('/pending', async (req, res) => {
       },
       data: records.map(record => ({
         id: record._id,
-        survey_number: record.survey_number,
-        landowner_name: record.landowner_name,
-        area: record.area,
-        acquired_area: record.acquired_area,
+        survey_number: record.new_survey_number,
+        landowner_name: record.owner_name,
+        area: record.land_area_as_per_7_12,
+        acquired_area: record.acquired_land_area,
         village: record.village,
         taluka: record.taluka,
         district: record.district,
@@ -125,7 +125,7 @@ router.put('/approve/:recordId', async (req, res) => {
     const { recordId } = req.params;
     const { approvalNotes = '', verifiedDocuments = [] } = req.body;
 
-    const record = await MongoLandownerRecord.findById(recordId);
+    const record = await CompleteEnglishLandownerRecord.findById(recordId);
 
     if (!record) {
       return res.status(404).json({
@@ -152,7 +152,7 @@ router.put('/approve/:recordId', async (req, res) => {
     }
 
     // Use Mongoose updateOne instead of Sequelize-style record.update
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: record._id },
       { $set: updateData }
     );
@@ -162,8 +162,8 @@ router.put('/approve/:recordId', async (req, res) => {
       message: 'KYC record approved successfully',
       data: {
         recordId: record._id,
-        landownerName: record.landowner_name,
-        surveyNumber: record.survey_number,
+        landownerName: record.owner_name,
+        surveyNumber: record.new_survey_number,
         kycStatus: record.kyc_status,
         approvedAt: record.kyc_completed_at,
         approvedBy: req.user.name
@@ -194,7 +194,7 @@ router.put('/reject/:recordId', async (req, res) => {
       });
     }
 
-    const record = await MongoLandownerRecord.findById(recordId);
+    const record = await CompleteEnglishLandownerRecord.findById(recordId);
     if (!record) {
       return res.status(404).json({
         success: false,
@@ -204,7 +204,7 @@ router.put('/reject/:recordId', async (req, res) => {
 
     const rejectionNote = `[${new Date().toISOString()}] Officer Rejection: ${rejectionReason}`;
     // Use Mongoose updateOne instead of Sequelize-style record.update
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: record._id },
       { $set: {
         kyc_status: 'rejected',
@@ -219,7 +219,7 @@ router.put('/reject/:recordId', async (req, res) => {
       message: 'KYC record rejected successfully',
       data: {
         recordId: record._id,
-        landownerName: record.landowner_name,
+        landownerName: record.owner_name,
         kycStatus: record.kyc_status,
         rejectionReason
       }
@@ -242,7 +242,7 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
     const { recordId } = req.params;
     const { documentType = 'document', notes = '' } = req.body || {};
 
-    const record = await MongoLandownerRecord.findById(parseInt(recordId, 10));
+    const record = await CompleteEnglishLandownerRecord.findById(parseInt(recordId, 10));
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
@@ -301,7 +301,7 @@ router.post('/upload-multipart/:recordId', upload.single('file'), async (req, re
     const updatedDocuments = [...currentDocuments, newDocument];
 
          // Use Mongoose updateOne instead of Sequelize-style record.update
-     await MongoLandownerRecord.updateOne(
+     await CompleteEnglishLandownerRecord.updateOne(
        { _id: record._id },
        { $set: {
          documents: updatedDocuments,

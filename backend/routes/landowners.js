@@ -1,5 +1,5 @@
 import express from 'express';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
 import { authorize } from '../middleware/auth.js';
@@ -20,7 +20,7 @@ const upload = multer({ dest: 'uploads/' });
 // @access  Public (for now)
 router.get('/list', async (req, res) => {
   try {
-    const records = await MongoLandownerRecord.find({ is_active: true })
+    const records = await CompleteEnglishLandownerRecord.find({ is_active: true })
       .populate('created_by', 'name email')
       .sort({ serial_number: 1 });
 
@@ -78,7 +78,7 @@ router.get('/:projectId', async (req, res) => {
       });
     }
 
-    const records = await MongoLandownerRecord.find({ 
+    const records = await CompleteEnglishLandownerRecord.find({ 
       project_id: projectId,
       is_active: true 
     })
@@ -129,15 +129,15 @@ router.get('/:projectId', async (req, res) => {
 router.post('/', authorize(['officer', 'admin']), async (req, res) => {
   try {
     const {
-      survey_number,
-      landowner_name,
-      area,
-      acquired_area,
-      rate,
-      structure_trees_wells_amount,
-      total_compensation,
-      solatium,
-      final_amount,
+      new_survey_number,
+      owner_name,
+      land_area_as_per_7_12,
+      acquired_land_area,
+      approved_rate_per_hectare,
+      total_structures_amount,
+      total_amount_14_23,
+      solatium_amount,
+      final_payable_compensation,
       village,
       taluka,
       district,
@@ -159,16 +159,16 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!survey_number || !landowner_name || !area || !village || !taluka || !district || !project_id) {
+    if (!new_survey_number || !owner_name || !land_area_as_per_7_12 || !village || !taluka || !district || !project_id) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: survey_number, landowner_name, area, village, taluka, district, project_id'
+        message: 'Missing required fields: new_survey_number, owner_name, land_area_as_per_7_12, village, taluka, district, project_id'
       });
     }
 
     // Check if survey number already exists
-    const existingRecord = await MongoLandownerRecord.findOne({ 
-      survey_number,
+    const existingRecord = await CompleteEnglishLandownerRecord.findOne({ 
+      new_survey_number,
       project_id 
     });
     
@@ -189,16 +189,16 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     }
 
     // Create new landowner record
-    const newRecord = new MongoLandownerRecord({
-      survey_number,
-      landowner_name,
-      area: parseFloat(area) || 0,
-      acquired_area: parseFloat(acquired_area) || 0,
-      rate: parseFloat(rate) || 0,
-      structure_trees_wells_amount: parseFloat(structure_trees_wells_amount) || 0,
-      total_compensation: parseFloat(total_compensation) || 0,
-      solatium: parseFloat(solatium) || 0,
-      final_amount: parseFloat(final_amount) || 0,
+    const newRecord = new CompleteEnglishLandownerRecord({
+      new_survey_number,
+      owner_name,
+      land_area_as_per_7_12: parseFloat(land_area_as_per_7_12) || 0,
+      acquired_land_area: parseFloat(acquired_land_area) || 0,
+      approved_rate_per_hectare: parseFloat(approved_rate_per_hectare) || 0,
+      total_structures_amount: parseFloat(total_structures_amount) || 0,
+      total_amount_14_23: parseFloat(total_amount_14_23) || 0,
+      solatium_amount: parseFloat(solatium_amount) || 0,
+      final_payable_compensation: parseFloat(final_payable_compensation) || 0,
       village,
       taluka,
       district,
@@ -229,12 +229,12 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
     try {
       const officerId = String((created_by ?? req.user?.id) || 'system');
       await ledgerV2.appendTimelineEvent(
-        String(survey_number),
+        String(new_survey_number),
         officerId,
         'LANDOWNER_RECORD_CREATED',
         {
-          landowner_name,
-          area: parseFloat(area) || 0,
+          owner_name,
+          land_area_as_per_7_12: parseFloat(land_area_as_per_7_12) || 0,
           village,
           taluka,
           district
@@ -244,7 +244,7 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       );
 
       await ledgerV2.createOrUpdateFromLive(
-        String(survey_number),
+        String(new_survey_number),
         officerId,
         String(project_id),
         'landowner_record_created'
@@ -258,9 +258,9 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       message: 'Landowner record created successfully',
       data: {
         id: savedRecord._id,
-        survey_number: savedRecord.survey_number,
-        landowner_name: savedRecord.landowner_name,
-        area: savedRecord.area,
+        new_survey_number: savedRecord.new_survey_number,
+        owner_name: savedRecord.owner_name,
+        land_area_as_per_7_12: savedRecord.land_area_as_per_7_12,
         village: savedRecord.village,
         taluka: savedRecord.taluka,
         district: savedRecord.district,
@@ -320,35 +320,35 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
           for (const record of results) {
             try {
               // Validate required fields
-              if (!record.survey_number || !record.landowner_name || !record.area || 
+              if (!record.new_survey_number || !record.owner_name || !record.land_area_as_per_7_12 || 
                   !record.village || !record.taluka || !record.district) {
                 errors.push(`Row ${results.indexOf(record) + 1}: Missing required fields`);
                 continue;
               }
 
               // Check if survey number already exists within the same village
-              const existingRecord = await MongoLandownerRecord.findOne({ 
-                survey_number: record.survey_number,
+              const existingRecord = await CompleteEnglishLandownerRecord.findOne({ 
+                new_survey_number: record.new_survey_number,
                 project_id,
                 village: record.village
               });
               
               if (existingRecord) {
-                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.survey_number} already exists in village ${record.village}`);
+                errors.push(`Row ${results.indexOf(record) + 1}: Survey number ${record.new_survey_number} already exists in village ${record.village}`);
                 continue;
               }
 
               // Create new landowner record
-              const newRecord = new MongoLandownerRecord({
-                survey_number: record.survey_number,
-                landowner_name: record.landowner_name,
-                area: parseFloat(record.area) || 0,
-                acquired_area: parseFloat(record.acquired_area) || 0,
-                rate: parseFloat(record.rate) || 0,
-                structure_trees_wells_amount: parseFloat(record.structure_trees_wells_amount) || 0,
-                total_compensation: parseFloat(record.total_compensation) || 0,
-                solatium: parseFloat(record.solatium) || 0,
-                final_amount: parseFloat(record.final_amount) || 0,
+              const newRecord = new CompleteEnglishLandownerRecord({
+                new_survey_number: record.new_survey_number,
+                owner_name: record.owner_name,
+                land_area_as_per_7_12: parseFloat(record.land_area_as_per_7_12) || 0,
+                acquired_land_area: parseFloat(record.acquired_land_area) || 0,
+                approved_rate_per_hectare: parseFloat(record.approved_rate_per_hectare) || 0,
+                total_structures_amount: parseFloat(record.total_structures_amount) || 0,
+                total_amount_14_23: parseFloat(record.total_amount_14_23) || 0,
+                solatium_amount: parseFloat(record.solatium_amount) || 0,
+                final_payable_compensation: parseFloat(record.final_payable_compensation) || 0,
                 village: record.village,
                 taluka: record.taluka,
                 district: record.district,
@@ -387,7 +387,7 @@ router.post('/upload-csv', authorize(['officer', 'admin']), upload.single('file'
           // Extract survey numbers for blockchain creation
           const surveyNumbers = results
             .filter((_, index) => !errors.some(error => error.includes(`Row ${index + 1}`)))
-            .map(record => record.survey_number);
+            .map(record => record.new_survey_number);
 
           res.status(200).json({
             success: true,
@@ -439,7 +439,7 @@ const normalizeUpdate = (body = {}) => {
 // @access  Public (temporarily)
 router.put('/:id', async (req, res) => {
   try {
-    const record = await MongoLandownerRecord.findById(req.params.id);
+    const record = await CompleteEnglishLandownerRecord.findById(req.params.id);
     if (!record) {
       return res.status(404).json({ success: false, message: 'Landowner record not found' });
     }
@@ -456,14 +456,14 @@ router.put('/:id', async (req, res) => {
     delete updates._id;
 
     // Use Mongoose updateOne instead of Sequelize-style record.update
-    const updateResult = await MongoLandownerRecord.updateOne(
+    const updateResult = await CompleteEnglishLandownerRecord.updateOne(
       { _id: req.params.id },
       { $set: updates }
     );
 
     if (updateResult.modifiedCount > 0) {
       // Fetch the updated record
-      const updatedRecord = await MongoLandownerRecord.findById(req.params.id);
+      const updatedRecord = await CompleteEnglishLandownerRecord.findById(req.params.id);
 
       // Append timeline and roll-forward ledger v2 for official edits
       try {
@@ -508,29 +508,29 @@ router.put('/:id', async (req, res) => {
 router.post('/generate-notice', async (req, res) => {
   try {
     const {
-      survey_number,
-      landowner_name,
-      area,
+      new_survey_number,
+      owner_name,
+      land_area_as_per_7_12,
       village,
       taluka,
       district,
-      total_compensation,
+      final_payable_compensation,
       is_tribal,
       tribal_certificate_no,
       tribal_lag,
       project_id
     } = req.body;
 
-    if (!survey_number || !landowner_name || !project_id) {
+    if (!new_survey_number || !owner_name || !project_id) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: survey_number, landowner_name, project_id'
+        message: 'Missing required fields: new_survey_number, owner_name, project_id'
       });
     }
 
     // Find the landowner record
-    const landownerRecord = await MongoLandownerRecord.findOne({
-      survey_number,
+    const landownerRecord = await CompleteEnglishLandownerRecord.findOne({
+      new_survey_number,
       project_id,
       is_active: true
     });
@@ -543,14 +543,14 @@ router.post('/generate-notice', async (req, res) => {
     }
 
     // Generate notice number
-    const noticeNumber = `NOTICE-${survey_number.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+    const noticeNumber = `NOTICE-${new_survey_number.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
     const noticeDate = new Date();
 
     // Generate notice content (this will be enhanced by the frontend)
-    const noticeContent = `Notice for ${landowner_name} - Survey ${survey_number}`;
+    const noticeContent = `Notice for ${owner_name} - Survey ${new_survey_number}`;
 
     // Update the landowner record with notice information
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: landownerRecord._id },
       {
         $set: {
@@ -564,13 +564,13 @@ router.post('/generate-notice', async (req, res) => {
     );
 
     // Fetch the updated record
-    const updatedRecord = await MongoLandownerRecord.findById(landownerRecord._id);
+    const updatedRecord = await CompleteEnglishLandownerRecord.findById(landownerRecord._id);
 
     // Append timeline and roll-forward ledger v2 for notice generation
     try {
       const officerId = String(req.user?.id || 'system');
       await ledgerV2.appendTimelineEvent(
-        String(survey_number),
+        String(new_survey_number),
         officerId,
         'NOTICE_GENERATED',
         { notice_number: noticeNumber, notice_date: noticeDate },
@@ -579,7 +579,7 @@ router.post('/generate-notice', async (req, res) => {
       );
 
       await ledgerV2.createOrUpdateFromLive(
-        String(survey_number),
+        String(new_survey_number),
         officerId,
         String(project_id),
         'notice_generated'
@@ -595,8 +595,8 @@ router.post('/generate-notice', async (req, res) => {
         notice_number: noticeNumber,
         notice_date: noticeDate,
         landowner_id: landownerRecord._id,
-        survey_number,
-        landowner_name
+        new_survey_number,
+        owner_name
       }
     });
   } catch (error) {

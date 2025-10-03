@@ -40,6 +40,7 @@ import jmrRoutes from './routes/jmr.js';
 import districtsRoutes from './routes/districts.js';
 import talukasRoutes from './routes/talukas.js';
 import landRecordsRoutes from './routes/landRecords.js';
+import landownerrecordsEnglishCompleteRoutes from './routes/landownerrecords_english_complete.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -389,6 +390,7 @@ app.use('/api/jmr', jmrRoutes);
 app.use('/api/districts', districtsRoutes);
 app.use('/api/talukas', talukasRoutes);
 app.use('/api/landRecords', landRecordsRoutes);
+app.use('/api/landownerrecords-english-complete', landownerrecordsEnglishCompleteRoutes);
 
 // Debug: Log all registered routes
 console.log('🚀 Registered routes:');

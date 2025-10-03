@@ -1,7 +1,7 @@
 import express from 'express';
 import { authorize } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import { uploadFileBuffer } from '../services/cloudinaryService.js';
 import { validateProjectId } from '../middleware/validation.js';
@@ -26,10 +26,10 @@ router.get('/:projectId', authorize('officer', 'admin'), async (req, res) => {
     }
 
     // Get all landowner records for the project with documents
-    const records = await MongoLandownerRecord.find({ 
+    const records = await CompleteEnglishLandownerRecord.find({ 
       project_id: projectId,
       is_active: true 
-    }).select('survey_number landowner_name documents');
+    }).select('new_survey_number owner_name documents');
 
     // Extract and format documents
     const documents = [];
@@ -38,8 +38,8 @@ router.get('/:projectId', authorize('officer', 'admin'), async (req, res) => {
         record.documents.forEach(doc => {
           documents.push({
             id: doc._id || doc.name,
-            survey_number: record.survey_number,
-            landowner_name: record.landowner_name,
+            new_survey_number: record.new_survey_number,
+            owner_name: record.owner_name,
             name: doc.name,
             url: doc.url,
             type: doc.type,
@@ -81,7 +81,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
     }
 
     const {
-      survey_number,
+      new_survey_number,
       document_type,
       document_category,
       project_id,
@@ -89,10 +89,10 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
       notes
     } = req.body;
 
-    if (!survey_number || !document_type || !project_id) {
+    if (!new_survey_number || !document_type || !project_id) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: survey_number, document_type, project_id'
+        message: 'Missing required fields: new_survey_number, document_type, project_id'
       });
     }
 
@@ -106,8 +106,8 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
     }
 
     // Find the landowner record
-    let landownerRecord = await MongoLandownerRecord.findOne({ 
-      survey_number,
+    let landownerRecord = await CompleteEnglishLandownerRecord.findOne({ 
+      new_survey_number,
       project_id 
     });
 
@@ -122,7 +122,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
 
     // Upload file to Cloudinary
     const cloudinaryResult = await uploadFileBuffer(req.file.buffer, {
-      folder: `saral-bhoomi/${project_id}/${survey_number}`,
+      folder: `saral-bhoomi/${project_id}/${new_survey_number}`,
       public_id: `${document_type}_${Date.now()}`,
       resource_type: 'auto'
     });
@@ -163,7 +163,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
     // Validate the documents array before update
     try {
       // Try using findByIdAndUpdate first
-      const updateResult = await MongoLandownerRecord.findByIdAndUpdate(
+      const updateResult = await CompleteEnglishLandownerRecord.findByIdAndUpdate(
         landownerRecord._id,
         { documents: updatedDocuments },
         { new: true, runValidators: true }
@@ -176,7 +176,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
       
       try {
         // Fallback to updateOne
-        const updateResult = await MongoLandownerRecord.updateOne(
+        const updateResult = await CompleteEnglishLandownerRecord.updateOne(
           { _id: landownerRecord._id },
           { documents: updatedDocuments }
         );
@@ -189,7 +189,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
         console.error('❌ UpdateOne error:', updateOneError.message);
         
         // Try to get more details about the existing documents
-        const existingRecord = await MongoLandownerRecord.findById(landownerRecord._id);
+        const existingRecord = await CompleteEnglishLandownerRecord.findById(landownerRecord._id);
         if (existingRecord && existingRecord.documents) {
           console.log('🔍 Existing documents structure:', existingRecord.documents);
           console.log('🔍 First document type:', typeof existingRecord.documents[0]);
@@ -200,7 +200,7 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
       }
     }
 
-    console.log('💾 Document saved to MongoDB for survey:', survey_number);
+    console.log('💾 Document saved to MongoDB for survey:', new_survey_number);
 
     res.status(201).json({
       success: true,
@@ -213,8 +213,8 @@ router.post('/upload', authorize('officer', 'admin'), upload.single('file'), val
         type: newDocument.type,
         category: newDocument.category,
         uploaded_at: newDocument.uploaded_at,
-        survey_number: landownerRecord.survey_number,
-        landowner_name: landownerRecord.landowner_name,
+        new_survey_number: landownerRecord.new_survey_number,
+        owner_name: landownerRecord.owner_name,
         file_size: newDocument.file_size,
         mime_type: newDocument.mime_type
       }
@@ -246,16 +246,16 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
     }
 
     const {
-      survey_number,
+      new_survey_number,
       document_type,
       project_id,
       notes
     } = req.body;
 
-    if (!survey_number || !document_type || !project_id) {
+    if (!new_survey_number || !document_type || !project_id) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: survey_number, document_type, project_id'
+        message: 'Missing required fields: new_survey_number, document_type, project_id'
       });
     }
 
@@ -269,8 +269,8 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
     }
 
     // Find the landowner record
-    let landownerRecord = await MongoLandownerRecord.findOne({ 
-      survey_number,
+    let landownerRecord = await CompleteEnglishLandownerRecord.findOne({ 
+      new_survey_number,
       project_id 
     });
 
@@ -285,7 +285,7 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
 
     // Upload file to Cloudinary
     const cloudinaryResult = await uploadFileBuffer(req.file.buffer, {
-      folder: `saral-bhoomi/${project_id}/${survey_number}/field-officer`,
+      folder: `saral-bhoomi/${project_id}/${new_survey_number}/field-officer`,
       public_id: `${document_type}_${Date.now()}_field`,
       resource_type: 'auto'
     });
@@ -315,18 +315,18 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
     console.log('🔍 Landowner record type:', typeof landownerRecord._id);
 
     // Use updateOne instead of findByIdAndUpdate to avoid ObjectId casting issues
-    await MongoLandownerRecord.updateOne(
+    await CompleteEnglishLandownerRecord.updateOne(
       { _id: landownerRecord._id },
       { documents: updatedDocuments }
     );
 
-    console.log('💾 Field Officer document saved to MongoDB for survey:', survey_number);
+    console.log('💾 Field Officer document saved to MongoDB for survey:', new_survey_number);
 
     // Append DOCUMENT_UPLOADED timeline event and roll-forward ledger to keep hashes in sync
     try {
       const ledgerV2 = new LedgerV2Service();
       await ledgerV2.appendTimelineEvent(
-        survey_number,
+        new_survey_number,
         req.user.id,
         'DOCUMENT_UPLOADED',
         {
@@ -342,7 +342,7 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
       );
 
       await ledgerV2.createOrUpdateFromLive(
-        survey_number,
+        new_survey_number,
         req.user.id,
         project_id,
         'document_uploaded'
@@ -362,8 +362,8 @@ router.post('/field-upload', authorize('field_officer', 'officer', 'admin'), upl
         type: newDocument.type,
         category: newDocument.category,
         uploaded_at: newDocument.uploaded_at,
-        survey_number: landownerRecord.survey_number,
-        landowner_name: landownerRecord.landowner_name,
+        new_survey_number: landownerRecord.new_survey_number,
+        owner_name: landownerRecord.owner_name,
         file_size: newDocument.file_size,
         mime_type: newDocument.mime_type,
         upload_source: newDocument.upload_source
@@ -395,7 +395,7 @@ router.delete('/:documentId', authorize('officer', 'admin'), async (req, res) =>
     }
 
     // Find the landowner record
-    const landownerRecord = await MongoLandownerRecord.findById(record_id);
+    const landownerRecord = await CompleteEnglishLandownerRecord.findById(record_id);
     if (!landownerRecord) {
       return res.status(404).json({
         success: false,
@@ -421,7 +421,7 @@ router.delete('/:documentId', authorize('officer', 'admin'), async (req, res) =>
     const updatedDocuments = currentDocuments;
 
     // Update the record
-    await MongoLandownerRecord.findByIdAndUpdate(record_id, {
+    await CompleteEnglishLandownerRecord.findByIdAndUpdate(record_id, {
       documents: updatedDocuments
     });
 

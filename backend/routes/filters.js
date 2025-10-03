@@ -1,6 +1,6 @@
 import express from 'express';
 import { authorize } from '../middleware/auth.js';
-import MongoLandownerRecord from '../models/mongo/LandownerRecord.js';
+import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 
 const router = express.Router();
 
@@ -16,9 +16,9 @@ router.get('/locations', authorize(['officer', 'admin']), async (req, res) => {
 
     // Distinct values with optional filters applied
     const [districts, talukas, villages] = await Promise.all([
-      MongoLandownerRecord.distinct('district', projectId ? { project_id: projectId } : {}),
-      MongoLandownerRecord.distinct('taluka', projectId || district ? { project_id: projectId, ...(district ? { district } : {}) } : {}),
-      MongoLandownerRecord.distinct('village', baseQuery)
+      CompleteEnglishLandownerRecord.distinct('district', projectId ? { project_id: projectId } : {}),
+      CompleteEnglishLandownerRecord.distinct('taluka', projectId || district ? { project_id: projectId, ...(district ? { district } : {}) } : {}),
+      CompleteEnglishLandownerRecord.distinct('village', baseQuery)
     ]);
 
     const clean = (arr) => (arr || []).filter(Boolean).map(String).sort((a, b) => a.localeCompare(b));
