@@ -182,10 +182,16 @@ const LandRecordsManager2: React.FC = () => {
         headers['x-demo-role'] = 'officer';
       }
       
+      // Ensure project_id is sent as a string, not an object
+      const sanitizedEditForm = { ...editForm };
+      if (sanitizedEditForm.project_id && typeof sanitizedEditForm.project_id === 'object') {
+        sanitizedEditForm.project_id = (sanitizedEditForm.project_id as any).id || sanitizedEditForm.project_id;
+      }
+      
       const response = await fetch(`${config.API_BASE_URL}/landowners2-english/${editingRecord}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(editForm)
+        body: JSON.stringify(sanitizedEditForm)
       });
 
       if (response.ok) {
@@ -820,33 +826,332 @@ const LandRecordsManager2: React.FC = () => {
                               record.owner_name
                             )}
                           </TableCell>
-                          <TableCell>{record.खातेदाराचे_नांव || record.old_survey_number || ''}</TableCell>
-                          <TableCell>{record.नविन_स_नं || record.new_survey_number || ''}</TableCell>
-                          <TableCell>{record.गट_नंबर || record.group_number || ''}</TableCell>
-                          <TableCell>{record.सी_टी_एस_नंबर || record.cts_number || ''}</TableCell>
-                          <TableCell>{record.village}</TableCell>
-                          <TableCell>{record.taluka}</TableCell>
-                          <TableCell>{record.district}</TableCell>
-                          <TableCell>{safeNumericConversion(record.land_area_as_per_7_12)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.acquired_land_area)}</TableCell>
-                          <TableCell>{record.land_type}</TableCell>
-                          <TableCell>{record.land_classification}</TableCell>
-                          <TableCell>{safeNumericConversion(record.approved_rate_per_hectare)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.market_value_as_per_acquired_area)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.factor_as_per_section_26_2)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.land_compensation_as_per_section_26)}</TableCell>
-                          <TableCell>{record.structures}</TableCell>
-                          <TableCell>{record.forest_trees}</TableCell>
-                          <TableCell>{record.fruit_trees}</TableCell>
-                          <TableCell>{record.wells_borewells}</TableCell>
-                          <TableCell>{safeNumericConversion(record.total_structures_amount)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.total_amount_14_23)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.determined_compensation_26)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.total_compensation_26_27)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.deduction_amount)}</TableCell>
-                          <TableCell>{safeNumericConversion(record.final_payable_compensation)}</TableCell>
-                          <TableCell>{record.remarks || ''}</TableCell>
-                          <TableCell>{record.compensation_distribution_status}</TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.old_survey_number || ''}
+                                onChange={(e) => handleEditInputChange('old_survey_number', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.खातेदाराचे_नांव || record.old_survey_number || ''
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.new_survey_number || ''}
+                                onChange={(e) => handleEditInputChange('new_survey_number', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.नविन_स_नं || record.new_survey_number || ''
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.group_number || ''}
+                                onChange={(e) => handleEditInputChange('group_number', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.गट_नंबर || record.group_number || ''
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.cts_number || ''}
+                                onChange={(e) => handleEditInputChange('cts_number', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.सी_टी_एस_नंबर || record.cts_number || ''
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.village || ''}
+                                onChange={(e) => handleEditInputChange('village', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.village
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.taluka || ''}
+                                onChange={(e) => handleEditInputChange('taluka', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.taluka
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.district || ''}
+                                onChange={(e) => handleEditInputChange('district', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.district
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.0001"
+                                value={editForm.land_area_as_per_7_12 || ''}
+                                onChange={(e) => handleEditInputChange('land_area_as_per_7_12', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.land_area_as_per_7_12)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.0001"
+                                value={editForm.acquired_land_area || ''}
+                                onChange={(e) => handleEditInputChange('acquired_land_area', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.acquired_land_area)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.land_type || ''}
+                                onChange={(e) => handleEditInputChange('land_type', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.land_type
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.land_classification || ''}
+                                onChange={(e) => handleEditInputChange('land_classification', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.land_classification
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.approved_rate_per_hectare || ''}
+                                onChange={(e) => handleEditInputChange('approved_rate_per_hectare', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.approved_rate_per_hectare)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.market_value_as_per_acquired_area || ''}
+                                onChange={(e) => handleEditInputChange('market_value_as_per_acquired_area', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.market_value_as_per_acquired_area)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.factor_as_per_section_26_2 || ''}
+                                onChange={(e) => handleEditInputChange('factor_as_per_section_26_2', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.factor_as_per_section_26_2)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.land_compensation_as_per_section_26 || ''}
+                                onChange={(e) => handleEditInputChange('land_compensation_as_per_section_26', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.land_compensation_as_per_section_26)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                value={editForm.structures || ''}
+                                onChange={(e) => handleEditInputChange('structures', parseInt(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.structures
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                value={editForm.forest_trees || ''}
+                                onChange={(e) => handleEditInputChange('forest_trees', parseInt(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.forest_trees
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                value={editForm.fruit_trees || ''}
+                                onChange={(e) => handleEditInputChange('fruit_trees', parseInt(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.fruit_trees
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                value={editForm.wells_borewells || ''}
+                                onChange={(e) => handleEditInputChange('wells_borewells', parseInt(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.wells_borewells
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.total_structures_amount || ''}
+                                onChange={(e) => handleEditInputChange('total_structures_amount', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.total_structures_amount)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.total_amount_14_23 || ''}
+                                onChange={(e) => handleEditInputChange('total_amount_14_23', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.total_amount_14_23)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.determined_compensation_26 || ''}
+                                onChange={(e) => handleEditInputChange('determined_compensation_26', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.determined_compensation_26)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.total_compensation_26_27 || ''}
+                                onChange={(e) => handleEditInputChange('total_compensation_26_27', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.total_compensation_26_27)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.deduction_amount || ''}
+                                onChange={(e) => handleEditInputChange('deduction_amount', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.deduction_amount)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={editForm.final_payable_compensation || ''}
+                                onChange={(e) => handleEditInputChange('final_payable_compensation', parseFloat(e.target.value) || 0)}
+                                className="h-8"
+                              />
+                            ) : (
+                              safeNumericConversion(record.final_payable_compensation)
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Textarea
+                                value={editForm.remarks || ''}
+                                onChange={(e) => handleEditInputChange('remarks', e.target.value)}
+                                className="h-8 min-h-8"
+                                rows={1}
+                              />
+                            ) : (
+                              record.remarks || ''
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingRecord === (record.id || record._id?.toString()) ? (
+                              <Input
+                                value={editForm.compensation_distribution_status || ''}
+                                onChange={(e) => handleEditInputChange('compensation_distribution_status', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              record.compensation_distribution_status
+                            )}
+                          </TableCell>
                           <TableCell>{record.project_id ? record.project_id.toString() : ''}</TableCell>
                           {dynamicColumns.filter(col => 
                             !['serial_number', 'owner_name', 'old_survey_number', 'new_survey_number', 
