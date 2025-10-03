@@ -57,6 +57,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "chai": "^6.2.0",
+    "mocha": "^11.7.4",
     "nodemon": "^3.0.2"
   },
   "keywords": [

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Record ID</title>
+</head>
+<body>
+    <h1>Record ID Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        // Test what happens when we access record.id on different objects
+        const testCases = [
+            { id: "12345", name: "test1" },
+            { _id: "67890", name: "test2" },
+            { id: "list", name: "test3" }, // This might be the issue
+            { _id: "list", name: "test4" },
+            { name: "test5" }, // No id field
+            ["item1", "item2", "list"] // Array with "list" as item
+        ];
+        
+        const output = document.getElementById('output');
+        
+        testCases.forEach((testCase, index) => {
+            const div = document.createElement('div');
+            div.innerHTML = `
+                <h3>Test Case ${index + 1}:</h3>
+                <pre>${JSON.stringify(testCase, null, 2)}</pre>
+                <p><strong>record.id:</strong> ${testCase.id || 'undefined'}</p>
+                <p><strong>record._id:</strong> ${testCase._id || 'undefined'}</p>
+                <p><strong>typeof record.id:</strong> ${typeof testCase.id}</p>
+                <hr>
+            `;
+            output.appendChild(div);
+        });
+    </script>
+</body>
+</html>

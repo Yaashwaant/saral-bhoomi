@@ -48,6 +48,12 @@ const completeEnglishLandownerSchema = new mongoose.Schema({
   remarks: { type: String },
   compensation_distribution_status: { type: String },
   
+  // Notice generation fields
+  notice_generated: { type: Boolean, default: false },
+  notice_number: { type: String },
+  notice_date: { type: Date },
+  notice_content: { type: String },
+  
   // System fields
   project_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

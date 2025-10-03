@@ -13,6 +13,62 @@ const router = express.Router();
 // Configure multer for CSV uploads
 const upload = multer({ dest: 'uploads/' });
 
+// @desc    Get landowner record ObjectIds by project from English collection
+// @route   GET /api/landowners2-english/:projectId/ids
+// @access  Public (for now)
+router.get('/:projectId/ids', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID format. Must be a valid MongoDB ObjectId.'
+      });
+    }
+    
+    // Validate project exists
+    const project = await MongoProject.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Query just the ObjectIds for efficiency
+    const records = await CompleteEnglishLandownerRecord.find({ 
+      project_id: new mongoose.Types.ObjectId(projectId),
+      is_active: true 
+    })
+    .select('_id')
+    .sort({ serial_number: 1 });
+
+    // Extract just the ObjectIds as strings
+    const landRecordIds = records.map(record => record._id.toString());
+
+    res.status(200).json({
+      success: true,
+      count: landRecordIds.length,
+      project: {
+        id: project._id,
+        name: project.projectName,
+        projectNumber: project.projectNumber,
+        code: project.code
+      },
+      landRecordIds: landRecordIds
+    });
+  } catch (error) {
+    console.error('Error fetching landowner record IDs by project:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching landowner record IDs',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get all landowner records from English collection
 // @route   GET /api/landowners2-english/list
 // @access  Public (for now)
@@ -66,6 +122,14 @@ router.get('/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
     
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID format. Must be a valid MongoDB ObjectId.'
+      });
+    }
+    
     // Validate project exists
     const project = await MongoProject.findById(projectId);
     if (!project) {
@@ -81,12 +145,22 @@ router.get('/:projectId', async (req, res) => {
       is_active: true 
     })
       .populate('created_by', 'name email')
-      .populate('project_id', 'name code')
+      .populate('project_id', 'name code projectName projectNumber')
       .sort({ serial_number: 1 });
+
+    // Extract just the ObjectIds for the response
+    const landRecordIds = records.map(record => record._id);
 
     res.status(200).json({
       success: true,
       count: records.length,
+      project: {
+        id: project._id,
+        name: project.projectName,
+        projectNumber: project.projectNumber,
+        code: project.code
+      },
+      landRecordIds: landRecordIds,
       data: records.map(record => {
         const plain = record.toObject({ getters: true });
         const createdBy = plain.created_by;
@@ -111,7 +185,8 @@ router.get('/:projectId', async (req, res) => {
     console.error('Error fetching English landowner records by project:', error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching landowner records'
+      message: 'Error fetching landowner records',
+      error: error.message
     });
   }
 });
@@ -466,5 +541,290 @@ router.get('/stats', async (req, res) => {
     });
   }
 });
+
+// @desc    Generate notice for a specific landowner record
+// @route   POST /api/landowners2-english/generate-notice
+// @access  Private
+router.post('/generate-notice', authorize(['officer', 'admin']), async (req, res) => {
+  try {
+    const { 
+      recordId, 
+      project_id, 
+      survey_number, 
+      noticeTemplate = 'enhanced',
+      customContent,
+      headerContent = ''
+    } = req.body;
+
+    let record;
+    
+    // Find record by ID or by comprehensive uniqueness criteria
+    if (recordId) {
+      record = await CompleteEnglishLandownerRecord.findById(recordId);
+    } else if (project_id && survey_number) {
+      // Build comprehensive search query using proper uniqueness criteria
+      const searchQuery = {
+        project_id: project_id,
+        $or: [
+          { old_survey_number: survey_number },
+          { new_survey_number: survey_number }
+        ]
+      };
+      
+      // Add additional uniqueness criteria if provided
+      if (req.body.village) {
+        searchQuery.village = req.body.village;
+      }
+      if (req.body.area) {
+        searchQuery.acquired_land_area = req.body.area;
+      }
+      if (req.body.landowner_name) {
+        // Use case-insensitive regex for name matching
+        searchQuery.$or = [
+          { owner_name: { $regex: new RegExp(`^${req.body.landowner_name}$`, 'i') } },
+          { landowner_name: { $regex: new RegExp(`^${req.body.landowner_name}$`, 'i') } }
+        ];
+      }
+      
+      // Try to find the most specific match first
+      record = await CompleteEnglishLandownerRecord.findOne(searchQuery);
+      
+      // If no exact match found with all criteria, try with just survey number + project + landowner name
+      if (!record && req.body.landowner_name) {
+        const fallbackQuery = {
+          project_id: project_id,
+          $or: [
+            { old_survey_number: survey_number },
+            { new_survey_number: survey_number }
+          ],
+          $or: [
+            { owner_name: { $regex: new RegExp(`^${req.body.landowner_name}$`, 'i') } },
+            { landowner_name: { $regex: new RegExp(`^${req.body.landowner_name}$`, 'i') } }
+          ]
+        };
+        record = await CompleteEnglishLandownerRecord.findOne(fallbackQuery);
+      }
+    }
+
+    if (!record) {
+      const searchCriteria = [];
+      if (survey_number) searchCriteria.push(`survey number: ${survey_number}`);
+      if (req.body.landowner_name) searchCriteria.push(`landowner name: ${req.body.landowner_name}`);
+      if (req.body.village) searchCriteria.push(`village: ${req.body.village}`);
+      if (req.body.area) searchCriteria.push(`acquired area: ${req.body.area}`);
+      
+      return res.status(404).json({
+        success: false,
+        message: `Landowner record not found for project ${project_id} with ${searchCriteria.join(', ')}. Multiple records may exist with the same survey number - please ensure all identifying fields are provided.`
+      });
+    }
+
+    // Get project details
+    const project = await MongoProject.findById(record.project_id);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Generate notice number
+    const currentYear = new Date().getFullYear();
+    const noticeCount = await CompleteEnglishLandownerRecord.countDocuments({
+      project_id: record.project_id,
+      notice_generated: true
+    });
+    const noticeNumber = `${project.projectName}/NOTICE/${currentYear}/${String(noticeCount + 1).padStart(4, '0')}`;
+
+    // Generate notice content based on template
+    let noticeContent = '';
+    
+    if (noticeTemplate === 'enhanced') {
+      noticeContent = generateEnhancedNoticeContent(record, project, headerContent);
+    } else if (noticeTemplate === 'custom' && customContent) {
+      noticeContent = generateCustomEnglishNoticeContent(record, project, customContent);
+    } else {
+      noticeContent = generateStandardEnglishNoticeContent(record, project, headerContent);
+    }
+
+    // Update record with notice information
+    const updatedRecord = await CompleteEnglishLandownerRecord.findByIdAndUpdate(
+      record._id,
+      {
+        notice_generated: true,
+        notice_number: noticeNumber,
+        notice_date: new Date(),
+        notice_content: noticeContent,
+        updated_at: new Date()
+      },
+      { new: true }
+    );
+
+    // Add timeline event (if timeline system exists)
+    const timelineEvent = {
+      event_type: 'notice_generated',
+      description: `Notice generated: ${noticeNumber}`,
+      timestamp: new Date(),
+      user_id: req.user?.id,
+      metadata: {
+        notice_number: noticeNumber,
+        template_type: noticeTemplate
+      }
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Notice generated successfully',
+      data: {
+        record: updatedRecord,
+        notice_number: noticeNumber,
+        notice_content: noticeContent,
+        timeline_event: timelineEvent
+      }
+    });
+
+  } catch (error) {
+    console.error('Error generating notice for English record:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating notice',
+      error: error.message
+    });
+  }
+});
+
+// Helper function to generate enhanced notice content with detailed compensation
+function generateEnhancedNoticeContent(record, project, headerContent = '') {
+  const currentDate = new Date().toLocaleDateString('hi-IN');
+  
+  return `${headerContent}
+
+नोटीस क्रमांक: ${record.notice_number || 'TBG'}
+दिनांक: ${currentDate}
+
+प्रति,
+श्री/श्रीमती ${record.owner_name}
+गाव: ${record.village}
+तालुका: ${record.taluka}
+जिल्हा: ${record.district}
+
+विषय: ${project.projectName} - भूमि संपादन मोबदला वितरण नोटीस
+
+महोदय/महोदया,
+
+आपल्याला कळवण्यात येत आहे की, ${project.projectName} या प्रकल्पासाठी आपली खालील जमीन संपादनासाठी निवडण्यात आली आहे:
+
+जमीन तपशील:
+सर्वे नंबर: ${record.old_survey_number || record.new_survey_number}
+७/१२ नुसार क्षेत्रफळ: ${record.land_area_as_per_7_12} हेक्टर
+संपादित क्षेत्रफळ: ${record.acquired_land_area} हेक्टर
+जमिनीचा प्रकार: ${record.land_type || 'N/A'}
+वर्गीकरण: ${record.land_classification || 'N/A'}
+
+मोबदला तपशील:
+मंजूर दर प्रति हेक्टर: ₹${record.approved_rate_per_hectare || 0}
+बाजार मूल्य: ₹${record.market_value_as_per_acquired_area || 0}
+कलम २६ नुसार भूमि मोबदला: ₹${record.land_compensation_as_per_section_26 || 0}
+
+मालमत्ता मोबदला:
+बांधकामे: ₹${record.structures || 0}
+फळझाडे: ₹${record.fruit_trees || 0}
+वनझाडे: ₹${record.forest_trees || 0}
+विहिरी/बोअरवेल: ₹${record.wells_borewells || 0}
+एकूण मालमत्ता मोबदला: ₹${record.total_structures_amount || 0}
+
+अंतिम मोबदला गणना:
+सोलेशियम रक्कम: ₹${record.solatium_amount || 0}
+निर्धारित मोबदला (कलम २६): ₹${record.determined_compensation_26 || 0}
+वाढीव मोबदला (२५%): ₹${record.enhanced_compensation_25_percent || 0}
+एकूण मोबदला (कलम २६-२७): ₹${record.total_compensation_26_27 || 0}
+कपात रक्कम: ₹${record.deduction_amount || 0}
+अंतिम देय रक्कम: ₹${record.final_payable_compensation || 0}
+
+वितरण स्थिती: ${record.compensation_distribution_status || 'प्रलंबित'}
+
+कृपया आवश्यक कागदपत्रे घेऊन नजीकच्या कार्यालयात संपर्क साधावा.
+
+आवश्यक कागदपत्रे:
+1. जमिनीचा ७/१२ उतारा
+2. ओळखपत्राच्या प्रती
+3. बँक पासबुकची प्रत
+4. मालकी हक्काचे कागदपत्रे
+5. इतर संबंधित कागदपत्रे
+
+धन्यवाद,
+
+प्राधिकृत अधिकारी
+${project.location?.district || record.district} जिल्हा
+`;
+}
+
+// Helper function to generate standard notice content for English collection
+function generateStandardEnglishNoticeContent(record, project, headerContent = '') {
+  const currentDate = new Date().toLocaleDateString('hi-IN');
+  
+  return `${headerContent}
+
+नोटीस क्रमांक: ${record.notice_number || 'TBG'}
+दिनांक: ${currentDate}
+
+प्रति,
+श्री/श्रीमती ${record.owner_name}
+गाव: ${record.village}
+तालुका: ${record.taluka}
+जिल्हा: ${record.district}
+
+विषय: ${project.projectName} - भूमि संपादन नोटीस
+
+महोदय/महोदया,
+
+आपल्याला कळवण्यात येत आहे की, ${project.projectName} या प्रकल्पासाठी आपली खालील जमीन संपादनासाठी निवडण्यात आली आहे:
+
+सर्वे नंबर: ${record.old_survey_number || record.new_survey_number}
+क्षेत्रफळ: ${record.land_area_as_per_7_12} हेक्टर
+संपादित क्षेत्रफळ: ${record.acquired_land_area} हेक्टर
+अंतिम मोबदला: ₹${record.final_payable_compensation || 0}
+
+कृपया आवश्यक कागदपत्रे घेऊन नजीकच्या कार्यालयात संपर्क साधावा.
+
+धन्यवाद,
+
+प्राधिकृत अधिकारी
+${project.location?.district || record.district} जिल्हा
+`;
+}
+
+// Helper function to generate custom notice content for English collection
+function generateCustomEnglishNoticeContent(record, project, customTemplate) {
+  return customTemplate
+    .replace(/\{owner_name\}/g, record.owner_name || '')
+    .replace(/\{landowner_name\}/g, record.owner_name || '') // Backward compatibility
+    .replace(/\{old_survey_number\}/g, record.old_survey_number || '')
+    .replace(/\{new_survey_number\}/g, record.new_survey_number || '')
+    .replace(/\{survey_number\}/g, record.old_survey_number || record.new_survey_number || '') // Backward compatibility
+    .replace(/\{land_area_as_per_7_12\}/g, record.land_area_as_per_7_12 || 0)
+    .replace(/\{acquired_land_area\}/g, record.acquired_land_area || 0)
+    .replace(/\{area\}/g, record.land_area_as_per_7_12 || 0) // Backward compatibility
+    .replace(/\{acquired_area\}/g, record.acquired_land_area || 0) // Backward compatibility
+    .replace(/\{final_payable_compensation\}/g, record.final_payable_compensation || 0)
+    .replace(/\{compensation\}/g, record.final_payable_compensation || 0) // Backward compatibility
+    .replace(/\{land_compensation_as_per_section_26\}/g, record.land_compensation_as_per_section_26 || 0)
+    .replace(/\{total_compensation_26_27\}/g, record.total_compensation_26_27 || 0)
+    .replace(/\{structures\}/g, record.structures || 0)
+    .replace(/\{fruit_trees\}/g, record.fruit_trees || 0)
+    .replace(/\{forest_trees\}/g, record.forest_trees || 0)
+    .replace(/\{wells_borewells\}/g, record.wells_borewells || 0)
+    .replace(/\{solatium_amount\}/g, record.solatium_amount || 0)
+    .replace(/\{enhanced_compensation_25_percent\}/g, record.enhanced_compensation_25_percent || 0)
+    .replace(/\{deduction_amount\}/g, record.deduction_amount || 0)
+    .replace(/\{village\}/g, record.village || '')
+    .replace(/\{taluka\}/g, record.taluka || '')
+    .replace(/\{district\}/g, record.district || '')
+    .replace(/\{land_type\}/g, record.land_type || '')
+    .replace(/\{land_classification\}/g, record.land_classification || '')
+    .replace(/\{compensation_distribution_status\}/g, record.compensation_distribution_status || '')
+    .replace(/\{project_name\}/g, project.projectName || '')
+    .replace(/\{current_date\}/g, new Date().toLocaleDateString('hi-IN'));
+}
 
 export default router;

@@ -27,6 +27,7 @@ import villageRoutes from './routes/villages.js';
 import agentRoutes from './routes/agents.js';
 import landownerRoutes from './routes/landowners.js';
 import landowners2EnglishRoutes from './routes/landowners2-english.js';
+import landownersEnglishCompleteRoutes from './routes/landowners-english-complete.js';
 import awardRoutes from './routes/awards.js';
 import blockchainRoutes from './routes/blockchain.js';
 import dataIntegrityRoutes from './routes/dataIntegrity.js';
@@ -123,8 +124,28 @@ initializeCloudinary();
 app.use(helmet());
 app.use(compression());
 
-// CORS configuration: always include common local dev origins even if env is set
-const defaultLocalOrigins = 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,http://localhost:3003,http://127.0.0.1:3003,http://localhost:5173,http://127.0.0.1:5173';
+// CORS configuration: comprehensive local development origins
+const defaultLocalOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:3002',
+  'http://127.0.0.1:3002',
+  'http://localhost:3003',
+  'http://127.0.0.1:3003',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://localhost:4200',
+  'http://127.0.0.1:4200',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000'
+].join(',');
+
 const envCorsOrigins = process.env.CORS_ORIGIN || process.env.DEV_CORS_ORIGIN || '';
 const mergedOriginsStr = envCorsOrigins ? `${envCorsOrigins},${defaultLocalOrigins}` : defaultLocalOrigins;
 const corsOrigins = Array.from(new Set(
@@ -133,12 +154,38 @@ const corsOrigins = Array.from(new Set(
     .map((s) => s.trim())
     .filter(Boolean)
 ));
+// Enhanced CORS configuration with debugging
 app.use(cors({
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.log(`🚫 CORS blocked origin: ${origin}`);
+    console.log(`✅ Allowed origins: ${corsOrigins.join(', ')}`);
+    
+    callback(new Error(`CORS policy: Origin ${origin} not allowed`), false);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-demo-role']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-demo-role', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Size', 'X-Current-Page'],
+  maxAge: 86400 // 24 hours
 }));
+
+// Log CORS configuration on startup
+console.log('🌐 CORS Configuration:');
+console.log(`   📍 Allowed Origins: ${corsOrigins.length} origins`);
+console.log(`   🔑 Credentials: enabled`);
+console.log(`   📋 Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS`);
+console.log(`   📦 Max Age: 24 hours`);
 
 // Rate limiting - More generous for development
 const limiter = rateLimit({
@@ -329,6 +376,7 @@ app.use('/api/villages', villageRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/landowners', landownerRoutes);
 app.use('/api/landowners2-english', landowners2EnglishRoutes);
+app.use('/api/landowners-english-complete', landownersEnglishCompleteRoutes);
 app.use('/api/awards', awardRoutes);
 app.use('/api/blockchain', blockchainRoutes);
 app.use('/api/data-integrity', dataIntegrityRoutes);
