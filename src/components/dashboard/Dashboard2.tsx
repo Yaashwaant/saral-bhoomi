@@ -147,6 +147,7 @@ const Dashboard2: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectMapping, setProjectMapping] = useState<ProjectMapping>({});
+  const [allProjects, setAllProjects] = useState<Array<{id: string, projectName: string}>>([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
@@ -185,11 +186,14 @@ const Dashboard2: React.FC = () => {
       
       if (data.success) {
         const mapping: ProjectMapping = {};
+        const projects: Array<{id: string, projectName: string}> = [];
         data.data.forEach((project: any) => {
           // Use the correct field name 'id' from the API response
           mapping[project.id] = project.projectName;
+          projects.push({ id: project.id, projectName: project.projectName });
         });
         setProjectMapping(mapping);
+        setAllProjects(projects);
       }
     } catch (error) {
       console.error('Error fetching project mapping:', error);
@@ -1117,16 +1121,10 @@ const Dashboard2: React.FC = () => {
                                 All Projects
                               </div>
                             </SelectItem>
-                            {Array.from(new Set(records.map(r => {
-                              // Handle project_id as object with id property
-                              if (typeof r.project_id === 'object' && r.project_id?.id) {
-                                return r.project_id.id;
-                              }
-                              return String(r.project_id || '');
-                            }).filter(Boolean))).sort().map(projectId => (
-                              <SelectItem key={projectId} value={projectId}>
+                            {allProjects.map(project => (
+                              <SelectItem key={project.id} value={project.id}>
                                 <div className="flex items-center gap-2">
-                                  {projectMapping[projectId] || `Project ${projectId.slice(-8)}`}
+                                  {project.projectName}
                                 </div>
                               </SelectItem>
                             ))}
