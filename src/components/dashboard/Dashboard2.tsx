@@ -78,7 +78,7 @@ interface EnglishCompleteRecord {
   final_payable_compensation: number;
   remarks: string;
   compensation_distribution_status: string;
-  project_id: string;
+  project_id: string | { id: string };
   created_at: string;
   updated_at: string;
   is_active: boolean;
@@ -635,7 +635,13 @@ const Dashboard2: React.FC = () => {
       
       // Apply project filter
       if (selectedProject !== 'all') {
-        const recordProjectId = String(record.project_id || '');
+        // Handle project_id as object with id property
+        let recordProjectId = '';
+        if (typeof record.project_id === 'object' && record.project_id?.id) {
+          recordProjectId = record.project_id.id;
+        } else {
+          recordProjectId = String(record.project_id || '');
+        }
         if (recordProjectId !== selectedProject) return false;
       }
       
@@ -1111,7 +1117,13 @@ const Dashboard2: React.FC = () => {
                                 All Projects
                               </div>
                             </SelectItem>
-                            {Array.from(new Set(records.map(r => String(r.project_id || '')).filter(Boolean))).sort().map(projectId => (
+                            {Array.from(new Set(records.map(r => {
+                              // Handle project_id as object with id property
+                              if (typeof r.project_id === 'object' && r.project_id?.id) {
+                                return r.project_id.id;
+                              }
+                              return String(r.project_id || '');
+                            }).filter(Boolean))).sort().map(projectId => (
                               <SelectItem key={projectId} value={projectId}>
                                 <div className="flex items-center gap-2">
                                   {projectMapping[projectId] || `Project ${projectId.slice(-8)}`}
