@@ -78,7 +78,7 @@ interface EnglishCompleteRecord {
   final_payable_compensation: number;
   remarks: string;
   compensation_distribution_status: string;
-  project_id: string;
+  project_id: string | { id: string };
   created_at: string;
   updated_at: string;
   is_active: boolean;
@@ -147,6 +147,7 @@ const Dashboard2: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [projectMapping, setProjectMapping] = useState<ProjectMapping>({});
+  const [allProjects, setAllProjects] = useState<Array<{id: string, projectName: string}>>([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
@@ -185,11 +186,14 @@ const Dashboard2: React.FC = () => {
       
       if (data.success) {
         const mapping: ProjectMapping = {};
+        const projects: Array<{id: string, projectName: string}> = [];
         data.data.forEach((project: any) => {
           // Use the correct field name 'id' from the API response
           mapping[project.id] = project.projectName;
+          projects.push({ id: project.id, projectName: project.projectName });
         });
         setProjectMapping(mapping);
+        setAllProjects(projects);
       }
     } catch (error) {
       console.error('Error fetching project mapping:', error);
@@ -635,7 +639,13 @@ const Dashboard2: React.FC = () => {
       
       // Apply project filter
       if (selectedProject !== 'all') {
-        const recordProjectId = String(record.project_id || '');
+        // Handle project_id as object with id property
+        let recordProjectId = '';
+        if (typeof record.project_id === 'object' && record.project_id?.id) {
+          recordProjectId = record.project_id.id;
+        } else {
+          recordProjectId = String(record.project_id || '');
+        }
         if (recordProjectId !== selectedProject) return false;
       }
       
@@ -1111,10 +1121,10 @@ const Dashboard2: React.FC = () => {
                                 All Projects
                               </div>
                             </SelectItem>
-                            {Array.from(new Set(records.map(r => String(r.project_id || '')).filter(Boolean))).sort().map(projectId => (
-                              <SelectItem key={projectId} value={projectId}>
+                            {allProjects.map(project => (
+                              <SelectItem key={project.id} value={project.id}>
                                 <div className="flex items-center gap-2">
-                                  {projectMapping[projectId] || `Project ${projectId.slice(-8)}`}
+                                  {project.projectName}
                                 </div>
                               </SelectItem>
                             ))}

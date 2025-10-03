@@ -33,25 +33,79 @@ import {
 
 interface LandRecord {
   id?: string;
-  survey_number: string;
-  landowner_name: string;
-  area: number;
+  // Core identification fields
+  serial_number: string;
+  owner_name: string;
+  old_survey_number: string;
+  new_survey_number: string;
+  group_number?: string;
+  cts_number?: string;
+  
+  // Location fields
   village: string;
   taluka: string;
   district: string;
+  
+  // Land area fields
+  land_area_as_per_7_12?: number;
+  acquired_land_area?: number;
+  
+  // Land type and classification
+  land_type?: string;
+  land_classification?: string;
+  
+  // Compensation calculation fields
+  approved_rate_per_hectare?: number;
+  market_value_as_per_acquired_area?: number;
+  factor_as_per_section_26_2?: number;
+  land_compensation_as_per_section_26?: number;
+  
+  // Structure and asset fields
+  structures?: string;
+  forest_trees?: string;
+  fruit_trees?: string;
+  wells_borewells?: string;
+  
+  // Amount calculations
+  total_structures_amount?: number;
+  total_amount_14_23?: number;
+  solatium_amount?: number;
+  determined_compensation_26?: number;
+  enhanced_compensation_25_percent?: number;
+  total_compensation_26_27?: number;
+  deduction_amount?: number;
+  final_payable_compensation?: number;
+  
+  // Additional fields
+  remarks?: string;
+  compensation_distribution_status?: string;
+  
+  // Notice generation fields
+  notice_generated?: boolean;
+  notice_number?: string;
+  notice_date?: Date;
+  notice_content?: string;
+  
+  // System fields (handled by backend)
+  project_id?: string;
+  created_by?: string;
+  created_at?: Date;
+  updated_at?: Date;
+  is_active?: boolean;
+  
+  // Legacy fields for backward compatibility
+  survey_number?: string;
+  landowner_name?: string;
+  area?: number;
   contact_phone?: string;
   contact_email?: string;
-  is_tribal: boolean;
+  is_tribal?: boolean;
   rate?: number;
   total_compensation?: number;
-  kyc_status: 'pending' | 'approved' | 'rejected';
-  payment_status: 'pending' | 'initiated' | 'completed';
-  // Optional blockchain-related fields and identifiers
+  kyc_status?: 'pending' | 'approved' | 'rejected';
+  payment_status?: 'pending' | 'initiated' | 'completed';
   blockchain_verified?: boolean;
   blockchain_status?: 'verified' | 'pending' | 'compromised' | 'not_on_blockchain';
-  new_survey_number?: string;
-  cts_number?: string;
-  serial_number?: string;
 }
 
 const LandRecordsManager: React.FC = () => {
@@ -68,19 +122,65 @@ const LandRecordsManager: React.FC = () => {
   const [editForm, setEditForm] = useState<Partial<LandRecord>>({});
   
   const [landRecordForm, setLandRecordForm] = useState<LandRecord>({
-    survey_number: '',
-    landowner_name: '',
-    area: 0,
+    // Core identification fields
+    serial_number: '',
+    owner_name: '',
+    old_survey_number: '',
+    new_survey_number: '',
+    group_number: '',
+    cts_number: '',
+    
+    // Location fields
     village: '',
     taluka: '',
     district: '',
-    contact_phone: '',
-    contact_email: '',
-    is_tribal: false,
-    rate: 0,
-    total_compensation: 0,
-    kyc_status: 'pending',
-    payment_status: 'pending'
+    
+    // Land area fields
+    land_area_as_per_7_12: 0,
+    acquired_land_area: 0,
+    
+    // Land type fields
+    land_type: '',
+    land_classification: '',
+    
+    // Compensation calculation fields
+    approved_rate_per_hectare: 0,
+    market_value_as_per_acquired_area: 0,
+    factor_as_per_section_26_2: 0,
+    land_compensation_as_per_section_26: 0,
+    
+    // Structures and assets
+    structures: '',
+    forest_trees: '',
+    fruit_trees: '',
+    wells_borewells: '',
+    
+    // Amount calculations
+    total_structures_amount: 0,
+    total_amount_14_23: 0,
+    solatium_amount: 0,
+    determined_compensation_26: 0,
+    enhanced_compensation_25_percent: 0,
+    total_compensation_26_27: 0,
+    deduction_amount: 0,
+    final_payable_compensation: 0,
+    
+    // Additional information
+    remarks: '',
+    compensation_distribution_status: 'pending',
+    
+    // Notice generation fields
+    notice_generated: false,
+    notice_number: '',
+    notice_date: undefined,
+    notice_content: '',
+    
+    // System fields
+    project_id: '',
+    created_by: '',
+    created_at: undefined,
+    updated_at: undefined,
+    is_active: true
   });
 
   const API_BASE_URL = config.API_BASE_URL;
@@ -115,7 +215,7 @@ const LandRecordsManager: React.FC = () => {
     console.log('🔄 loadLandRecords called for project:', selectedProject);
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/landowners/${selectedProject}`);
+      const response = await fetch(`${API_BASE_URL}/landowners2-english/${selectedProject}`);
       if (response.ok) {
         const data = await response.json();
         const records = data.data || [];
@@ -313,6 +413,43 @@ const LandRecordsManager: React.FC = () => {
       return;
     }
 
+    // Validate required fields
+    const requiredFields = {
+      serial_number: 'Serial Number',
+      owner_name: 'Owner Name',
+      village: 'Village',
+      taluka: 'Taluka',
+      district: 'District'
+    };
+
+    console.log('🚀 Form submission started');
+    console.log('🔍 Current landRecordForm state:', landRecordForm);
+    console.log('🔍 Frontend validation check:', {
+      landRecordForm: {
+        serial_number: landRecordForm.serial_number,
+        owner_name: landRecordForm.owner_name,
+        village: landRecordForm.village,
+        taluka: landRecordForm.taluka,
+        district: landRecordForm.district
+      }
+    });
+
+    const missingFields = [];
+    for (const [field, label] of Object.entries(requiredFields)) {
+      const fieldValue = landRecordForm[field as keyof LandRecord];
+      console.log(`🔍 Checking field ${field}:`, { value: fieldValue, type: typeof fieldValue, isEmpty: !fieldValue || fieldValue === '' });
+      
+      if (!fieldValue || fieldValue === '') {
+        missingFields.push(label);
+      }
+    }
+
+    if (missingFields.length > 0) {
+      console.log('🔍 Missing fields detected:', missingFields);
+      toast.error(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
     if (loading) return; // Prevent multiple simultaneous calls
     setLoading(true);
     try {
@@ -334,13 +471,23 @@ const LandRecordsManager: React.FC = () => {
         created_by: user?.id
       };
       
-      console.log('🔍 Sending request to /landowners:', {
-        url: `${API_BASE_URL}/landowners`,
+      console.log('🔍 Form Data Types Check:', {
+        serial_number: { value: landRecordForm.serial_number, type: typeof landRecordForm.serial_number },
+        owner_name: { value: landRecordForm.owner_name, type: typeof landRecordForm.owner_name },
+        village: { value: landRecordForm.village, type: typeof landRecordForm.village },
+        taluka: { value: landRecordForm.taluka, type: typeof landRecordForm.taluka },
+        district: { value: landRecordForm.district, type: typeof landRecordForm.district },
+        land_area_as_per_7_12: { value: landRecordForm.land_area_as_per_7_12, type: typeof landRecordForm.land_area_as_per_7_12 },
+        approved_rate_per_hectare: { value: landRecordForm.approved_rate_per_hectare, type: typeof landRecordForm.approved_rate_per_hectare }
+      });
+      
+      console.log('🔍 Sending request to /landowners2-english:', {
+        url: `${API_BASE_URL}/landowners2-english`,
         headers,
         body: requestBody
       });
       
-      const response = await fetch(`${API_BASE_URL}/landowners`, {
+      const response = await fetch(`${API_BASE_URL}/landowners2-english`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
@@ -354,20 +501,35 @@ const LandRecordsManager: React.FC = () => {
         
         // Reset form
         setLandRecordForm({
-          survey_number: '',
-          landowner_name: '',
-          area: 0,
+          serial_number: '',
+          owner_name: '',
+          old_survey_number: '',
+          new_survey_number: '',
           village: '',
           taluka: '',
           district: '',
-          contact_phone: '',
-          contact_email: '',
-          is_tribal: false,
-          rate: 0,
-          total_compensation: 0,
-          kyc_status: 'pending',
-          payment_status: 'pending',
-          blockchain_verified: false
+          land_area_as_per_7_12: 0,
+          acquired_land_area: 0,
+          land_type: '',
+          land_classification: '',
+          approved_rate_per_hectare: 0,
+          market_value_as_per_acquired_area: 0,
+          factor_as_per_section_26_2: 0,
+          land_compensation_as_per_section_26: 0,
+          structures: '',
+          forest_trees: '',
+          fruit_trees: '',
+          wells_borewells: '',
+          total_structures_amount: 0,
+          total_amount_14_23: 0,
+          solatium_amount: 0,
+          determined_compensation_26: 0,
+          enhanced_compensation_25_percent: 0,
+          total_compensation_26_27: 0,
+          deduction_amount: 0,
+          final_payable_compensation: 0,
+          remarks: '',
+          compensation_distribution_status: 'pending'
         });
         
         // Refresh both land records and blockchain status
@@ -737,119 +899,395 @@ const LandRecordsManager: React.FC = () => {
                   <CardTitle>Add New Land Record</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleFormSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="survey_number">Survey Number *</Label>
-                        <Input
-                          id="survey_number"
-                          value={landRecordForm.survey_number}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, survey_number: e.target.value})}
-                          required
-                        />
-                      </div>
+                  <form onSubmit={handleFormSubmit} className="space-y-8">
+                    {/* Core Identification Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Core Identification</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="serial_number">Serial Number *</Label>
+                          <Input
+                            id="serial_number"
+                            value={landRecordForm.serial_number}
+                            onChange={(e) => {
+                    console.log('🔍 Serial Number onChange:', e.target.value);
+                    setLandRecordForm({...landRecordForm, serial_number: e.target.value});
+                    console.log('🔍 Updated landRecordForm:', {...landRecordForm, serial_number: e.target.value});
+                  }}
+                            required
+                          />
+                        </div>
 
-                      <div>
-                        <Label htmlFor="landowner_name">Landowner Name *</Label>
-                        <Input
-                          id="landowner_name"
-                          value={landRecordForm.landowner_name}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, landowner_name: e.target.value})}
-                          required
-                        />
-                      </div>
+                        <div>
+                          <Label htmlFor="owner_name">Owner Name *</Label>
+                          <Input
+                            id="owner_name"
+                            value={landRecordForm.owner_name}
+                            onChange={(e) => {
+                    console.log('🔍 Owner Name onChange:', e.target.value);
+                    setLandRecordForm({...landRecordForm, owner_name: e.target.value});
+                    console.log('🔍 Updated landRecordForm:', {...landRecordForm, owner_name: e.target.value});
+                  }}
+                            required
+                          />
+                        </div>
 
-                      <div>
-                        <Label htmlFor="area">Total Area (Hectares) *</Label>
-                        <Input
-                          id="area"
-                          type="number"
-                          step="0.01"
-                          value={landRecordForm.area}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, area: parseFloat(e.target.value) || 0})}
-                          required
-                        />
-                      </div>
+                        <div>
+                          <Label htmlFor="old_survey_number">Old Survey Number *</Label>
+                          <Input
+                            id="old_survey_number"
+                            value={landRecordForm.old_survey_number}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, old_survey_number: e.target.value})}
+                            required
+                          />
+                        </div>
 
-                      <div>
-                        <Label htmlFor="village">Village *</Label>
-                        <Input
-                          id="village"
-                          value={landRecordForm.village}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, village: e.target.value})}
-                          required
-                        />
-                      </div>
+                        <div>
+                          <Label htmlFor="new_survey_number">New Survey Number *</Label>
+                          <Input
+                            id="new_survey_number"
+                            value={landRecordForm.new_survey_number}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, new_survey_number: e.target.value})}
+                            required
+                          />
+                        </div>
 
-                      <div>
-                        <Label htmlFor="taluka">Taluka *</Label>
-                        <Input
-                          id="taluka"
-                          value={landRecordForm.taluka}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, taluka: e.target.value})}
-                          required
-                        />
-                      </div>
+                        <div>
+                          <Label htmlFor="group_number">Group Number</Label>
+                          <Input
+                            id="group_number"
+                            value={landRecordForm.group_number || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, group_number: e.target.value})}
+                          />
+                        </div>
 
-                      <div>
-                        <Label htmlFor="district">District *</Label>
-                        <Input
-                          id="district"
-                          value={landRecordForm.district}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, district: e.target.value})}
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="contact_phone">Contact Phone</Label>
-                        <Input
-                          id="contact_phone"
-                          value={landRecordForm.contact_phone}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, contact_phone: e.target.value})}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="contact_email">Contact Email</Label>
-                        <Input
-                          id="contact_email"
-                          type="email"
-                          value={landRecordForm.contact_email}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, contact_email: e.target.value})}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="rate">Rate per Hectare</Label>
-                        <Input
-                          id="rate"
-                          type="number"
-                          value={landRecordForm.rate}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, rate: parseFloat(e.target.value) || 0})}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="total_compensation">Total Compensation</Label>
-                        <Input
-                          id="total_compensation"
-                          type="number"
-                          value={landRecordForm.total_compensation}
-                          onChange={(e) => setLandRecordForm({...landRecordForm, total_compensation: parseFloat(e.target.value) || 0})}
-                        />
+                        <div>
+                          <Label htmlFor="cts_number">CTS Number</Label>
+                          <Input
+                            id="cts_number"
+                            value={landRecordForm.cts_number || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, cts_number: e.target.value})}
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="is_tribal"
-                        checked={landRecordForm.is_tribal}
-                        onChange={(e) => setLandRecordForm({...landRecordForm, is_tribal: e.target.checked})}
-                        className="rounded"
-                      />
-                      <Label htmlFor="is_tribal">Is Tribal</Label>
+                    {/* Location Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Location Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <Label htmlFor="village">Village *</Label>
+                          <Input
+                            id="village"
+                            value={landRecordForm.village}
+                            onChange={(e) => {
+                    console.log('🔍 Village onChange:', e.target.value);
+                    setLandRecordForm({...landRecordForm, village: e.target.value});
+                    console.log('🔍 Updated landRecordForm:', {...landRecordForm, village: e.target.value});
+                  }}
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="taluka">Taluka *</Label>
+                          <Input
+                            id="taluka"
+                            value={landRecordForm.taluka}
+                            onChange={(e) => {
+                    console.log('🔍 Taluka onChange:', e.target.value);
+                    setLandRecordForm({...landRecordForm, taluka: e.target.value});
+                    console.log('🔍 Updated landRecordForm:', {...landRecordForm, taluka: e.target.value});
+                  }}
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="district">District *</Label>
+                          <Input
+                            id="district"
+                            value={landRecordForm.district}
+                            onChange={(e) => {
+                    console.log('🔍 District onChange:', e.target.value);
+                    setLandRecordForm({...landRecordForm, district: e.target.value});
+                    console.log('🔍 Updated landRecordForm:', {...landRecordForm, district: e.target.value});
+                  }}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Land Details Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Land Details</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="land_area_as_per_7_12">Land Area as per 7/12 (Hectares)</Label>
+                          <Input
+                            id="land_area_as_per_7_12"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.land_area_as_per_7_12 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, land_area_as_per_7_12: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="acquired_land_area">Acquired Land Area (Hectares)</Label>
+                          <Input
+                            id="acquired_land_area"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.acquired_land_area || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, acquired_land_area: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="land_type">Land Type</Label>
+                          <Input
+                            id="land_type"
+                            value={landRecordForm.land_type || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, land_type: e.target.value})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="land_classification">Land Classification</Label>
+                          <Input
+                            id="land_classification"
+                            value={landRecordForm.land_classification || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, land_classification: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Compensation Calculation Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Compensation Calculation</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="approved_rate_per_hectare">Approved Rate per Hectare (₹)</Label>
+                          <Input
+                            id="approved_rate_per_hectare"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.approved_rate_per_hectare || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, approved_rate_per_hectare: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="market_value_as_per_acquired_area">Market Value as per Acquired Area (₹)</Label>
+                          <Input
+                            id="market_value_as_per_acquired_area"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.market_value_as_per_acquired_area || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, market_value_as_per_acquired_area: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="factor_as_per_section_26_2">Factor as per Section 26(2)</Label>
+                          <Input
+                            id="factor_as_per_section_26_2"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.factor_as_per_section_26_2 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, factor_as_per_section_26_2: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="land_compensation_as_per_section_26">Land Compensation as per Section 26 (₹)</Label>
+                          <Input
+                            id="land_compensation_as_per_section_26"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.land_compensation_as_per_section_26 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, land_compensation_as_per_section_26: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Structures and Assets Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Structures and Assets</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="structures">Structures</Label>
+                          <Textarea
+                            id="structures"
+                            value={landRecordForm.structures || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, structures: e.target.value})}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="forest_trees">Forest Trees</Label>
+                          <Textarea
+                            id="forest_trees"
+                            value={landRecordForm.forest_trees || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, forest_trees: e.target.value})}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="fruit_trees">Fruit Trees</Label>
+                          <Textarea
+                            id="fruit_trees"
+                            value={landRecordForm.fruit_trees || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, fruit_trees: e.target.value})}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="wells_borewells">Wells/Borewells</Label>
+                          <Textarea
+                            id="wells_borewells"
+                            value={landRecordForm.wells_borewells || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, wells_borewells: e.target.value})}
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Amount Calculations Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Amount Calculations</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="total_structures_amount">Total Structures Amount (₹)</Label>
+                          <Input
+                            id="total_structures_amount"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.total_structures_amount || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, total_structures_amount: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="total_amount_14_23">Total Amount (14-23) (₹)</Label>
+                          <Input
+                            id="total_amount_14_23"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.total_amount_14_23 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, total_amount_14_23: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="solatium_amount">Solatium Amount (₹)</Label>
+                          <Input
+                            id="solatium_amount"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.solatium_amount || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, solatium_amount: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="determined_compensation_26">Determined Compensation (26) (₹)</Label>
+                          <Input
+                            id="determined_compensation_26"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.determined_compensation_26 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, determined_compensation_26: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="enhanced_compensation_25_percent">Enhanced Compensation 25% (₹)</Label>
+                          <Input
+                            id="enhanced_compensation_25_percent"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.enhanced_compensation_25_percent || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, enhanced_compensation_25_percent: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="total_compensation_26_27">Total Compensation (26-27) (₹)</Label>
+                          <Input
+                            id="total_compensation_26_27"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.total_compensation_26_27 || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, total_compensation_26_27: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="deduction_amount">Deduction Amount (₹)</Label>
+                          <Input
+                            id="deduction_amount"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.deduction_amount || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, deduction_amount: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="final_payable_compensation">Final Payable Compensation (₹)</Label>
+                          <Input
+                            id="final_payable_compensation"
+                            type="number"
+                            step="0.01"
+                            value={landRecordForm.final_payable_compensation || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, final_payable_compensation: parseFloat(e.target.value) || 0})}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Information Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Additional Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <Label htmlFor="compensation_distribution_status">Compensation Distribution Status</Label>
+                          <Select
+                            value={landRecordForm.compensation_distribution_status || 'pending'}
+                            onValueChange={(value) => setLandRecordForm({...landRecordForm, compensation_distribution_status: value})}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="on_hold">On Hold</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <Label htmlFor="remarks">Remarks</Label>
+                          <Textarea
+                            id="remarks"
+                            value={landRecordForm.remarks || ''}
+                            onChange={(e) => setLandRecordForm({...landRecordForm, remarks: e.target.value})}
+                            rows={3}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex justify-end space-x-4">
@@ -857,21 +1295,65 @@ const LandRecordsManager: React.FC = () => {
                         type="button"
                         variant="outline"
                         onClick={() => setLandRecordForm({
-                          survey_number: '',
-                          landowner_name: '',
-                          area: 0,
+                          // Core identification fields
+                          serial_number: '',
+                          owner_name: '',
+                          old_survey_number: '',
+                          new_survey_number: '',
+                          group_number: '',
+                          cts_number: '',
+                          
+                          // Location fields
                           village: '',
                           taluka: '',
                           district: '',
-                          contact_phone: '',
-                          contact_email: '',
-                          is_tribal: false,
-                          rate: 0,
-                          total_compensation: 0,
-                          kyc_status: 'pending',
-                          payment_status: 'pending',
-                          blockchain_verified: false,
-                          blockchain_status: 'not_on_blockchain'
+                          
+                          // Land area fields
+                          land_area_as_per_7_12: 0,
+                          acquired_land_area: 0,
+                          
+                          // Land type fields
+                          land_type: '',
+                          land_classification: '',
+                          
+                          // Compensation calculation fields
+                          approved_rate_per_hectare: 0,
+                          market_value_as_per_acquired_area: 0,
+                          factor_as_per_section_26_2: 0,
+                          land_compensation_as_per_section_26: 0,
+                          
+                          // Structures and assets
+                          structures: '',
+                          forest_trees: '',
+                          fruit_trees: '',
+                          wells_borewells: '',
+                          
+                          // Amount calculations
+                          total_structures_amount: 0,
+                          total_amount_14_23: 0,
+                          solatium_amount: 0,
+                          determined_compensation_26: 0,
+                          enhanced_compensation_25_percent: 0,
+                          total_compensation_26_27: 0,
+                          deduction_amount: 0,
+                          final_payable_compensation: 0,
+                          
+                          // Additional information
+                          remarks: '',
+                          compensation_distribution_status: 'pending',
+                          
+                          // Notice generation fields
+                          notice_generated: false,
+                          notice_number: '',
+                          notice_date: undefined,
+                          notice_content: '',
+                          
+                          // System fields
+                          project_id: '',
+                          created_by: '',
+                          created_at: undefined,
+                          updated_at: undefined,
+                          is_active: true
                         })}
                       >
                         Reset Form

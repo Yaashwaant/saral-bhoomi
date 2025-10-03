@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import MongoProject from '../models/mongo/Project.js';
 import MongoUser from '../models/mongo/User.js';
@@ -188,8 +189,27 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       });
     }
 
+    // Generate serial number for the new record
+    // Find the highest existing serial number for this project and village
+    const existingRecords = await MongoLandownerRecord.find({
+      project_id: new mongoose.Types.ObjectId(project_id),
+      village: village,
+      serial_number: { $regex: /^AUTO-\d+$/ } // Only count AUTO-generated serial numbers
+    }).sort({ serial_number: -1 }).limit(1);
+
+    let nextSerialNumber = 1;
+    if (existingRecords.length > 0) {
+      const lastSerialNumber = existingRecords[0].serial_number;
+      const lastNumber = parseInt(lastSerialNumber.replace('AUTO-', ''));
+      nextSerialNumber = lastNumber + 1;
+    }
+    
+    const serial_number = `AUTO-${nextSerialNumber}`;
+
     // Create new landowner record
     const newRecord = new CompleteEnglishLandownerRecord({
+      project_id: new mongoose.Types.ObjectId(project_id),
+      serial_number,
       new_survey_number,
       owner_name,
       land_area_as_per_7_12: parseFloat(land_area_as_per_7_12) || 0,
@@ -219,8 +239,12 @@ router.post('/', authorize(['officer', 'admin']), async (req, res) => {
       assigned_agent,
       notes,
       blockchain_verified: false,
-      project_id,
-      created_by: created_by || req.user.id
+      project_id: new mongoose.Types.ObjectId(project_id),
+      created_by: created_by && mongoose.Types.ObjectId.isValid(created_by) 
+        ? new mongoose.Types.ObjectId(created_by)
+        : (req.user?.id && mongoose.Types.ObjectId.isValid(req.user.id) 
+          ? new mongoose.Types.ObjectId(req.user.id) 
+          : undefined)
     });
 
     const savedRecord = await newRecord.save();
