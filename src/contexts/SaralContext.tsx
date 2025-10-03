@@ -356,7 +356,9 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
         return;
       }
       const response = await apiCall('/projects');
-      const apiProjects = Array.isArray(response.data) ? response.data : [];
+      // Handle both direct array response and wrapped response formats
+      const apiProjects = Array.isArray(response.data) ? response.data : 
+                         (response.data?.data && Array.isArray(response.data.data) ? response.data.data : []);
       if (apiProjects.length === 0 && import.meta.env.DEV) {
         setProjects(demoProjects as any);
       } else {
@@ -454,18 +456,31 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
           // Map English complete fields to expected dashboard fields
           खातेदाराचे_नांव: r.owner_name,
           सर्वे_नं: r.new_survey_number || r.old_survey_number,
-          क्षेत्र: r.land_area,
-          संपादित_क्षेत्र: r.land_area,
-          अंतिम_रक्कम: r.total_compensation || r.final_amount,
+          क्षेत्र: r.land_area_as_per_7_12 || r.land_area,
+          संपादित_क्षेत्र: r.acquired_land_area || r.land_area,
+          अंतिम_रक्कम: r.final_payable_compensation || r.total_compensation || r.final_amount,
           village: r.village,
           taluka: r.taluka,
           district: r.district,
           isTribal,
           tribalCertificateNo,
           tribalLag: '',
-          paymentStatus: r.payment_status || 'pending',
+          paymentStatus: r.compensation_distribution_status || r.payment_status || 'pending',
           kycStatus: r.kyc_status || 'pending',
           noticeGenerated: r.notice_generated || false,
+          noticeNumber: r.notice_number,
+          noticeDate: r.notice_date,
+          noticeContent: r.notice_content,
+          // Additional mappings for seamless integration
+          surveyNumber: r.new_survey_number || r.old_survey_number,
+          landowner_name: r.owner_name,
+          area: r.land_area_as_per_7_12 || r.land_area,
+          acquired_area: r.acquired_land_area,
+          final_compensation: r.final_payable_compensation || r.total_compensation,
+          compensation_amount: r.final_payable_compensation || r.total_compensation,
+          rate: r.approved_rate_per_hectare,
+          structures_amount: r.total_structures_amount || (r.structures + r.forest_trees + r.fruit_trees + r.wells_borewells),
+          solatium: r.solatium_amount,
           dataSource: 'english_complete'
         };
       });
@@ -885,7 +900,14 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      console.log('Assigning agent with notice data:', { landownerId, agentId, noticeData });
+      console.log('Assigning agent with notice data:', { landownerId, agentId, noticeData, extra });
+
+      // Validate required data before making API call
+      if (!landownerId || !agentId) {
+        console.error('Missing required parameters:', { landownerId, agentId });
+        setError('Landowner ID and Agent ID are required');
+        return false;
+      }
 
       // Make API call to assign agent - using POST method and correct field names
       const response = await apiCall('/agents/assign', {
@@ -894,6 +916,7 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
           landowner_id: landownerId, // Backend expects landowner_id
           agent_id: agentId, // Backend expects agent_id
           project_id: extra?.projectId, // Backend expects project_id
+          survey_number: extra?.surveyNumber, // Include survey number if available
           assignment_notes: `Notice generated: ${noticeData.noticeNumber}`
         })
       });
@@ -919,14 +942,23 @@ export const SaralProvider: React.FC<SaralProviderProps> = ({ children }) => {
         ));
         return true;
       } else {
-        // API call failed
-        console.error('API call failed:', response.message || 'Unknown error');
-        setError(response.message || 'Failed to assign agent');
+        // API call failed - check for specific error messages
+        const errorMessage = response.message || 'Failed to assign agent';
+        console.error('API call failed:', errorMessage);
+        
+        // Check if it's the "Landowner record not found" error
+        if (errorMessage.toLowerCase().includes('landowner record not found')) {
+          console.error(`Landowner record ${landownerId} not found in database. Survey: ${extra?.surveyNumber}, Project: ${extra?.projectId}`);
+          setError(`Landowner record not found. Please verify the record exists in the database. Record ID: ${landownerId}`);
+        } else {
+          setError(errorMessage);
+        }
         return false;
       }
     } catch (err) {
       console.error('Failed to assign agent with notice data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to assign agent with notice data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to assign agent with notice data';
+      setError(errorMessage);
       return false;
     } finally {
       setLoading(false);

@@ -364,6 +364,82 @@ router.get('/assignments/:agentId', authorize(['field_officer', 'officer', 'admi
 export default router; 
  
 // --- Extended endpoints for agent portal compatibility ---
+// Agent assignment (PUT variant for frontend compatibility)
+router.put('/assign', async (req, res) => {
+  try {
+    const { landowner_id, agent_id, project_id, assignment_notes, survey_number } = req.body;
+
+    if (!landowner_id || !agent_id || !project_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: landowner_id, agent_id, and project_id are required' 
+      });
+    }
+
+    // Find the landowner record
+    const landownerRecord = await MongoLandownerRecord.findById(landowner_id);
+    if (!landownerRecord) {
+      console.error(`Landowner record not found for ID: ${landowner_id}, Survey: ${survey_number}, Project: ${project_id}`);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Landowner record not found. Please verify the record exists in the database with the correct survey number and project.' 
+      });
+    }
+
+    // Find the agent
+    const agent = await User.findById(agent_id);
+    if (!agent) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Agent not found' 
+      });
+    }
+
+    // Find the project
+    const project = await Project.findById(project_id);
+    if (!project) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Project not found' 
+      });
+    }
+
+    // Update the landowner record with agent assignment
+    const updatedRecord = await MongoLandownerRecord.findByIdAndUpdate(
+      landowner_id,
+      {
+        assigned_agent: agent_id,
+        assigned_at: new Date(),
+        assignment_notes: assignment_notes || '',
+        updated_at: new Date()
+      },
+      { new: true }
+    ).populate('assigned_agent', 'name email phone');
+
+    // Return success response
+    return res.status(200).json({
+      success: true,
+      message: 'Agent assigned successfully',
+      data: {
+        landownerId: updatedRecord._id,
+        agentId: agent_id,
+        projectId: project_id,
+        assignedAt: updatedRecord.assigned_at,
+        assignmentNotes: updatedRecord.assignment_notes,
+        assignedAgent: updatedRecord.assigned_agent
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in PUT /agents/assign:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to assign agent',
+      error: error.message 
+    });
+  }
+});
+
 // KYC status update using path param variant (alias)
 router.put('/kyc-status/:recordId', async (req, res) => {
   try {

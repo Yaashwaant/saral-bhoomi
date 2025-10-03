@@ -218,9 +218,6 @@ const Dashboard2: React.FC = () => {
   const calculateStats = (recordsData: EnglishCompleteRecord[]) => {
     const activeRecords = recordsData.filter(r => r.is_active);
     
-    // Total land to be acquired = sum of all acquired_land_area
-    const totalAreaToBeAcquired = activeRecords.reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
-    
     // Total area acquired = sum of acquired_land_area where compensation is paid
     // Handle the actual database values: PAID, UNPAID (case-insensitive)
     const totalAcquiredArea = activeRecords
@@ -228,6 +225,10 @@ const Dashboard2: React.FC = () => {
         const status = (r.compensation_distribution_status || '').toUpperCase();
         return status === 'PAID';
       })
+      .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
+    
+    // Total area to be acquired = sum of ALL acquired_land_area from all active records
+    const totalAreaToBeAcquired = activeRecords
       .reduce((sum, r) => sum + (parseFloat(r.acquired_land_area?.toString() || '0') || 0), 0);
     
     const totalLandArea = activeRecords.reduce((sum, r) => sum + (parseFloat(r.land_area_as_per_7_12?.toString() || '0') || 0), 0);
@@ -384,6 +385,9 @@ const Dashboard2: React.FC = () => {
   const getOverallLandAcquisitionData = (): ChartData[] => {
     if (!stats) return [];
     
+    // Calculate remaining land to acquire = Total land to be acquired - Land already acquired
+    const remainingToAcquire = Math.max(0, stats.totalAreaToBeAcquired - stats.totalAcquiredArea);
+    
     return [
       {
         name: 'Acquired',
@@ -391,7 +395,7 @@ const Dashboard2: React.FC = () => {
       },
       {
         name: 'To Acquire',
-        value: stats.totalAreaToBeAcquired
+        value: remainingToAcquire
       }
     ];
   };
