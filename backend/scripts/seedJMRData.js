@@ -327,7 +327,7 @@ async function seedJMRData() {
     const projectResult = await db.collection('projects').insertMany(seedProjects);
     console.log(`✅ Inserted ${projectResult.insertedCount} projects`);
     
-    console.log('🏛️ Inserting districts...');
+    console.log('Inserting districts...');
     const districtResult = await db.collection('districts').insertMany(seedDistricts);
     console.log(`✅ Inserted ${districtResult.insertedCount} districts`);
     

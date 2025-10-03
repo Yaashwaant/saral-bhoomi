@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ResponsiveSlider from '@/components/ui/ResponsiveSlider';
+import LiveDashboardCards from '@/components/dashboard/LiveDashboardCards';
 
 const HtmlLoginPage = () => {
   const [showModal, setShowModal] = useState(false);
@@ -188,53 +189,8 @@ const HtmlLoginPage = () => {
         </div>
       </section>
 
-      {/* Live Dashboard Snapshot */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-6">
-          <h2 className="text-3xl font-extrabold text-text-dark-blue mb-12">Live Dashboard Snapshot</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Land to be Acquired (Ha)</div>
-                <span className="material-icons text-primary">map</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-primary">1,245</div>
-            </div>
-
-            <div className="p-5 rounded-lg shadow-sm border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Notices Generated</div>
-                <span className="material-icons text-indigo-600">receipt_long</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-indigo-600">2,560</div>
-            </div>
-
-            <div className="p-5 rounded-lg shadow-sm border border-teal-200 bg-gradient-to-br from-teal-50 to-teal-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Budget Spent To-Date</div>
-                <span className="material-icons text-teal-600">account_balance_wallet</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-teal-600">₹4.2 Cr</div>
-            </div>
-
-            <div className="p-5 rounded-lg shadow-sm border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Payments Completed</div>
-                <span className="material-icons text-emerald-600">task_alt</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-emerald-600">1,130</div>
-            </div>
-
-            <div className="p-5 rounded-lg shadow-sm border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Acquired Area (Ha)</div>
-                <span className="material-icons text-orange-600">terrain</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-orange-600">420</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Live Dashboard Cards */}
+      <LiveDashboardCards />
 
       {/* Stakeholders Section */}
       <section className="py-16 bg-white">

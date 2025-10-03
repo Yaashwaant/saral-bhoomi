@@ -44,6 +44,7 @@ import {
   AreaChart,
   Legend
 } from 'recharts';
+import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 
 interface EnglishCompleteRecord {
   _id: string;
@@ -1540,6 +1541,8 @@ const Dashboard2: React.FC = () => {
         </TabsContent>
 
       </Tabs>
+      {/* AI Assistant Launcher */}
+      <OfficerAIAssistant />
     </div>
   );
 };

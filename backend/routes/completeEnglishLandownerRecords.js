@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
 import Project from '../models/mongo/Project.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
 // GET /api/complete-english-landowner-records - Get all records with filtering and pagination
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const {
       page = 1,
@@ -95,7 +95,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // GET /api/complete-english-landowner-records/:id - Get single record
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const record = await CompleteEnglishLandownerRecord.findById(req.params.id)
       .populate('project_id', 'name project_number')
@@ -126,7 +126,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/complete-english-landowner-records - Create new record
-router.post('/', authenticateToken, async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
     const recordData = {
       ...req.body,
@@ -157,7 +157,7 @@ router.post('/', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/complete-english-landowner-records/:id - Update record
-router.put('/:id', authenticateToken, async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -196,7 +196,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 });
 
 // DELETE /api/complete-english-landowner-records/:id - Soft delete record
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const record = await CompleteEnglishLandownerRecord.findByIdAndUpdate(
       req.params.id,
@@ -230,7 +230,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/complete-english-landowner-records/bulk-create - Bulk create records
-router.post('/bulk-create', authenticateToken, async (req, res) => {
+router.post('/bulk-create', authMiddleware, async (req, res) => {
   try {
     const { records } = req.body;
     
@@ -267,7 +267,7 @@ router.post('/bulk-create', authenticateToken, async (req, res) => {
 });
 
 // POST /api/complete-english-landowner-records/upload-csv - Upload CSV file
-router.post('/upload-csv', authenticateToken, upload.single('csvFile'), async (req, res) => {
+router.post('/upload-csv', authMiddleware, upload.single('csvFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -406,7 +406,7 @@ router.post('/upload-csv', authenticateToken, upload.single('csvFile'), async (r
 });
 
 // GET /api/complete-english-landowner-records/stats/overview - Get overview statistics
-router.get('/stats/overview', authenticateToken, async (req, res) => {
+router.get('/stats/overview', authMiddleware, async (req, res) => {
   try {
     const { project_id } = req.query;
     const filter = { is_active: true };

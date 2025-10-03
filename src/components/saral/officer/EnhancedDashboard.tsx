@@ -13,7 +13,6 @@ import { BarChart3, Database, FileText, Banknote, Users, TrendingUp, TrendingDow
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { config } from '../../../config';
-import OfficerAIAssistant from '@/components/ai/OfficerAIAssistant';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ResponsiveContainer, BarChart as RBarChart, Bar, LineChart as RLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RPieChart, Pie, Cell, LabelList } from 'recharts';
 import { 
@@ -863,8 +862,6 @@ const EnhancedDashboard: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-      {/* AI Assistant Launcher */}
-      <OfficerAIAssistant projectId={selectedProject || undefined} />
     </div>
   );
 };

@@ -1,12 +1,12 @@
 import express from 'express';
 import Project from '../models/mongo/Project.js';
 import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authMiddleware, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // GET /api/projects - Get all projects with statistics
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const {
       page = 1,
@@ -128,7 +128,7 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 // GET /api/projects/dropdown/list - Get simplified project list for dropdowns
-router.get('/dropdown/list', authenticateToken, async (req, res) => {
+router.get('/dropdown/list', authMiddleware, async (req, res) => {
   try {
     const projects = await Project.find({ is_active: true })
       .select('_id name project_number')

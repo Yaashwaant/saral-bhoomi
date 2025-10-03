@@ -1,6 +1,6 @@
 import express from 'express';
 import CompleteEnglishLandownerRecord from '../models/mongo/CompleteEnglishLandownerRecord.js';
-import MongoProject from '../models/mongo/MongoProject.js';
+import MongoProject from '../models/mongo/Project.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { authorize } from '../middleware/auth.js';
 import multer from 'multer';

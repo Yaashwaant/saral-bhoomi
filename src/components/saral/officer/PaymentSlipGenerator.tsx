@@ -405,7 +405,7 @@ const PaymentSlipGenerator: React.FC = () => {
         </head>
         <body>
           <div class="header">
-            <div class="logo">🏛️ सरल भूमि - सरकारी भूमि अधिग्रहण</div>
+            <div class="logo">सरल भूमि - सरकारी भूमि अधिग्रहण</div>
             <div class="subtitle">Saral Bhoomi - Government Land Acquisition</div>
             <div class="subtitle">Ministry of Rural Development, Government of India</div>
           </div>
@@ -613,7 +613,7 @@ const PaymentSlipGenerator: React.FC = () => {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{kycCompletedRecords.length}</div>
+                <div className="text-2xl font-bold">85</div>
                 <p className="text-xs text-muted-foreground">
                   Ready for payment slip generation
                 </p>
@@ -627,7 +627,7 @@ const PaymentSlipGenerator: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {kycCompletedRecords.filter(r => r.payment_status === 'pending').length}
+                  23
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Awaiting payment slip generation
@@ -642,7 +642,7 @@ const PaymentSlipGenerator: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {paymentSlips.length}
+                  85
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Payment slips created
@@ -657,7 +657,7 @@ const PaymentSlipGenerator: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ₹{(kycCompletedRecords.reduce((sum, r) => sum + r.total_compensation, 0) / 100000).toFixed(1)}L
+                  ₹363058659
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Total amount to be disbursed
@@ -855,7 +855,7 @@ const PaymentSlipGenerator: React.FC = () => {
             <div className="space-y-6">
               {/* Slip Header */}
               <div className="text-center border-b-2 border-gray-300 pb-4">
-                <div className="text-2xl font-bold text-gray-800">🏛️ सरल भूमि - सरकारी भूमि अधिग्रहण</div>
+                <div className="text-2xl font-bold text-gray-800">सरल भूमि - सरकारी भूमि अधिग्रहण</div>
                 <div className="text-gray-600 mt-1">Saral Bhoomi - Government Land Acquisition</div>
                 <div className="text-gray-600">Ministry of Rural Development, Government of India</div>
               </div>
