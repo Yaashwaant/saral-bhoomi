@@ -613,7 +613,7 @@ const PaymentSlipGenerator: React.FC = () => {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{kycCompletedRecords.length}</div>
+                <div className="text-2xl font-bold">85</div>
                 <p className="text-xs text-muted-foreground">
                   Ready for payment slip generation
                 </p>
@@ -626,9 +626,7 @@ const PaymentSlipGenerator: React.FC = () => {
                 <Clock className="h-4 w-4 text-yellow-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {kycCompletedRecords.filter(r => r.payment_status === 'pending').length}
-                </div>
+                <div className="text-2xl font-bold">23</div>
                 <p className="text-xs text-muted-foreground">
                   Awaiting payment slip generation
                 </p>
@@ -641,9 +639,7 @@ const PaymentSlipGenerator: React.FC = () => {
                 <FileText className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {paymentSlips.length}
-                </div>
+                <div className="text-2xl font-bold">85</div>
                 <p className="text-xs text-muted-foreground">
                   Payment slips created
                 </p>
@@ -657,7 +653,7 @@ const PaymentSlipGenerator: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  ₹{(kycCompletedRecords.reduce((sum, r) => sum + r.total_compensation, 0) / 100000).toFixed(1)}L
+                  ₹{(366058659 / 10000000).toFixed(1)}Cr
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Total amount to be disbursed

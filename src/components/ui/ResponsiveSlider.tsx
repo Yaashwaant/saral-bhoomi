@@ -130,28 +130,28 @@ const ResponsiveSlider: React.FC = () => {
         label: 'Projects',
         items: [
           {
-            title: 'Bullet Train Project',
+            title: 'Mumbai-Ahmedabad High-Speed Rail Project',
             description: 'High-speed bullet train corridor enhancing regional connectivity.',
             image: '/projects/bullet-train.jpg',
-            projectHints: ['bullet train', 'bullet'],
+            projectHints: ['bullet train', 'bullet', 'mumbai ahmedabad', 'high speed rail'],
           },
           {
-            title: 'Dedicated Freight Corridor',
+            title: 'Dedicated Freight Corridor Project',
             description: 'Modern freight corridor to boost logistics efficiency.',
             image: '/projects/dfcc.jpg',
-            projectHints: ['dfc', 'dfcc', 'dedicated freight corridor'],
+            projectHints: ['dfc', 'dfcc', 'dedicated freight corridor', 'western freight'],
           },
           {
-            title: 'Vadodara Mumbai Expressway',
+            title: 'Mumbai-Vadodara Expressway Project',
             description: 'Access-controlled expressway reducing travel time.',
             image: '/projects/mumbai-vadodara-highway.jpg',
-            projectHints: ['vadodara mumbai', 'khapoli', 'expressway'],
+            projectHints: ['vadodara mumbai', 'mumbai vadodara', 'khapoli', 'expressway'],
           },
           {
-            title: 'Vadhavan Port Project',
+            title: 'Greenfield Highway (Vadhavan Port) Project',
             description: 'Deep-water port initiative to expand trade capacity.',
             image: '/projects/vadhvan-port-project.jpg',
-            projectHints: ['vadhavan', 'port'],
+            projectHints: ['vadhavan', 'port', 'port development', 'greenfield highway'],
           },
         ],
       },
@@ -305,13 +305,13 @@ const ResponsiveSlider: React.FC = () => {
 
 const SliderCard = React.memo(({ item, onFindMore }: { item: CardItem; onFindMore?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) => {
   const fallbacks: Record<string, string> = {
-    'Bullet Train Project':
+    'Mumbai-Ahmedabad High-Speed Rail Project':
       'https://images.unsplash.com/photo-1517154421773-0529e4e38bb4?auto=format&fit=crop&w=1600&q=60',
-    'Dedicated Freight Corridor':
+    'Dedicated Freight Corridor Project':
       'https://images.unsplash.com/photo-1505247964246-1f0a90443c36?auto=format&fit=crop&w=1600&q=60',
-    'Vadodara Mumbai Expressway':
+    'Mumbai-Vadodara Expressway Project':
       'https://images.unsplash.com/photo-1529070538774-1843cb3265df?auto=format&fit=crop&w=1600&q=60',
-    'Vadhavan Port Project':
+    'Greenfield Highway (Vadhavan Port) Project':
       'https://images.unsplash.com/photo-1505839673365-e3971f8d8b1b?auto=format&fit=crop&w=1600&q=60',
   };
   return (
@@ -324,7 +324,7 @@ const SliderCard = React.memo(({ item, onFindMore }: { item: CardItem; onFindMor
           alt={item.title}
           loading="lazy"
           onError={(e) => {
-            const fb = fallbacks[item.title] || fallbacks['Bullet Train Project'];
+            const fb = fallbacks[item.title] || fallbacks['Mumbai-Ahmedabad High-Speed Rail Project'];
             e.currentTarget.src = fb;
           }}
           className="h-full w-full object-cover"
