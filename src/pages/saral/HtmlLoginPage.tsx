@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ResponsiveSlider from '@/components/ui/ResponsiveSlider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { config } from '@/config';
 
 const HtmlLoginPage = () => {
   const [showModal, setShowModal] = useState(false);
@@ -10,6 +12,7 @@ const HtmlLoginPage = () => {
   const [language, setLanguage] = useState('marathi');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState<any>(null);
   const navigate = useNavigate();
   const { login, isAuthenticated, user } = useAuth();
 
@@ -25,6 +28,23 @@ const HtmlLoginPage = () => {
       navigate(redirectPath, { replace: true });
     }
   }, [isAuthenticated, user, navigate]);
+
+  // Fetch dashboard stats for live cards
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`${config.API_BASE_URL}/api/english-complete-records/stats`);
+        if (response.ok) {
+          const data = await response.json();
+          setStats(data);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   // Handle login form submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -192,47 +212,76 @@ const HtmlLoginPage = () => {
       <section className="py-16 bg-white">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl font-extrabold text-text-dark-blue mb-12">Live Dashboard Snapshot</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="p-5 rounded-lg shadow-sm border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Land to be Acquired (Ha)</div>
-                <span className="material-icons text-primary">map</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-primary">1,245</div>
-            </div>
+          {stats ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-700">Total Area to be Acquired</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-800">{stats.totalAreaToBeAcquired.toFixed(2)} Ha</div>
+                  <p className="text-xs text-slate-500">
+                    Total hectares needed for projects
+                  </p>
+                </CardContent>
+              </Card>
 
-            <div className="p-5 rounded-lg shadow-sm border border-indigo-200 bg-gradient-to-br from-indigo-50 to-indigo-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Notices Generated</div>
-                <span className="material-icons text-indigo-600">receipt_long</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-indigo-600">2,560</div>
-            </div>
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-emerald-700">Total Acquired Area</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-emerald-800">{stats.totalAcquiredArea.toFixed(2)} Ha</div>
+                  <p className="text-xs text-emerald-600">
+                    Hectares acquired for projects
+                  </p>
+                </CardContent>
+              </Card>
 
-            <div className="p-5 rounded-lg shadow-sm border border-teal-200 bg-gradient-to-br from-teal-50 to-teal-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Budget Spent To-Date</div>
-                <span className="material-icons text-teal-600">account_balance_wallet</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-teal-600">₹4.2 Cr</div>
-            </div>
+              <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-amber-700">Total Compensation Paid</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-amber-800">₹{(stats.totalCompensationPaid / 10000000).toFixed(1)}Cr</div>
+                  <p className="text-xs text-amber-600">
+                    Compensation paid till now
+                  </p>
+                </CardContent>
+              </Card>
 
-            <div className="p-5 rounded-lg shadow-sm border border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Payments Completed</div>
-                <span className="material-icons text-emerald-600">task_alt</span>
-              </div>
-              <div className="mt-2 text-3xl font-extrabold text-emerald-600">1,130</div>
+              <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-indigo-700">Total Compensation</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-indigo-800">₹{(stats.totalCompensation / 10000000).toFixed(1)}Cr</div>
+                  <p className="text-xs text-indigo-600">
+                    Total allocated compensation
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-
-            <div className="p-5 rounded-lg shadow-sm border border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-text-dark-blue">Total Acquired Area (Ha)</div>
-                <span className="material-icons text-orange-600">terrain</span>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
+                <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                <div className="h-8 bg-gray-300 rounded"></div>
               </div>
-              <div className="mt-2 text-3xl font-extrabold text-orange-600">420</div>
+              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
+                <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                <div className="h-8 bg-gray-300 rounded"></div>
+              </div>
+              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
+                <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                <div className="h-8 bg-gray-300 rounded"></div>
+              </div>
+              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
+                <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                <div className="h-8 bg-gray-300 rounded"></div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 

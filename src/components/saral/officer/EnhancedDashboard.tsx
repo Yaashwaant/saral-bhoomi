@@ -863,8 +863,6 @@ const EnhancedDashboard: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-      {/* AI Assistant Launcher */}
-      <OfficerAIAssistant projectId={selectedProject || undefined} />
     </div>
   );
 };
