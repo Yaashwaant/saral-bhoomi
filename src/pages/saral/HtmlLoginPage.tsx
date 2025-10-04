@@ -213,7 +213,7 @@ const HtmlLoginPage = () => {
         <div className="container mx-auto px-6">
           <h2 className="text-3xl font-extrabold text-text-dark-blue mb-12">Live Dashboard Snapshot</h2>
           {stats ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-slate-700">Total Area to be Acquired</CardTitle>
@@ -263,23 +263,54 @@ const HtmlLoginPage = () => {
               </Card>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
-                <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                <div className="h-8 bg-gray-300 rounded"></div>
-              </div>
-              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
-                <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                <div className="h-8 bg-gray-300 rounded"></div>
-              </div>
-              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
-                <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                <div className="h-8 bg-gray-300 rounded"></div>
-              </div>
-              <div className="p-5 rounded-lg shadow-sm border border-gray-200 bg-gray-50 animate-pulse">
-                <div className="h-4 bg-gray-300 rounded mb-2"></div>
-                <div className="h-8 bg-gray-300 rounded"></div>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-700">Total Area to be Acquired</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-800 animate-pulse bg-slate-300 rounded h-8 w-20"></div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Total hectares needed for projects
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-emerald-700">Total Acquired Area</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-emerald-800 animate-pulse bg-emerald-300 rounded h-8 w-20"></div>
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Hectares acquired for projects
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-amber-700">Total Compensation Paid</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-amber-800 animate-pulse bg-amber-300 rounded h-8 w-20"></div>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Compensation paid till now
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-indigo-700">Total Compensation</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-indigo-800 animate-pulse bg-indigo-300 rounded h-8 w-20"></div>
+                  <p className="text-xs text-indigo-600 mt-1">
+                    Total allocated compensation
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
