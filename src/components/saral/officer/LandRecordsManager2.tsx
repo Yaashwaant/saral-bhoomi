@@ -161,6 +161,8 @@ const LandRecordsManager2: React.FC = () => {
     }
 
     setLoading(true);
+    setLandRecords([]); // Clear existing records to prevent stale data
+    
     try {
       const authToken = localStorage.getItem('authToken') || 'demo-jwt-token';
       const response = await fetch(`${config.API_BASE_URL}/landowners2-english/${selectedProject}`, {
@@ -175,7 +177,8 @@ const LandRecordsManager2: React.FC = () => {
       }
 
       const data = await response.json();
-      setLandRecords(data.data || []);
+      const records = data.data || [];
+      setLandRecords(records);
       
       // Only show the 30 core fields specified for Land Records Management (serial_number removed for dynamic generation)
       const coreFields = [
@@ -191,10 +194,11 @@ const LandRecordsManager2: React.FC = () => {
       ];
       setDynamicColumns(coreFields);
       
-      toast.success(`Loaded ${data.data?.length || 0} land records`);
+      toast.success(`Loaded ${records.length} land records`);
     } catch (error) {
       console.error('Error loading land records:', error);
       toast.error('Failed to load land records');
+      setLandRecords([]); // Ensure empty state on error
     } finally {
       setLoading(false);
     }
@@ -220,15 +224,20 @@ const LandRecordsManager2: React.FC = () => {
     if (!searchTerm) return true;
     
     const searchLower = searchTerm.toLowerCase();
-    return (
-      record.owner_name?.toLowerCase().includes(searchLower) ||
-      record.village?.toLowerCase().includes(searchLower) ||
-      record.taluka?.toLowerCase().includes(searchLower) ||
-      record.district?.toLowerCase().includes(searchLower) ||
-      String(record.serial_number).toLowerCase().includes(searchLower) ||
-      record.old_survey_number?.toLowerCase().includes(searchLower) ||
-      record.new_survey_number?.toLowerCase().includes(searchLower)
-    );
+    try {
+      return (
+        (record.owner_name || record.खातेदाराचे_नांव || '')?.toLowerCase().includes(searchLower) ||
+        (record.village || record.Village || '')?.toLowerCase().includes(searchLower) ||
+        (record.taluka || record.Taluka || '')?.toLowerCase().includes(searchLower) ||
+        (record.district || record.District || '')?.toLowerCase().includes(searchLower) ||
+        String(record.serial_number || record.अ_क्र || '').toLowerCase().includes(searchLower) ||
+        (record.old_survey_number || record.जुना_स_नं || '')?.toLowerCase().includes(searchLower) ||
+        (record.new_survey_number || record.नविन_स_नं || '')?.toLowerCase().includes(searchLower)
+      );
+    } catch (error) {
+      console.error('Error filtering record:', error, record);
+      return false;
+    }
   });
   const handleEdit = (record: LandRecord2) => {
     setEditingRecord(record.id || record._id?.toString()!);
@@ -985,7 +994,7 @@ const LandRecordsManager2: React.FC = () => {
                                 className="h-8"
                               />
                             ) : (
-                              record.खातेदाराचे_नांव || record.old_survey_number || ''
+                              record.जुना_स_नं || record.old_survey_number || ''
                             )}
                           </TableCell>
                           <TableCell>
