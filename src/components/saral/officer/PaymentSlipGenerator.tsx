@@ -135,7 +135,7 @@ const PaymentSlipGenerator: React.FC = () => {
       const baseVillages = ['Kaholi', 'Umbarpada', 'Bapane', 'Kasu', 'Khanivde', 'Saphale'];
       const names = ['Ram Patil', 'Mira Bai Patil', 'Shankar Jadhav', 'Anita Deshmukh', 'Kamalakar Mandal', 'Suresh Pawar'];
       const now = Date.now();
-      return Array.from({ length: 6 }).map((_, idx) => ({
+      return Array.from({ length: 85 }).map((_, idx) => ({
         slip_number: `SLIP-${projectId}-${String(idx + 1).padStart(3, '0')}`,
         generated_date: new Date(now - idx * 86400000).toISOString(),
         landowner_details: {
