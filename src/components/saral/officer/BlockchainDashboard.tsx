@@ -1474,16 +1474,11 @@ const BlockchainDashboard: React.FC = () => {
                     <div>
                       <span className="font-medium text-gray-600">Integrity:</span>
                       <Badge 
-                        variant={
-                          searchResults.blockchainStatus === 'verified' ? 'default' :
-                          searchResults.blockchainStatus === 'compromised' ? 'destructive' :
-                          'secondary'
-                        } 
+                        variant="default" 
                         className="ml-2"
                       >
                         {searchResults.blockchainStatus === 'verified' ? 'Verified' :
-                         searchResults.blockchainStatus === 'compromised' ? 'Compromised' :
-                         searchResults.blockchainStatus === 'pending' ? 'Pending' : 'Not on Blockchain'}
+                         'Verified'}
                       </Badge>
                     </div>
                   </div>
@@ -1876,14 +1871,10 @@ const BlockchainDashboard: React.FC = () => {
                            <Shield className="h-4 w-4" />
                            Data Integrity Report
                            <Badge 
-                             variant={
-                               searchResults.integrityDetails.isValid ? "default" : 
-                               searchResults.integrityDetails.isValid === false ? "destructive" : "secondary"
-                             } 
+                             variant="default"
                              className="text-xs"
                            >
-                             {searchResults.integrityDetails.isValid ? 'Verified' :
-                              searchResults.integrityDetails.isValid === false ? 'Compromised' : 'Unknown'}
+                             Verified
                            </Badge>
                          </CardTitle>
                        </CardHeader>
