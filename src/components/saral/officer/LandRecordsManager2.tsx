@@ -221,13 +221,13 @@ const LandRecordsManager2: React.FC = () => {
     
     const searchLower = searchTerm.toLowerCase();
     return (
-      record.खातेदाराचे_नांव?.toLowerCase().includes(searchLower) ||
-      record.Village?.toLowerCase().includes(searchLower) ||
-      record.Taluka?.toLowerCase().includes(searchLower) ||
-      record.District?.toLowerCase().includes(searchLower) ||
-      record.अ_क्र?.toLowerCase().includes(searchLower) ||
-      record.जुना_स_नं?.toLowerCase().includes(searchLower) ||
-      record.नविन_स_नं?.toLowerCase().includes(searchLower)
+      record.owner_name?.toLowerCase().includes(searchLower) ||
+      record.village?.toLowerCase().includes(searchLower) ||
+      record.taluka?.toLowerCase().includes(searchLower) ||
+      record.district?.toLowerCase().includes(searchLower) ||
+      String(record.serial_number).toLowerCase().includes(searchLower) ||
+      record.old_survey_number?.toLowerCase().includes(searchLower) ||
+      record.new_survey_number?.toLowerCase().includes(searchLower)
     );
   });
   const handleEdit = (record: LandRecord2) => {
